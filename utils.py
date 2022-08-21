@@ -95,17 +95,16 @@ def split_data_into_batches(
     batch_indices = np.arange(nb_samples)
     
     # shuffling the batch indices
-    if nb_shuffles > 0:
-        np.random.seed(seed)
-        for shuffle_index in range(nb_shuffles):
-            np.random.shuffle(batch_indices)
-        np.random.seed(None) # resetting the seed
+    np.random.seed(seed)
+    for shuffle_index in range(nb_shuffles):
+        np.random.shuffle(batch_indices)
+    np.random.seed(None) # resetting the seed
     
     if normalize_batches:
         # here we're assuming that each sample does NOT have a standard
         # deviation equal to zero (i.e. we're assuming that there are at
         # least 2 different pixel values in each sample)
-        data = (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
+        normalized_data = (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
     
     for batch_index in range(0, nb_samples, batch_size):
         indices_of_current_batch =  batch_indices[batch_index : batch_index + batch_size]
@@ -116,7 +115,10 @@ def split_data_into_batches(
             assert batch_index == nb_samples - nb_samples % batch_size
             assert indices_of_current_batch.size == nb_samples % batch_size
         
-        data_current_batch = data[indices_of_current_batch, :]
+        if normalize_batches:
+            data_current_batch = normalized_data[indices_of_current_batch, :]
+        else:
+            data_current_batch = data[indices_of_current_batch, :]
         labels_current_batch = labels[indices_of_current_batch, :]
         
         batches["data"].append(data_current_batch)
