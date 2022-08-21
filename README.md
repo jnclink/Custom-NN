@@ -10,7 +10,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 ## Description
 
-The main purpose of this repo is to experiment with an MLP that is made **from scratch**, (almost) only using the NumPy module. By definition, an [MLP](https://en.wikipedia.org/wiki/Multilayer_perceptron) is a Neural Network made of a succession of Dense (i.e. fully connected) layers.
+The main purpose of this repo is to experiment with an [MLP](https://en.wikipedia.org/wiki/Multilayer_perceptron) that is made **from scratch**, (almost) only using the NumPy module.
 
 Dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database)
 
