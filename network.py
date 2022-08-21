@@ -634,17 +634,31 @@ class Network:
         np.random.seed(None) # resetting the seed
         
         random_test_samples = X_test[random_test_indices, :]
-        predicted_digit_values = self.predict(random_test_samples, return_logits=False)
+        logits = self.predict(random_test_samples)
+        predicted_digit_values = categorical_to_vector(logits)
+        
+        # by default
+        confidence_level_precision = 0
+        
+        # in order to actually get probability distributions, we're normalizing
+        # the logits (in case we're using a final activation function that isn't
+        # softmax, like sigmoid for instance)
+        logits /= np.sum(logits, axis=1, keepdims=True)
         
         # ------------------------------------------------------------------ #
         
         # displaying the predictions
         
-        fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(12, 8))
-        plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples", fontsize=15)
+        fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(16, 8))
+        plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples (and their confidence level)", fontsize=15)
         
         for image_index in range(nb_predictions):
             predicted_digit_value = predicted_digit_values[image_index]
+            confidence_level_first_choice = 100 * logits[image_index, predicted_digit_value]
+            
+            second_choice_predicted_digit = np.argsort(logits[image_index, :])[::-1][1]
+            confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_digit]
+            
             actual_digit_value = y_test_flat[random_test_indices[image_index]]
             
             random_test_image_2D = random_test_samples[image_index, :].reshape(default_image_size)
@@ -652,7 +666,12 @@ class Network:
             row_index = image_index // nb_columns
             column_index = image_index % nb_columns
             ax[row_index, column_index].imshow(random_test_image_2D, cmap="gray")
-            ax[row_index, column_index].set_title(f"Predicted : {predicted_digit_value}\nActual : {actual_digit_value}")
+            
+            title = f"1st prediction : {predicted_digit_value} ({confidence_level_first_choice:.{confidence_level_precision}f}%)\n2nd prediction : {second_choice_predicted_digit} ({confidence_level_second_choice:.{confidence_level_precision}f}%)\nActual value : {actual_digit_value}"
+            ax[row_index, column_index].set_title(title)
+            ax[row_index, column_index].axis("off")
+        
+        plt.subplots_adjust(wspace=0.5, top=0.85)
         
         plt.show()
 
