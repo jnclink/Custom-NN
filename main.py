@@ -130,8 +130,8 @@ if __name__ == "__main__":
     
     # Hidden layers
     
-    for nb_neurons in nb_neurons_hidden_dense_layers:
-        network.add(DenseLayer(nb_neurons, seed=seed_network))
+    for hidden_layer_index, nb_neurons in enumerate(nb_neurons_hidden_dense_layers):
+        network.add(DenseLayer(nb_neurons, seed=seed_network+hidden_layer_index))
         
         """
         Possible relevant choices here (the activation name is case insensitive) :
@@ -147,13 +147,13 @@ if __name__ == "__main__":
         
         if use_dropout_layers:
             # Adding a dropout regularization layer
-            network.add(DropoutLayer(dropout_rate, seed=seed_network))
+            network.add(DropoutLayer(dropout_rate, seed=seed_network+hidden_layer_index))
     
     # ---------------------------------------------------------------------- #
     
     # Output layer
     
-    network.add(DenseLayer(nb_classes, seed=seed_network))
+    network.add(DenseLayer(nb_classes, seed=seed_network+len(nb_neurons_hidden_dense_layers)))
     
     """
     Possible relevant choices here (the activation name is case insensitive) :

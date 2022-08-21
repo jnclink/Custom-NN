@@ -177,7 +177,7 @@ class ActivationLayer(Layer):
         #      scalars), the backpropagation formula won't be the same as the other
         #      activations. Essentially, the element-wise multiplication becomes
         #      an actual matrix multiplication (cf. the `backward_propagation` method)
-        self.is_softmax = (self.activation == softmax)
+        self._is_softmax = (self.activation == softmax)
         
         self.nb_trainable_params = 0
     
@@ -199,7 +199,7 @@ class ActivationLayer(Layer):
         """
         activation_prime_of_input = self.activation_prime(self.input, **self.activation_kwargs)
         
-        if not(self.is_softmax):
+        if not(self._is_softmax):
             # element-wise multiplication
             input_error = output_error * activation_prime_of_input
         else:
@@ -216,7 +216,7 @@ class ActivationLayer(Layer):
             input_error = (output_error.reshape(batch_size, 1, output_error.shape[1]) @ activation_prime_of_input).reshape(output_error.shape)
             
             --> Basically, we're using 3D matrix multiplication tricks to make
-                the computations a bit faster !
+                the computations a bit more compact !
             """
         
         return input_error
@@ -247,19 +247,18 @@ class DropoutLayer(Layer):
         precision = 2 # by default
         return f"{self.__class__.__name__}({self.dropout_rate:.{precision}f})"
     
-    def generate_random_dropout_matrix(self, dims, dtype):
-        # `dims` refers to the dimensions of the (2D) dropout matrix
-        assert len(dims) == 2
+    def generate_random_dropout_matrix(self, shape, dtype):
+        assert len(shape) == 2
+        batch_size, output_size = shape
         
-        dropout_matrix = self.scaling_factor * np.ones(dims, dtype=dtype)
-        nb_of_values_to_drop_per_input_sample = max(int(self.dropout_rate * dims[1]), 1)
-        
-        choices_for_dropped_indices = np.arange(dims[1])
+        dropout_matrix = self.scaling_factor * np.ones(shape, dtype=dtype)
+        nb_of_values_to_drop_per_input_sample = max(int(self.dropout_rate * output_size), 1)
+        choices_for_dropped_indices = np.arange(output_size)
         
         np.random.seed(self.seed)
-        for iteration_index in range(dims[0]):
+        for batch_sample_index in range(batch_size):
             indices_of_randomly_dropped_values = np.random.choice(choices_for_dropped_indices, size=(nb_of_values_to_drop_per_input_sample, ))
-            dropout_matrix[iteration_index, indices_of_randomly_dropped_values] = self.deactivated_value
+            dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
         np.random.seed(None) # resetting the seed
         
         return dropout_matrix
@@ -272,7 +271,7 @@ class DropoutLayer(Layer):
         
         if training:
             # NB : The dropout matrix is randomly re-generated from scratch
-            #      EVERY TIME the forwarding method is called (during the
+            #      every time the forwarding method is called (during the
             #      training phase)
             self.dropout_matrix  = self.generate_random_dropout_matrix(
                 self.input.shape,
@@ -280,7 +279,7 @@ class DropoutLayer(Layer):
             )
             self.output = self.input * self.dropout_matrix
         else:
-            # the "Dropout process" doesn't apply to the validation and testing sets
+            # the "dropout process" doesn't apply to the validation and testing sets
             self.output = self.input
         
         return self.output

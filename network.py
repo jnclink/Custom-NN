@@ -581,7 +581,7 @@ class Network:
         if len(y_test.shape) == 1:
            y_test_flat = y_test.copy()
         else:
-            # here, `y_true` is a one-hot encoded matrix
+            # here, `y_test` is a one-hot encoded matrix
             assert len(y_test.shape) == 2
             y_test_flat = categorical_to_vector(y_test)
         
@@ -625,29 +625,34 @@ class Network:
             assert len(y_test.shape) == 2
             y_test_flat = categorical_to_vector(y_test)
         
+        # ------------------------------------------------------------------ #
+        
+        # doing the predictions of the random test samples
+        
+        np.random.seed(seed)
+        random_test_indices = np.random.choice(np.arange(nb_test_samples), size=(nb_predictions, ))
+        np.random.seed(None) # resetting the seed
+        
+        random_test_samples = X_test[random_test_indices, :]
+        predicted_digit_values = self.predict(random_test_samples, return_logits=False)
+        
+        # ------------------------------------------------------------------ #
+        
+        # displaying the predictions
+        
         fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(12, 8))
         plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples", fontsize=15)
         
-        np.random.seed(seed)
-        
         for image_index in range(nb_predictions):
-            random_test_index = np.random.randint(0, nb_test_samples)
+            predicted_digit_value = predicted_digit_values[image_index]
+            actual_digit_value = y_test_flat[random_test_indices[image_index]]
             
-            # prediction of 1 random test image/sample
-            random_test_image = X_test[random_test_index, :].reshape((1, nb_pixels_per_image))
-            predicted_digit_value = self.predict(random_test_image, return_logits=False)[0]
-            
-            actual_digit_value = y_test_flat[random_test_index]
-            
-            random_test_image_2D = random_test_image.reshape(default_image_size)
+            random_test_image_2D = random_test_samples[image_index, :].reshape(default_image_size)
             
             row_index = image_index // nb_columns
             column_index = image_index % nb_columns
             ax[row_index, column_index].imshow(random_test_image_2D, cmap="gray")
             ax[row_index, column_index].set_title(f"Predicted : {predicted_digit_value}\nActual : {actual_digit_value}")
-        
-        # resetting the seed
-        np.random.seed(None)
         
         plt.show()
 
