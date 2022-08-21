@@ -1,0 +1,9 @@
+numpy
+pandas
+matplotlib
+
+# only used for the `sklearn.model_selection.train_test_split` method
+sklearn
+
+# only used for the `tensorflow.keras.datasets.mnist.load_data` method
+tensorflow
