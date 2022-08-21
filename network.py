@@ -61,8 +61,8 @@ class Network:
     
     def __str__(self):
         # using the default summary kwargs (except for `print_summary`, which
-        # has to be set to `False` here, in order to prevent a duplicate print
-        # of the summary)
+        # has to be set to `False` here, in order to return a string, and not
+        # a `NoneType`)
         return self.summary(
             initial_spacing=1,
             column_separator="|",
@@ -223,6 +223,7 @@ class Network:
             print(str_summary)
             return
         
+        # for the `__str__` method only
         return str_summary
     
     
@@ -598,6 +599,10 @@ class Network:
     
     
     def display_some_predictions(self, X_test, y_test, seed=None):
+        """
+        Displays predictions of random test samples
+        """
+        
         if self.history is None:
             print("\nNetwork.display_some_predictions - ERROR : You haven't trained the network yet !")
             sys.exit(-1)
