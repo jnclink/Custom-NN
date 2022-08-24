@@ -168,7 +168,7 @@ def confusion_matrix(y_true, y_pred):
 
 def print_confusion_matrix(
         conf_matrix,
-        normalize="lines",
+        normalize="rows",
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True,
@@ -180,7 +180,7 @@ def print_confusion_matrix(
     
     assert isinstance(normalize, str)
     normalize = normalize.lower()
-    if normalize not in ["lines", "columns", "no"]:
+    if normalize not in ["rows", "columns", "no"]:
         print(f"\nget_confusion_matrix_as_dataframe (utils.py) - ERROR - Unrecognized value for the `normalize` kwarg : \"{normalize}\"")
         sys.exit(-1)
     
@@ -205,12 +205,20 @@ def print_confusion_matrix(
     if normalize != "no":
         normalized_conf_matrix = np.float_(np.copy(conf_matrix))
         for class_index in range(nb_classes):
-            if normalize == "lines":
+            if normalize == "rows":
                 # computing the PRECISION of the (predicted) class `class_index`
-                normalized_conf_matrix[class_index, :] /= np.sum(normalized_conf_matrix[class_index, :])
+                sum_of_row = np.sum(normalized_conf_matrix[class_index, :])
+                if sum_of_row == 0:
+                    normalized_conf_matrix[class_index, :] = 0
+                else:
+                    normalized_conf_matrix[class_index, :] /= sum_of_row
             elif normalize == "columns":
-                # computing the RECALL of the (actual) class `class_index`
-                normalized_conf_matrix[:, class_index] /= np.sum(normalized_conf_matrix[:, class_index])
+                # computing the RECALL of the (actual) class `class_index` (note
+                # that `sum_of_column` cannot be equal to zero, otherwise the number
+                # of classes would be strictly less than `nb_classes`, which is
+                # absurd)
+                sum_of_column = np.sum(normalized_conf_matrix[:, class_index])
+                normalized_conf_matrix[:, class_index] /= sum_of_column
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         conf_matrix_as_dataframe = pd.DataFrame(normalized_conf_matrix, index=class_names, columns=class_names)
         for class_name in class_names:

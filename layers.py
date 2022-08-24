@@ -37,7 +37,7 @@ class Layer(ABC):
         pass
     
     @abstractmethod
-    def backward_propagation(self, output_error, learning_rate):
+    def backward_propagation(self, output_gradient, learning_rate):
         """
         Computes dE/dX for a given dE/dY, and updates the trainable parameters
         if there are any
@@ -65,13 +65,13 @@ class InputLayer(Layer):
         self.output = self.input
         return self.output
     
-    def backward_propagation(self, output_error, learning_rate):
+    def backward_propagation(self, output_gradient, learning_rate):
         """
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        input_error = output_error
-        return input_error
+        input_gradient = output_gradient
+        return input_gradient
 
 
 ##############################################################################
@@ -113,29 +113,29 @@ class DenseLayer(Layer):
         self.input  = input_data
         
         # duplicating the biases for batch processing
-        batch_size = input_data.shape[0]
+        batch_size = self.input.shape[0]
         duplicated_biases = np.tile(self.biases, (batch_size, 1))
         
         self.output = self.input @ self.weights + duplicated_biases
         return self.output
     
-    def backward_propagation(self, output_error, learning_rate):
+    def backward_propagation(self, output_gradient, learning_rate):
         """
-        Computes dE/dW and dE/dB for a given output_error=dE/dY, and returns
-        input_error=dE/dX
+        Computes dE/dW and dE/dB for a given output_gradient=dE/dY, and returns
+        input_gradient=dE/dX
         """
-        input_error = output_error @ self.weights.T # = dE/dX
+        input_gradient = output_gradient @ self.weights.T # = dE/dX
         
-        # error averaging for batch processing
-        batch_size = output_error.shape[0]
-        weights_error = (1.0 / batch_size) * self.input.T @ output_error # = dE/dW
-        biases_error = np.mean(output_error, axis=0, keepdims=True) # = dE/dB
+        # gradient averaging for batch processing
+        batch_size = output_gradient.shape[0]
+        weights_gradient = (1.0 / batch_size) * self.input.T @ output_gradient # = dE/dW
+        biases_gradient = np.mean(output_gradient, axis=0, keepdims=True) # = dE/dB
         
-        # updating the trainable parameters
-        self.weights -= learning_rate * weights_error
-        self.biases  -= learning_rate * biases_error
+        # updating the trainable parameters (using gradient descent)
+        self.weights -= learning_rate * weights_gradient
+        self.biases  -= learning_rate * biases_gradient
         
-        return input_error
+        return input_gradient
 
 
 ##############################################################################
@@ -165,7 +165,7 @@ class ActivationLayer(Layer):
         self.activation_name = activation_name
         self.activation, self.activation_prime = self.AVAILABLE_ACTIVATIONS[self.activation_name]
         
-        if self.activation == leaky_ReLU:
+        if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
             self.activation_kwargs = {
                 "leaky_ReLU_coeff" : kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
@@ -177,7 +177,7 @@ class ActivationLayer(Layer):
         #      scalars), the backpropagation formula won't be the same as the other
         #      activations. Essentially, the element-wise multiplication becomes
         #      an actual matrix multiplication (cf. the `backward_propagation` method)
-        self._is_softmax = (self.activation == softmax)
+        self._is_softmax = (self.activation_name == "softmax")
         
         self.nb_trainable_params = 0
     
@@ -192,7 +192,7 @@ class ActivationLayer(Layer):
         self.output = self.activation(self.input, **self.activation_kwargs)
         return self.output
     
-    def backward_propagation(self, output_error, learning_rate):
+    def backward_propagation(self, output_gradient, learning_rate):
         """
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
@@ -201,25 +201,25 @@ class ActivationLayer(Layer):
         
         if not(self._is_softmax):
             # element-wise multiplication
-            input_error = output_error * activation_prime_of_input
+            input_gradient = output_gradient * activation_prime_of_input
         else:
-            batch_size = output_error.shape[0]
+            batch_size = output_gradient.shape[0]
             
-            input_error = np.zeros(output_error.shape, dtype=output_error.dtype)
+            input_gradient = np.zeros(output_gradient.shape, dtype=output_gradient.dtype)
             for batch_sample_index in range(batch_size):
                 # matrix multiplication (NOT element-wise multiplication)
-                input_error[batch_sample_index, :] = output_error[batch_sample_index, :] @ activation_prime_of_input[batch_sample_index]
+                input_gradient[batch_sample_index, :] = output_gradient[batch_sample_index, :] @ activation_prime_of_input[batch_sample_index]
             
             """
             The previous code block is completely equivalent to the following line :
             
-            input_error = (output_error.reshape(batch_size, 1, output_error.shape[1]) @ activation_prime_of_input).reshape(output_error.shape)
+            input_gradient = (output_gradient.reshape(batch_size, 1, output_gradient.shape[1]) @ activation_prime_of_input).reshape(output_gradient.shape)
             
             --> Basically, we're using 3D matrix multiplication tricks to make
                 the computations a bit more compact !
             """
         
-        return input_error
+        return input_gradient
 
 
 ##############################################################################
@@ -235,7 +235,7 @@ class DropoutLayer(Layer):
         
         self.seed = seed
         
-        # by default
+        # all the deactivated values will be set to this value (by default)
         self.deactivated_value = 0.0
         
         # all the non-deactivated values will be scaled up by this factor (by default)
@@ -274,21 +274,22 @@ class DropoutLayer(Layer):
             #      every time the forwarding method is called (during the
             #      training phase)
             self.dropout_matrix  = self.generate_random_dropout_matrix(
-                self.input.shape,
-                self.input.dtype
+                shape=self.input.shape,
+                dtype=self.input.dtype
             )
-            self.output = self.input * self.dropout_matrix
+            self.output =  self.input * self.dropout_matrix
         else:
-            # the "dropout process" doesn't apply to the validation and testing sets
+            # the "dropout process" does NOT apply during the validation and
+            # testing phases
             self.output = self.input
         
         return self.output
     
-    def backward_propagation(self, output_error, learning_rate):
+    def backward_propagation(self, output_gradient, learning_rate):
         """
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        input_error = output_error * self.dropout_matrix
-        return input_error
+        input_gradient = output_gradient * self.dropout_matrix
+        return input_gradient
 

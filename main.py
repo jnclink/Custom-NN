@@ -105,7 +105,11 @@ if __name__ == "__main__":
     ]
     
     use_dropout_layers = False
-    dropout_rate = 0.10
+    if use_dropout_layers:
+        # The Dropout layer randomly sets input units to 0 with a frequency of
+        # `dropout_rate` at each step during the training phase. This regularization
+        # method helps prevent overfitting
+        dropout_rate = 0.10
     
     # ====================================================================== #
     
@@ -146,7 +150,7 @@ if __name__ == "__main__":
         network.add(ActivationLayer("ReLU"))
         
         if use_dropout_layers:
-            # Adding a dropout regularization layer
+            # Adding a dropout regularization layer (if requested)
             network.add(DropoutLayer(dropout_rate, seed=seed_network+hidden_layer_index))
     
     # ---------------------------------------------------------------------- #
@@ -228,7 +232,7 @@ if __name__ == "__main__":
     
     print_confusion_matrix(
         conf_matrix,
-        normalize="lines", # = "lines", "columns" or "no"
+        normalize="rows", # = "rows", "columns" or "no"
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True

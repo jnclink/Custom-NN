@@ -351,9 +351,9 @@ class Network:
                 )
                 
                 # backward propagation
-                backprop_error = self.loss_prime(y_train_batch, train_output)
+                backprop_gradient = self.loss_prime(y_train_batch, train_output)
                 for layer in reversed(self.layers):
-                    backprop_error = layer.backward_propagation(backprop_error, learning_rate)
+                    backprop_gradient = layer.backward_propagation(backprop_gradient, learning_rate)
                 
                 if (train_batch_index in [1, nb_train_batches]) or (train_batch_index % train_batch_index_step == 0):
                     formatted_batch_index = format(train_batch_index, train_batch_index_format)
