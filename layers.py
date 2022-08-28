@@ -247,7 +247,7 @@ class BatchNormLayer(Layer):
         self.epsilon = 1e-4
         
         # initializing the cache
-        self.cached_data = None
+        self.cached_input_data = None
     
     def __str__(self):
         return f"{self.__class__.__name__}()"
@@ -265,8 +265,9 @@ class BatchNormLayer(Layer):
             input_std = np.sqrt(input_variance + self.epsilon)
             normalized_input = centered_input / input_std
             
-            # we're doing this in order to save computational time during backpropagation
-            self.cached_data = (centered_input, input_std, normalized_input)
+            # we're caching the input data in order to save some computational
+            # time during backpropagation
+            self.cached_input_data = (centered_input, input_std, normalized_input)
             
             # updating the non-trainable parameters
             self.moving_mean = self.momentum * self.moving_mean + (1.0 - self.momentum) * np.mean(input_mean)
@@ -280,10 +281,10 @@ class BatchNormLayer(Layer):
         return self.output
     
     def backward_propagation(self, output_gradient, learning_rate):
-        centered_input, input_std, normalized_input = self.cached_data
+        centered_input, input_std, normalized_input = self.cached_input_data
         
-        mean_of_output_gradient = output_gradient.mean(axis=1, keepdims=True)
-        centered_output_gradient = output_gradient - mean_of_output_gradient
+        output_gradient_mean = output_gradient.mean(axis=1, keepdims=True)
+        centered_output_gradient = output_gradient - output_gradient_mean
         
         intermediate_mean = np.mean(output_gradient * centered_input, axis=1, keepdims=True)
         
@@ -293,7 +294,7 @@ class BatchNormLayer(Layer):
         gamma_gradient = np.mean(np.sum(output_gradient * normalized_input, axis=1))
         beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
         
-        # updating the trainable parameters
+        # updating the trainable parameters (using gradient descent)
         self.gamma -= learning_rate * gamma_gradient
         self.beta  -= learning_rate * beta_gradient
         
