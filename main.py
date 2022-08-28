@@ -16,6 +16,7 @@ from layers import (
     InputLayer,
     DenseLayer,
     ActivationLayer,
+    BatchNormLayer,
     DropoutLayer
 )
 
@@ -104,6 +105,8 @@ if __name__ == "__main__":
         32
     ]
     
+    use_batch_norm_layers = False
+    
     use_dropout_layers = False
     if use_dropout_layers:
         # The Dropout layer randomly sets input units to 0 with a frequency of
@@ -145,6 +148,10 @@ if __name__ == "__main__":
             OR
             network.add(ActivationLayer("tanh"))
         """
+        
+        if use_batch_norm_layers:
+            # Adding a BatchNorm regularization layer (if requested)
+            network.add(BatchNormLayer())
         
         # Adding an activation layer (usually ReLU)
         network.add(ActivationLayer("ReLU"))

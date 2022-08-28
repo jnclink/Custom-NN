@@ -225,6 +225,84 @@ class ActivationLayer(Layer):
 ##############################################################################
 
 
+class BatchNormLayer(Layer):
+    """
+    BatchNorm regularization layer
+    """
+    def __init__(self):
+        # initializing the trainable parameters
+        self.gamma = 1.0
+        self.beta  = 0.0
+        
+        self.nb_trainable_params = 2
+        
+        # initializing the non-trainable parameters
+        self.moving_mean = 0.0
+        self.moving_var  = 1.0
+        
+        # by default
+        self.momentum = 0.99
+        
+        # by default (used for numerical stability)
+        self.epsilon = 1e-4
+        
+        # initializing the cache
+        self.cached_data = None
+    
+    def __str__(self):
+        return f"{self.__class__.__name__}()"
+    
+    def forward_propagation(self, input_data, training=True):
+        """
+        Returns the normalized (and rescaled) input
+        """
+        self.input = input_data
+        
+        if training:
+            input_mean = self.input.mean(axis=1, keepdims=True)
+            centered_input = self.input - input_mean
+            input_variance = self.input.var(axis=1, keepdims=True)
+            input_std = np.sqrt(input_variance + self.epsilon)
+            normalized_input = centered_input / input_std
+            
+            # we're doing this in order to save computational time during backpropagation
+            self.cached_data = (centered_input, input_std, normalized_input)
+            
+            # updating the non-trainable parameters
+            self.moving_mean = self.momentum * self.moving_mean + (1.0 - self.momentum) * np.mean(input_mean)
+            self.moving_var  = self.momentum * self.moving_var  + (1.0 - self.momentum) * np.mean(input_variance)
+        else:
+            normalized_input = (self.input - self.moving_mean) / np.sqrt(self.moving_var + self.epsilon)
+        
+        # rescaling the normalized input
+        self.output = self.gamma * normalized_input + self.beta
+        
+        return self.output
+    
+    def backward_propagation(self, output_gradient, learning_rate):
+        centered_input, input_std, normalized_input = self.cached_data
+        
+        mean_of_output_gradient = output_gradient.mean(axis=1, keepdims=True)
+        centered_output_gradient = output_gradient - mean_of_output_gradient
+        
+        intermediate_mean = np.mean(output_gradient * centered_input, axis=1, keepdims=True)
+        
+        input_gradient = self.gamma * (centered_output_gradient - (centered_input * intermediate_mean) / input_std**2) / input_std
+        
+        # gradient averaging for batch processing
+        gamma_gradient = np.mean(np.sum(output_gradient * normalized_input, axis=1))
+        beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
+        
+        # updating the trainable parameters
+        self.gamma -= learning_rate * gamma_gradient
+        self.beta  -= learning_rate * beta_gradient
+        
+        return input_gradient
+
+
+##############################################################################
+
+
 class DropoutLayer(Layer):
     """
     Dropout regularization layer

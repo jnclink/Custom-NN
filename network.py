@@ -28,6 +28,7 @@ from layers import (
     InputLayer,
     DenseLayer,
     ActivationLayer,
+    BatchNormLayer,
     DropoutLayer
 )
 
@@ -81,13 +82,13 @@ class Network:
             input_size  = layer.input_size
             output_size = input_size
         else:
-            assert len(self._sizes) >= 1, "\nPlease add an Input layer to the network first !"
+            assert len(self._sizes) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
             input_size  = self._sizes[-1][1] # output size of the previous layer
             
             if isinstance(layer, DenseLayer):
                 output_size = layer.output_size
                 layer.build(input_size)
-            elif isinstance(layer, (ActivationLayer, DropoutLayer)):
+            elif isinstance(layer, (ActivationLayer, BatchNormLayer, DropoutLayer)):
                 output_size = input_size
             else:
                 print(f"\nNetwork.add - ERROR - Unrecognized layer type : \"{layer.__class__.__name__}\"")
