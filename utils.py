@@ -4,7 +4,6 @@
 Miscellaneous useful functions
 """
 
-import sys
 import numpy as np
 import pandas as pd
 
@@ -41,9 +40,15 @@ def display_distribution_of_classes(dict_of_label_vectors):
         for digit in range(nb_classes):
             nb_corresponding_digits = np.where(label_vector == digit)[0].size
             proportion = 100 * float(nb_corresponding_digits) / nb_labels
-            displayed_string += f"\n    {digit} --> {proportion:.2f} %"
+            str_proportion = f"{proportion:.2f}"
+            if proportion < 10:
+                str_proportion = "0" + str_proportion
+            displayed_string += f"\n    {digit} --> {str_proportion} %"
     
     print(displayed_string)
+
+
+##############################################################################
 
 
 def to_categorical(y, dtype="float32"):
@@ -70,6 +75,9 @@ def categorical_to_vector(y):
     """
     assert len(y.shape) == 2
     return np.argmax(y, axis=1)
+
+
+##############################################################################
 
 
 def split_data_into_batches(
@@ -134,6 +142,9 @@ def split_data_into_batches(
     return batches
 
 
+##############################################################################
+
+
 def accuracy_score(y_true, y_pred, normalize=True):
     """
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
@@ -181,8 +192,7 @@ def print_confusion_matrix(
     assert isinstance(normalize, str)
     normalize = normalize.lower()
     if normalize not in ["rows", "columns", "no"]:
-        print(f"\nget_confusion_matrix_as_dataframe (utils.py) - ERROR - Unrecognized value for the `normalize` kwarg : \"{normalize}\"")
-        sys.exit(-1)
+        raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\"")
     
     assert precision >= 0
     if not(jupyter_notebook):

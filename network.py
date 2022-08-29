@@ -4,7 +4,7 @@
 Main neural network class
 """
 
-import sys, os
+import os
 from time import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,24 +43,39 @@ class Network:
     
     # class variable
     AVAILABLE_LOSSES = {
-        "mse" : (MSE, MSE_prime), # MSE = Mean Square Error
+        "mse" : (MSE, MSE_prime), # MSE = Mean Squared Error
         "cce" : (CCE, CCE_prime)  # CCE = Categorical Cross-Entropy
     }
     
+    # class variable
+    AVAILABLE_LAYER_TYPES = (
+        InputLayer,
+        DenseLayer,
+        ActivationLayer,
+        BatchNormLayer,
+        DropoutLayer
+    )
+    
     def __init__(self, normalize_input_data=True):
         self.layers = []
+        
+        # list containing the input/output sizes of all the layers of the
+        # network (it's a list of tuples of integers)
+        self._sizes = []
+        
         self.loss_name = None
         self.loss = None
         self.loss_prime = None
-        self.history = None
         
-        # list of all the input/output sizes of the network
-        self._sizes = []
+        self.history = None
         
         self.__normalize_input_data = normalize_input_data
     
     
     def __str__(self):
+        if len(self.layers) == 0:
+            return f"{self.__class__.__name__}()"
+        
         # using the default summary kwargs (except for `print_summary`, which
         # has to be set to `False` here, in order to return a string, and not
         # a `NoneType`)
@@ -77,22 +92,22 @@ class Network:
         """
         Adds a layer to the network
         """
+        if not(isinstance(layer, self.AVAILABLE_LAYER_TYPES)):
+            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\"")
+        
         if isinstance(layer, InputLayer):
-            assert len(self._sizes) == 0
+            assert len(self.layers) == 0, "\nNetwork.add - ERROR - You cannot add an InputLayer if other layers have already been added to the Network !"
             input_size  = layer.input_size
             output_size = input_size
         else:
-            assert len(self._sizes) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
+            assert len(self.layers) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
             input_size  = self._sizes[-1][1] # output size of the previous layer
             
             if isinstance(layer, DenseLayer):
                 output_size = layer.output_size
-                layer.build(input_size)
+                layer.build(input_size) # actually building the Dense layer
             elif isinstance(layer, (ActivationLayer, BatchNormLayer, DropoutLayer)):
                 output_size = input_size
-            else:
-                print(f"\nNetwork.add - ERROR - Unrecognized layer type : \"{layer.__class__.__name__}\"")
-                sys.exit(-1)
         
         self.layers.append(layer)
         self._sizes.append((input_size, output_size))
@@ -112,7 +127,7 @@ class Network:
         """
         Gets the raw data that will be printed in the summary. The reason we
         collect the entire summary data before printing it is to align the
-        columns
+        columns of the summary
         """
         summary_data = {
             "layer_types"      : ["Layer"],
@@ -124,8 +139,9 @@ class Network:
         for layer_index, layer in enumerate(self.layers):
             layer_type = str(layer).replace("Layer", "")
             
-            input_shape  = str((None, self._sizes[layer_index][0]))
-            output_shape = str((None, self._sizes[layer_index][1]))
+            input_size, output_size = self._sizes[layer_index]
+            input_shape  = str((None, input_size))
+            output_shape = str((None, output_size))
             
             nb_trainable_params = "{:,}".format(layer.nb_trainable_params)
             
@@ -235,8 +251,7 @@ class Network:
         assert isinstance(loss_name, str)
         loss_name = loss_name.lower()
         if loss_name not in list(self.AVAILABLE_LOSSES.keys()):
-            print(f"\nNetwork.set_loss_function - ERROR - Unrecognized loss function name : \"{loss_name}\"")
-            sys.exit(-1)
+            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\"")
         
         self.loss_name = loss_name
         self.loss, self.loss_prime = self.AVAILABLE_LOSSES[self.loss_name]
@@ -258,8 +273,7 @@ class Network:
         """
         
         if (self.loss is None) or (self.loss_prime is None):
-            print("\nNetwork.fit - ERROR : Please set a loss function before training the network !")
-            sys.exit(-1)
+            raise Exception("Network.fit - Please set a loss function before training the network !")
         
         # initializing the network's history
         self.history = {
@@ -530,8 +544,7 @@ class Network:
         """
         
         if self.history is None:
-            print("\nNetwork.predict - ERROR : You haven't trained the network yet !")
-            sys.exit(-1)
+            raise Exception("Network.predict - You haven't trained the network yet !")
         
         nb_test_samples = X_test.shape[0]
         
@@ -576,8 +589,7 @@ class Network:
         """
         
         if self.history is None:
-            print("\nNetwork.evaluate - ERROR : You haven't trained the network yet !")
-            sys.exit(-1)
+            raise Exception("Network.evaluate - You haven't trained the network yet !")
         
         if len(y_test.shape) == 1:
            y_test_flat = y_test.copy()
@@ -605,8 +617,7 @@ class Network:
         """
         
         if self.history is None:
-            print("\nNetwork.display_some_predictions - ERROR : You haven't trained the network yet !")
-            sys.exit(-1)
+            raise Exception("Network.display_some_predictions - You haven't trained the network yet !")
         
         nb_rows    = 2
         nb_columns = 5

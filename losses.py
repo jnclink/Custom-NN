@@ -14,7 +14,7 @@ import numpy as np
 ##############################################################################
 
 
-# MSE = Mean Square Error
+# MSE = Mean Squared Error
 
 
 def MSE(y_true, y_pred):
@@ -22,8 +22,7 @@ def MSE(y_true, y_pred):
 
 
 def MSE_prime(y_true, y_pred):
-    nb_classes = y_true.shape[-1]
-    return (2 / nb_classes) * (y_pred - y_true)
+    return (2 / y_true.shape[-1]) * (y_pred - y_true)
 
 
 ##############################################################################

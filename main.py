@@ -197,7 +197,7 @@ if __name__ == "__main__":
     
     """
     Possible relevant choices here (the loss function name is case insensitive) :
-        network.set_loss_function("MSE") # MSE = Mean Square Error
+        network.set_loss_function("MSE") # MSE = Mean Squared Error
         OR
         network.set_loss_function("CCE") # CCE = Categorical Cross-Entropy
     """

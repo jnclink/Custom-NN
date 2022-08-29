@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Loading and formatting the raw MNIST dataset
+Functions used to load and format the raw MNIST dataset
 """
 
 from time import time
@@ -13,7 +13,8 @@ from keras.datasets import mnist
 
 # only used to split the data, such that the proportions of the classes in the
 # split data are roughly the same as the proportions of the classes in the
-# initial raw data (this is done with the VERY USEFUL `stratify` kwarg)
+# initial raw data (this is done using the VERY USEFUL `stratify` kwarg of the
+# `train_test_split` function)
 from sklearn.model_selection import train_test_split
 
 from utils import (
@@ -91,7 +92,7 @@ def plot_random_images_from_raw_MNIST_dataset(
     np.random.seed(seed)
     
     for image_index in range(nb_classes):
-        random_data_type = data_types[np.random.randint(0, 2)]
+        random_data_type = data_types[np.random.randint(0, len(data_types))]
         if random_data_type == "train":
             # raw "train" data
             data   = raw_X_train
@@ -129,7 +130,7 @@ def format_raw_MNIST_dataset(
     ):
     """
     Formats the raw data so that it can be directly interpreted by a regular
-    deep neural network
+    MLP neural network
     """
     
     # the validation set will be extracted from the raw training set
@@ -140,6 +141,8 @@ def format_raw_MNIST_dataset(
     assert nb_test_samples <= total_nb_of_raw_test_samples
     
     nb_classes = np.unique(raw_y_train).size # = 10
+    assert np.unique(raw_y_test).size == nb_classes
+    
     assert nb_train_samples >= nb_classes
     assert nb_val_samples >= nb_classes
     assert nb_test_samples >= nb_classes
@@ -279,7 +282,7 @@ def format_raw_MNIST_dataset(
         print(f"    - X_test  : {get_range_of_array(X_test, precision=precision)} (mean={X_test.mean():.{precision}f}, std={X_test.std():.{precision}f})")
         print(f"    - y_test  : {get_range_of_array(y_test, precision=precision)} (one-hot encoded)")
         
-        # checking the proportions of the digits in the final formatted data
+        # displaying the proportions of the digits in the final formatted data
         dict_of_label_vectors = {
             "y_train" : categorical_to_vector(y_train),
             "y_val"   : categorical_to_vector(y_val),

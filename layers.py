@@ -4,7 +4,6 @@
 Main layer-type classes
 """
 
-import sys
 import numpy as np
 from abc import ABC, abstractmethod
 
@@ -159,8 +158,7 @@ class ActivationLayer(Layer):
         assert isinstance(activation_name, str)
         activation_name = activation_name.lower()
         if activation_name not in list(self.AVAILABLE_ACTIVATIONS.keys()):
-            print(f"\nActivationLayer.__init__ - ERROR - Unrecognized activation name : \"{activation_name}\"")
-            sys.exit(-1)
+            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\"")
         
         self.activation_name = activation_name
         self.activation, self.activation_prime = self.AVAILABLE_ACTIVATIONS[self.activation_name]
@@ -239,6 +237,7 @@ class BatchNormLayer(Layer):
         # initializing the non-trainable parameters
         self.moving_mean = 0.0
         self.moving_var  = 1.0
+        self.moving_std  = None
         
         # by default
         self.momentum = 0.99
@@ -273,7 +272,9 @@ class BatchNormLayer(Layer):
             self.moving_mean = self.momentum * self.moving_mean + (1.0 - self.momentum) * np.mean(input_mean)
             self.moving_var  = self.momentum * self.moving_var  + (1.0 - self.momentum) * np.mean(input_variance)
         else:
-            normalized_input = (self.input - self.moving_mean) / np.sqrt(self.moving_var + self.epsilon)
+            if self.moving_std is None:
+                self.moving_std = np.sqrt(self.moving_var + self.epsilon)
+            normalized_input = (self.input - self.moving_mean) / self.moving_std
         
         # rescaling the normalized input
         self.output = self.gamma * normalized_input + self.beta
@@ -324,6 +325,8 @@ class DropoutLayer(Layer):
     
     def __str__(self):
         precision = 2 # by default
+        if self.dropout_rate < 10**(-precision):
+            precision = 4
         return f"{self.__class__.__name__}({self.dropout_rate:.{precision}f})"
     
     def generate_random_dropout_matrix(self, shape, dtype):
