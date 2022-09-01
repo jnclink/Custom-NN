@@ -4,8 +4,6 @@
 Script implementing a Multi-Layer Perceptron (MLP) from scratch
 """
 
-from utils import print_confusion_matrix
-
 from mnist_dataset import (
     load_raw_MNIST_dataset,
     plot_random_images_from_raw_MNIST_dataset,
@@ -21,6 +19,8 @@ from layers import (
 )
 
 from network import Network
+
+from utils import print_confusion_matrix
 
 
 ##############################################################################
@@ -75,10 +75,14 @@ if __name__ == "__main__":
         verbose=False
     )
     
-    # = 28 * 28 = 784
+    # ====================================================================== #
+    
+    # Defining the input and output sizes of the network (respectively)
+    
+    # = 28 * 28 = 784 pixels per image
     nb_pixels_per_image = X_train.shape[1]
     
-    # = 10
+    # = 10 digits
     nb_classes = y_train.shape[1]
     
     # ====================================================================== #
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     #     3) Randomly split the training data into batches during the training
     #        phase (at each epoch)
     # Set this seed to `None` for "real" randomness during those 3 processes
-    seed_network = 1555
+    seed_network = 7777
     
     nb_epochs = 5
     learning_rate = 0.15
@@ -140,6 +144,10 @@ if __name__ == "__main__":
     for hidden_layer_index, nb_neurons in enumerate(nb_neurons_hidden_dense_layers):
         network.add(DenseLayer(nb_neurons, seed=seed_network+hidden_layer_index))
         
+        if use_batch_norm_layers:
+            # Adding a BatchNorm regularization layer (if requested)
+            network.add(BatchNormLayer())
+        
         """
         Possible relevant choices here (the activation name is case insensitive) :
             network.add(ActivationLayer("ReLU"))
@@ -148,12 +156,6 @@ if __name__ == "__main__":
             OR
             network.add(ActivationLayer("tanh"))
         """
-        
-        if use_batch_norm_layers:
-            # Adding a BatchNorm regularization layer (if requested)
-            network.add(BatchNormLayer())
-        
-        # Adding an activation layer (usually ReLU)
         network.add(ActivationLayer("ReLU"))
         
         if use_dropout_layers:
@@ -172,8 +174,6 @@ if __name__ == "__main__":
         OR
         network.add(ActivationLayer("sigmoid"))
     """
-    
-    # Adding the very last activation layer (usually softmax)
     network.add(ActivationLayer("softmax"))
     
     # ---------------------------------------------------------------------- #
@@ -197,12 +197,11 @@ if __name__ == "__main__":
     
     """
     Possible relevant choices here (the loss function name is case insensitive) :
-        network.set_loss_function("MSE") # MSE = Mean Squared Error
-        OR
         network.set_loss_function("CCE") # CCE = Categorical Cross-Entropy
+        OR
+        network.set_loss_function("MSE") # MSE = Mean Squared Error
     """
-    
-    network.set_loss_function("MSE")
+    network.set_loss_function("CCE")
     
     # ====================================================================== #
     
@@ -217,8 +216,8 @@ if __name__ == "__main__":
         nb_epochs,
         learning_rate,
         train_batch_size,
-        nb_shuffles_before_train_batch_split=10,
-        seed_train_batch_split=seed_network,
+        nb_shuffles_before_train_batch_splits=10,
+        seed_train_batch_splits=seed_network,
         val_batch_size=32
     )
     
@@ -245,8 +244,8 @@ if __name__ == "__main__":
         display_with_line_breaks=True
     )
     
-    precision = 2 # by default
-    print(f"\nGLOBAL ACCURACY : {acc_score:.{precision}f} %\n")
+    precision_global_accuracy = 2 # by default
+    print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_global_accuracy}f} %\n")
     
     # Just for testing purposes
     network.display_some_predictions(

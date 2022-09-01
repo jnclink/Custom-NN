@@ -14,20 +14,6 @@ import numpy as np
 ##############################################################################
 
 
-# MSE = Mean Squared Error
-
-
-def MSE(y_true, y_pred):
-    return np.mean((y_true - y_pred)**2, axis=-1)
-
-
-def MSE_prime(y_true, y_pred):
-    return (2 / y_true.shape[-1]) * (y_pred - y_true)
-
-
-##############################################################################
-
-
 # CCE = Categorical Cross-Entropy
 
 # NB : For the CCE, `y_true` has to be one-hot encoded, and all the values of
@@ -54,4 +40,18 @@ def CCE(y_true, y_pred):
 
 def CCE_prime(y_true, y_pred):
     return y_pred - y_true
+
+
+##############################################################################
+
+
+# MSE = Mean Squared Error
+
+
+def MSE(y_true, y_pred):
+    return np.mean((y_true - y_pred)**2, axis=-1)
+
+
+def MSE_prime(y_true, y_pred):
+    return (2 / y_true.shape[-1]) * (y_pred - y_true)
 

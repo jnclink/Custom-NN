@@ -34,6 +34,9 @@ def ReLU_prime(x):
 ##############################################################################
 
 
+# Here, `leaky_ReLU_coeff` has to be a small positive constant
+
+
 def leaky_ReLU(x, leaky_ReLU_coeff=0.01):
     return np.maximum(x, leaky_ReLU_coeff * x)
 

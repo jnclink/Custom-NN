@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # only used to load the raw MNIST dataset
-from keras.datasets import mnist
+from tensorflow.keras.datasets import mnist
 
 # only used to split the data, such that the proportions of the classes in the
 # split data are roughly the same as the proportions of the classes in the

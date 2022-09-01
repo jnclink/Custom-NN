@@ -264,13 +264,17 @@ class Network:
             nb_epochs,
             learning_rate,
             train_batch_size,
-            nb_shuffles_before_train_batch_split=10,
-            seed_train_batch_split=None,
+            nb_shuffles_before_train_batch_splits=10,
+            seed_train_batch_splits=None,
             val_batch_size=32
         ):
         """
         Trains the network on `nb_epochs` epochs
         """
+        
+        if len(self.layers) == 0:
+            raise Exception("Network.fit - Please add layers to the network before training it !")
+        reversed_layers = self.layers[::-1]
         
         if (self.loss is None) or (self.loss_prime is None):
             raise Exception("Network.fit - Please set a loss function before training the network !")
@@ -338,8 +342,8 @@ class Network:
                 y_train,
                 train_batch_size,
                 normalize_batches=self.__normalize_input_data,
-                nb_shuffles=nb_shuffles_before_train_batch_split,
-                seed=seed_train_batch_split
+                nb_shuffles=nb_shuffles_before_train_batch_splits,
+                seed=seed_train_batch_splits
             )
             
             # for display purposes only
@@ -355,7 +359,7 @@ class Network:
                 # forward propagation
                 train_output = X_train_batch
                 for layer in self.layers:
-                    train_output = layer.forward_propagation(train_output)
+                    train_output = layer.forward_propagation(train_output, training=True)
                 
                 # compute the loss and accuracy (for display purposes only)
                 loss += np.sum(self.loss(y_train_batch, train_output))
@@ -367,7 +371,7 @@ class Network:
                 
                 # backward propagation
                 backprop_gradient = self.loss_prime(y_train_batch, train_output)
-                for layer in reversed(self.layers):
+                for layer in reversed_layers:
                     backprop_gradient = layer.backward_propagation(backprop_gradient, learning_rate)
                 
                 if (train_batch_index in [1, nb_train_batches]) or (train_batch_index % train_batch_index_step == 0):
