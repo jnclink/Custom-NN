@@ -4,13 +4,13 @@
 
 ## Original project
 
-This project is an improvement of [this GitHub repo](https://github.com/OmarAflak/Medium-Python-Neural-Network), made by Omar Aflak. I'm *really grateful* to have randomly stumbled upon [his post](https://towardsdatascience.com/math-neural-network-from-scratch-in-python-d6da9f29ce65) where he describes how to build basic Neural Networks from scratch in Python. It really pushed me to better understand the raw details of their implementation ! He also made [a YouTube video](https://www.youtube.com/watch?v=pauPCy_s0Ok) explaining his code, which was very informative and extremely well animated !
+This project is an improvement of [this GitHub repo](https://github.com/OmarAflak/Medium-Python-Neural-Network), made by Omar Aflak. I'm *really grateful* to have randomly stumbled upon [his post](https://towardsdatascience.com/math-neural-network-from-scratch-in-python-d6da9f29ce65) where he describes how to build basic neural networks from scratch in Python. It really pushed me to better understand the raw details of their implementation ! He also made [a YouTube video](https://www.youtube.com/watch?v=pauPCy_s0Ok) explaining his code, which was very informative and extremely well animated !
 
 
 
 ## Description
 
-The main purpose of this repo is to experiment with an [MLP](https://en.wikipedia.org/wiki/Multilayer_perceptron) that is made **from scratch**, (almost) only using the NumPy module.
+The main purpose of this repo is to experiment with an [MLP](https://en.wikipedia.org/wiki/Multilayer_perceptron) that is made **from scratch**, (almost) only using the **NumPy** module.
 
 Dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database)
 
@@ -29,12 +29,12 @@ Language used : **Python**
 - Added the **ReLU**, **leaky ReLU**, **softmax** and **sigmoid** activation functions
 - Added the **Input**, **BatchNorm** and **Dropout** layers
 - Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous Dense layer to add a new one ! Also, for the Activation layers, you can now simply input the name of the loss function (which is a string) instead of inputting the tuple of functions `(activation, activation_prime)` !
-- The network's detailed summary can now be visualized (after the network is built)
-- The detailed history of the network's training phase is printed *dynamically*. After the training is complete, you can even plot the network's history and/or save the plot if requested (it will be saved in the `saved_plots` folder by default)
+- The network's detailed summary can now be visualized after the network is built
+- The detailed history of the network's training phase is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot if requested (the plot will be saved in the `saved_plots` folder by default)
 - The final results are more detailed (they include the global accuracy score and the confusion matrix)
 - For testing purposes, you can also plot some predictions of the network (after it's trained) !
-- In order to be able to reproduce some results, you can set the seeds related to *all* the random processes directly inside the main script
-- Globally speaking, the main script is written such that you can tweak a maximum amount of parameters related to the built MLP !
+- In order to be able to reproduce some results, you can set the seeds related to *all* the random processes directly from the main script
+- Globally speaking, the main script is written such that you can tweak a **maximum** amount of parameters related to the MLP you want to build !
 
 
 
