@@ -98,7 +98,7 @@ if __name__ == "__main__":
     # Set this seed to `None` for "real" randomness during those 3 processes
     seed_network = 7777
     
-    nb_epochs = 5
+    nb_epochs = 10
     learning_rate = 0.15
     
     train_batch_size = 40
@@ -142,7 +142,14 @@ if __name__ == "__main__":
     # Hidden layers
     
     for hidden_layer_index, nb_neurons in enumerate(nb_neurons_hidden_dense_layers):
-        network.add(DenseLayer(nb_neurons, seed=seed_network+hidden_layer_index))
+        if seed_network is not None:
+            # updating the seed such that the "randomness" in the added
+            # Dense/Dropout layers is different each time
+            seed = seed_network + hidden_layer_index
+        else:
+            seed = None
+        
+        network.add(DenseLayer(nb_neurons, seed=seed))
         
         if use_batch_norm_layers:
             # Adding a BatchNorm regularization layer (if requested)
@@ -160,13 +167,19 @@ if __name__ == "__main__":
         
         if use_dropout_layers:
             # Adding a dropout regularization layer (if requested)
-            network.add(DropoutLayer(dropout_rate, seed=seed_network+hidden_layer_index))
+            network.add(DropoutLayer(dropout_rate, seed=seed))
     
     # ---------------------------------------------------------------------- #
     
-    # Output layer
+    # Output layers
     
-    network.add(DenseLayer(nb_classes, seed=seed_network+len(nb_neurons_hidden_dense_layers)))
+    if seed_network is not None:
+        # updating the seed (for the same reasons as before)
+        seed = seed_network + len(nb_neurons_hidden_dense_layers)
+    else:
+        seed = None
+    
+    network.add(DenseLayer(nb_classes, seed=seed))
     
     """
     Possible relevant choices here (the activation name is case insensitive) :

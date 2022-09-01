@@ -336,32 +336,39 @@ class Network:
         print(transition)
         print(f"\n{initial_spacing}Starting the training loop ...\n")
         
-        for epoch_index in range(1, nb_epochs + 1):
+        for epoch_index in range(nb_epochs):
+            if seed_train_batch_splits is not None:
+                # updating the seed in order to make the shuffling of the
+                # training data different at each epoch
+                seed = seed_train_batch_splits + epoch_index
+            else:
+                seed = None
+            
             train_batches = split_data_into_batches(
                 X_train,
                 y_train,
                 train_batch_size,
                 normalize_batches=self.__normalize_input_data,
                 nb_shuffles=nb_shuffles_before_train_batch_splits,
-                seed=seed_train_batch_splits
+                seed=seed
             )
             
             # for display purposes only
-            formatted_epoch_index = format(epoch_index, epoch_index_format)
+            formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
             
-            loss = 0.0
+            loss     = 0.0
             accuracy = 0.0
             
-            for train_batch_index in range(1, nb_train_batches + 1):
-                X_train_batch = train_batches["data"][train_batch_index - 1]
-                y_train_batch = train_batches["labels"][train_batch_index - 1]
+            for train_batch_index in range(nb_train_batches):
+                X_train_batch = train_batches["data"][train_batch_index]
+                y_train_batch = train_batches["labels"][train_batch_index]
                 
                 # forward propagation
                 train_output = X_train_batch
                 for layer in self.layers:
                     train_output = layer.forward_propagation(train_output, training=True)
                 
-                # compute the loss and accuracy (for display purposes only)
+                # computing the loss and accuracy (for display purposes only)
                 loss += np.sum(self.loss(y_train_batch, train_output))
                 accuracy += accuracy_score(
                     categorical_to_vector(y_train_batch),
@@ -374,8 +381,8 @@ class Network:
                 for layer in reversed_layers:
                     backprop_gradient = layer.backward_propagation(backprop_gradient, learning_rate)
                 
-                if (train_batch_index in [1, nb_train_batches]) or (train_batch_index % train_batch_index_step == 0):
-                    formatted_batch_index = format(train_batch_index, train_batch_index_format)
+                if ((train_batch_index + 1) in [1, nb_train_batches]) or ((train_batch_index + 1) % train_batch_index_step == 0):
+                    formatted_batch_index = format(train_batch_index + 1, train_batch_index_format)
                     
                     # clear the currently printed row
                     print(" " * 150 + "\r", end="")
@@ -390,7 +397,7 @@ class Network:
             
             # validation step for the current epoch
             
-            val_loss = 0.0
+            val_loss     = 0.0
             val_accuracy = 0.0
             
             for val_batch_index in range(nb_val_batches):
@@ -402,7 +409,7 @@ class Network:
                 for layer in self.layers:
                     val_output = layer.forward_propagation(val_output, training=False)
                 
-                # compute the validation loss and accuracy (for display purposes only)
+                # computing the validation loss and accuracy (for display purposes only)
                 val_loss += np.sum(self.loss(y_val_batch, val_output))
                 val_accuracy += accuracy_score(
                     categorical_to_vector(y_val_batch),
@@ -417,7 +424,7 @@ class Network:
             
             # updating the network's history
             
-            self.history["epoch"].append(epoch_index)
+            self.history["epoch"].append(epoch_index + 1)
             self.history["loss"].append(loss)
             self.history["val_loss"].append(val_loss)
             self.history["accuracy"].append(accuracy)
@@ -440,7 +447,7 @@ class Network:
         average_epoch_duration = duration_training / nb_epochs
         average_batch_duration = average_epoch_duration / nb_train_batches
         if average_batch_duration < 1:
-            precision_average_batch_duration = 3
+            precision_average_batch_duration = int(round(abs(np.log10(average_batch_duration)))) + 1
         else:
             precision_average_batch_duration = 1
         
@@ -553,7 +560,7 @@ class Network:
         nb_test_samples = X_test.shape[0]
         
         # only used to split the testing data into batches
-        dummy_y_test = np.zeros((nb_test_samples, 1), dtype=X_test.dtype)
+        dummy_y_test = np.zeros((nb_test_samples, ), dtype=X_test.dtype)
         
         test_batches = split_data_into_batches(
             X_test,
@@ -611,6 +618,11 @@ class Network:
         
         acc_score = 100 * accuracy_score(y_test_flat, y_pred_flat)
         conf_matrix = confusion_matrix(y_test_flat, y_pred_flat)
+        
+        # checking that the accuracy score computed from the confusion matrix
+        # is the same as the one computed by the `accuracy_score` function
+        acc_score_from_conf_matrix = 100 * float(np.sum(np.diag(conf_matrix))) / y_test_flat.size
+        assert np.allclose(acc_score, acc_score_from_conf_matrix)
         
         return acc_score, conf_matrix
     

@@ -88,6 +88,11 @@ def split_data_into_batches(
         nb_shuffles=10,
         seed=None
     ):
+    """
+    Splits the input data and labels into batches with `batch_size` samples each
+    (if `batch_size` doesn't divide the number of samples, then the very last
+    batch will simply have `nb_samples % batch_size` samples)
+    """
     
     batches = {
         "data"   : [],
@@ -96,9 +101,6 @@ def split_data_into_batches(
     
     nb_samples = data.shape[0]
     assert batch_size <= nb_samples
-    
-    # the labels have to be one-hot encoded
-    assert len(labels.shape) == 2
     
     batch_indices = np.arange(nb_samples)
     
@@ -127,13 +129,19 @@ def split_data_into_batches(
             data_current_batch = normalized_data[indices_of_current_batch, :]
         else:
             data_current_batch = data[indices_of_current_batch, :]
-        labels_current_batch = labels[indices_of_current_batch, :]
+        labels_current_batch = labels[indices_of_current_batch]
         
         batches["data"].append(data_current_batch)
         batches["labels"].append(labels_current_batch)
     
     assert np.vstack(tuple(batches["data"])).shape == data.shape
-    assert np.vstack(tuple(batches["labels"])).shape == labels.shape
+    
+    if len(labels.shape) == 1:
+        stacking_function = np.hstack
+    else:
+        assert len(labels.shape) == 2
+        stacking_function = np.vstack
+    assert stacking_function(tuple(batches["labels"])).shape == labels.shape
     
     expected_nb_batches = (nb_samples + batch_size - 1) // batch_size
     assert len(batches["data"]) == expected_nb_batches

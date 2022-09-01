@@ -39,7 +39,7 @@ class Layer(ABC):
     def backward_propagation(self, output_gradient, learning_rate):
         """
         Computes dE/dX for a given dE/dY, and updates the trainable parameters
-        if there are any
+        if there are any (using gradient descent)
         """
         pass
 
