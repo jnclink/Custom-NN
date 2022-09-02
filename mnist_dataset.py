@@ -55,16 +55,19 @@ def load_raw_MNIST_dataset(verbose=False):
         print(f"    - X_test  : {get_type_of_array(raw_X_test)}")
         print(f"    - y_test  : {get_type_of_array(raw_y_test)}")
         
-        precision = 3
+        precision_of_printed_info = 3
         print("\nRanges of the raw MNIST data (loaded from Keras) :")
-        print(f"    - X_train : {get_range_of_array(raw_X_train, precision=precision)}")
-        print(f"    - y_train : {get_range_of_array(raw_y_train, precision=precision)}")
-        print(f"    - X_test  : {get_range_of_array(raw_X_test, precision=precision)}")
-        print(f"    - y_test  : {get_range_of_array(raw_y_test, precision=precision)}")
+        print(f"    - X_train : {get_range_of_array(raw_X_train, precision=precision_of_printed_info)}")
+        print(f"    - y_train : {get_range_of_array(raw_y_train, precision=precision_of_printed_info)}")
+        print(f"    - X_test  : {get_range_of_array(raw_X_test, precision=precision_of_printed_info)}")
+        print(f"    - y_test  : {get_range_of_array(raw_y_test, precision=precision_of_printed_info)}")
     
     print(f"\nThe raw MNIST dataset was successfully loaded. Done in {duration_loading:.3f} seconds")
     
     return raw_X_train, raw_y_train, raw_X_test, raw_y_test
+
+
+##############################################################################
 
 
 def plot_random_images_from_raw_MNIST_dataset(
@@ -86,7 +89,7 @@ def plot_random_images_from_raw_MNIST_dataset(
     
     data_types = ["train", "test"]
     
-    fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(12, 8))
+    fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(16, 8))
     plt.suptitle("\nRandom MNIST samples of each digit", fontsize=15)
     
     np.random.seed(seed)
@@ -113,7 +116,12 @@ def plot_random_images_from_raw_MNIST_dataset(
     # resetting the seed
     np.random.seed(None)
     
+    plt.subplots_adjust(wspace=0.5, top=0.85)
+    
     plt.show()
+
+
+##############################################################################
 
 
 def format_raw_MNIST_dataset(
@@ -129,8 +137,8 @@ def format_raw_MNIST_dataset(
         verbose=False
     ):
     """
-    Formats the raw data so that it can be directly interpreted by a regular
-    MLP neural network
+    Formats/preprocesses the raw MNIST data so that it can be directly interpreted
+    by a regular MLP neural network
     """
     
     # the validation set will be extracted from the raw training set
@@ -273,14 +281,14 @@ def format_raw_MNIST_dataset(
         print(f"    - X_test  : {get_type_of_array(X_test)}")
         print(f"    - y_test  : {get_type_of_array(y_test)}")
         
-        precision = 3
+        precision_of_printed_info = 3
         print("\nRanges of the formatted MNIST data :")
-        print(f"    - X_train : {get_range_of_array(X_train, precision=precision)} (mean={X_train.mean():.{precision}f}, std={X_train.std():.{precision}f})")
-        print(f"    - y_train : {get_range_of_array(y_train, precision=precision)} (one-hot encoded)")
-        print(f"    - X_val   : {get_range_of_array(X_val, precision=precision)} (mean={X_val.mean():.{precision}f}, std={X_val.std():.{precision}f})")
-        print(f"    - y_val   : {get_range_of_array(y_val, precision=precision)} (one-hot encoded)")
-        print(f"    - X_test  : {get_range_of_array(X_test, precision=precision)} (mean={X_test.mean():.{precision}f}, std={X_test.std():.{precision}f})")
-        print(f"    - y_test  : {get_range_of_array(y_test, precision=precision)} (one-hot encoded)")
+        print(f"    - X_train : {get_range_of_array(X_train, precision=precision_of_printed_info)} (mean={X_train.mean():.{precision_of_printed_info}f}, std={X_train.std():.{precision_of_printed_info}f})")
+        print(f"    - y_train : {get_range_of_array(y_train, precision=precision_of_printed_info)} (one-hot encoded)")
+        print(f"    - X_val   : {get_range_of_array(X_val, precision=precision_of_printed_info)} (mean={X_val.mean():.{precision_of_printed_info}f}, std={X_val.std():.{precision_of_printed_info}f})")
+        print(f"    - y_val   : {get_range_of_array(y_val, precision=precision_of_printed_info)} (one-hot encoded)")
+        print(f"    - X_test  : {get_range_of_array(X_test, precision=precision_of_printed_info)} (mean={X_test.mean():.{precision_of_printed_info}f}, std={X_test.std():.{precision_of_printed_info}f})")
+        print(f"    - y_test  : {get_range_of_array(y_test, precision=precision_of_printed_info)} (one-hot encoded)")
         
         # displaying the proportions of the digits in the final formatted data
         dict_of_label_vectors = {
@@ -288,7 +296,7 @@ def format_raw_MNIST_dataset(
             "y_val"   : categorical_to_vector(y_val),
             "y_test"  : categorical_to_vector(y_test)
         }
-        display_distribution_of_classes(dict_of_label_vectors)
+        display_distribution_of_classes(dict_of_label_vectors, precision=2)
     
     print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_formatting:.3f} seconds")
     

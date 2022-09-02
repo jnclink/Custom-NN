@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Some loss functions and their derivatives
+Some loss functions (and their derivatives)
 """
 
 import numpy as np
@@ -22,12 +22,12 @@ import numpy as np
 
 
 def CCE(y_true, y_pred):
+    assert y_true.shape == y_pred.shape
+    
     if len(y_true.shape) == 1:
-        assert len(y_pred.shape) == 1
         return - np.sum(y_true * np.log(y_pred))
     
     assert len(y_true.shape) == 2
-    assert len(y_pred.shape) == 2
     
     batch_size = y_true.shape[0]
     CCE_vector = np.zeros((batch_size, ), dtype=y_true.dtype)
@@ -39,6 +39,7 @@ def CCE(y_true, y_pred):
 
 
 def CCE_prime(y_true, y_pred):
+    assert y_true.shape == y_pred.shape
     return y_pred - y_true
 
 
@@ -49,9 +50,11 @@ def CCE_prime(y_true, y_pred):
 
 
 def MSE(y_true, y_pred):
+    assert y_true.shape == y_pred.shape
     return np.mean((y_true - y_pred)**2, axis=-1)
 
 
 def MSE_prime(y_true, y_pred):
+    assert y_true.shape == y_pred.shape
     return (2 / y_true.shape[-1]) * (y_pred - y_true)
 

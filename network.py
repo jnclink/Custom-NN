@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Main neural network class
+Main network/model class
 """
 
 import os
@@ -38,7 +38,7 @@ from layers import (
 
 class Network:
     """
-    Main network/model class
+    Network class
     """
     
     # class variable
@@ -92,7 +92,7 @@ class Network:
         """
         Adds a layer to the network
         """
-        if not(isinstance(layer, self.AVAILABLE_LAYER_TYPES)):
+        if not(isinstance(layer, Network.AVAILABLE_LAYER_TYPES)):
             raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\"")
         
         if isinstance(layer, InputLayer):
@@ -125,10 +125,12 @@ class Network:
     
     def _get_summary_data(self):
         """
-        Gets the raw data that will be printed in the summary. The reason we
-        collect the entire summary data before printing it is to align the
-        columns of the summary
+        Returns the raw data that will be printed in the `summary` method. The
+        reason we collect the entire summary data before printing it is to align
+        the columns of the summary
         """
+        
+        # initializing the summary data (with the column titles)
         summary_data = {
             "layer_types"      : ["Layer"],
             "input_shapes"     : ["Input shape"],
@@ -169,7 +171,7 @@ class Network:
         Returns the summary of the network's architecture
         """
         
-        assert len(self.layers) >= 1
+        assert len(self.layers) >= 1, "\nNetwork.summary - ERROR - You can't print the newtork's summary if it doesn't contain any layers !"
         
         assert initial_spacing >= 0
         assert len(column_separator) >= 1
@@ -250,11 +252,11 @@ class Network:
         """
         assert isinstance(loss_name, str)
         loss_name = loss_name.lower()
-        if loss_name not in list(self.AVAILABLE_LOSSES.keys()):
+        if loss_name not in list(Network.AVAILABLE_LOSSES.keys()):
             raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\"")
         
         self.loss_name = loss_name
-        self.loss, self.loss_prime = self.AVAILABLE_LOSSES[self.loss_name]
+        self.loss, self.loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
     
     
     def fit(
@@ -327,6 +329,9 @@ class Network:
         
         initial_spacing = " " * 5 # to center the prints
         
+        # used to clear the currently printed line
+        blank_row_with_carriage_return = " " * 150 + "\r"
+        
         # ================================================================== #
         
         # training loop
@@ -334,7 +339,9 @@ class Network:
         t_beginning_training = time()
         
         print(transition)
-        print(f"\n{initial_spacing}Starting the training loop ...\n")
+        
+        introduction = f"\n{initial_spacing}Starting the training loop ...\n"
+        print(introduction)
         
         for epoch_index in range(nb_epochs):
             if seed_train_batch_splits is not None:
@@ -352,6 +359,7 @@ class Network:
                 nb_shuffles=nb_shuffles_before_train_batch_splits,
                 seed=seed
             )
+            assert len(train_batches["data"]) == nb_train_batches
             
             # for display purposes only
             formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
@@ -384,8 +392,8 @@ class Network:
                 if ((train_batch_index + 1) in [1, nb_train_batches]) or ((train_batch_index + 1) % train_batch_index_step == 0):
                     formatted_batch_index = format(train_batch_index + 1, train_batch_index_format)
                     
-                    # clear the currently printed row
-                    print(" " * 150 + "\r", end="")
+                    # clearing the currently printed row
+                    print(blank_row_with_carriage_return, end="")
                     
                     train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  batch {formatted_batch_index}/{nb_train_batches}\r"
                     print(train_batch_progress_row, end="")
@@ -432,11 +440,11 @@ class Network:
             
             # -------------------------------------------------------------- #
             
-            # clear the currently printed row
-            print(" " * 150 + "\r", end="")
+            # clearing the currently printed row
+            print(blank_row_with_carriage_return, end="")
             
-            precision = 4
-            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  loss={loss:.{precision}f}  -  val_loss={val_loss:.{precision}f}  -  accuracy={accuracy:.{precision}f}  -  val_accuracy={val_accuracy:.{precision}f}"
+            precision_epoch_history = 4
+            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  loss={loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  accuracy={accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             print(epoch_history)
         
         # ================================================================== #
@@ -446,12 +454,11 @@ class Network:
         
         average_epoch_duration = duration_training / nb_epochs
         average_batch_duration = average_epoch_duration / nb_train_batches
-        if average_batch_duration < 1:
-            precision_average_batch_duration = int(round(abs(np.log10(average_batch_duration)))) + 1
-        else:
-            precision_average_batch_duration = 1
+        average_batch_duration_in_milliseconds = 1000 * average_batch_duration
         
-        print(f"\n{initial_spacing}Training complete ! Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration:.{precision_average_batch_duration}f} s/batch)")
+        conclusion = f"\n{initial_spacing}Training complete ! Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
+        print(conclusion)
+        
         print(transition)
     
     
@@ -695,8 +702,11 @@ class Network:
             column_index = image_index % nb_columns
             ax[row_index, column_index].imshow(random_test_image_2D, cmap="gray")
             
-            title = f"1st prediction : {predicted_digit_value} ({confidence_level_first_choice:.{confidence_level_precision}f}%)\n2nd prediction : {second_choice_predicted_digit} ({confidence_level_second_choice:.{confidence_level_precision}f}%)\nActual value : {actual_digit_value}"
-            ax[row_index, column_index].set_title(title)
+            subplot_title = f"1st prediction : {predicted_digit_value} ({confidence_level_first_choice:.{confidence_level_precision}f}%)"
+            subplot_title += f"\n2nd prediction : {second_choice_predicted_digit} ({confidence_level_second_choice:.{confidence_level_precision}f}%)"
+            subplot_title += f"\nActual value : {actual_digit_value}"
+            
+            ax[row_index, column_index].set_title(subplot_title)
             ax[row_index, column_index].axis("off")
         
         plt.subplots_adjust(wspace=0.5, top=0.85)

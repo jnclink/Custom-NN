@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Main layer-type classes
+Main layer-typed classes
 """
 
 import numpy as np
@@ -14,6 +14,8 @@ from activations import (
     softmax, softmax_prime,
     sigmoid, sigmoid_prime
 )
+
+from utils import count_nb_decimals_places
 
 
 ##############################################################################
@@ -31,7 +33,10 @@ class Layer(ABC):
     @abstractmethod
     def forward_propagation(self, input_data, training=True):
         """
-        Computes the output Y of a layer for a given input X
+        Computes the output Y of a layer for a given input X. The `training`
+        kwarg indicates whether we're currently in the training phase or not
+        (`training` will only be set to `False` during the validation and testing
+         phases)
         """
         pass
     
@@ -49,7 +54,8 @@ class Layer(ABC):
 
 class InputLayer(Layer):
     """
-    Input layer
+    Input layer. The only purpose of this class is to be the very first layer
+    of the network
     """
     def __init__(self, input_size):
         assert input_size > 0
@@ -60,6 +66,9 @@ class InputLayer(Layer):
         return f"{self.__class__.__name__}({self.input_size})"
     
     def forward_propagation(self, input_data, training=True):
+        """
+        Simply returns the input
+        """
         self.input  = input_data
         self.output = self.input
         return self.output
@@ -99,9 +108,9 @@ class DenseLayer(Layer):
         
         # using the "He initialization" (because it works well with the ReLU activation)
         np.random.seed(self.seed)
-        std = np.sqrt(2.0 / self.input_size)
-        self.weights = std * np.random.randn(self.input_size, self.output_size)
-        self.biases  = std * np.random.randn(1, self.output_size)
+        initial_std = np.sqrt(2.0 / self.input_size)
+        self.weights = initial_std * np.random.randn(self.input_size, self.output_size)
+        self.biases  = initial_std * np.random.randn(1, self.output_size)
         np.random.seed(None) # resetting the seed
         
         # = self.input_size * self.output_size + self.output_size
@@ -109,6 +118,10 @@ class DenseLayer(Layer):
         self.nb_trainable_params = self.weights.size + self.biases.size
     
     def forward_propagation(self, input_data, training=True):
+        """
+        Applies the weights and biases to the input, and returns the
+        corresponding output
+        """
         self.input  = input_data
         
         # duplicating the biases for batch processing
@@ -120,8 +133,8 @@ class DenseLayer(Layer):
     
     def backward_propagation(self, output_gradient, learning_rate):
         """
-        Computes dE/dW and dE/dB for a given output_gradient=dE/dY, and returns
-        input_gradient=dE/dX
+        Computes dE/dW and dE/dB for a given output_gradient=dE/dY, updates
+        the weights and biases, and returns the input_gradient=dE/dX
         """
         input_gradient = output_gradient @ self.weights.T # = dE/dX
         
@@ -157,16 +170,18 @@ class ActivationLayer(Layer):
     def __init__(self, activation_name, **kwargs):
         assert isinstance(activation_name, str)
         activation_name = activation_name.lower()
-        if activation_name not in list(self.AVAILABLE_ACTIVATIONS.keys()):
+        if activation_name not in list(ActivationLayer.AVAILABLE_ACTIVATIONS.keys()):
             raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\"")
         
         self.activation_name = activation_name
-        self.activation, self.activation_prime = self.AVAILABLE_ACTIVATIONS[self.activation_name]
+        self.activation, self.activation_prime = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
         
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
+            leaky_ReLU_coeff = kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
+            assert (leaky_ReLU_coeff > 0) and (leaky_ReLU_coeff < 1)
             self.activation_kwargs = {
-                "leaky_ReLU_coeff" : kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
+                "leaky_ReLU_coeff" : leaky_ReLU_coeff
             }
         else:
             self.activation_kwargs = {}
@@ -180,7 +195,13 @@ class ActivationLayer(Layer):
         self.nb_trainable_params = 0
     
     def __str__(self):
-        return f"{self.__class__.__name__}(\"{self.activation_name}\")"
+        if self.activation_name == "leaky_relu":
+            leaky_ReLU_coeff = self.activation_kwargs["leaky_ReLU_coeff"]
+            precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
+            extra_info = f", {leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
+        else:
+            extra_info = ""
+        return f"{self.__class__.__name__}(\"{self.activation_name}\"{extra_info})"
     
     def forward_propagation(self, input_data, training=True):
         """
@@ -242,6 +263,8 @@ class BatchNormLayer(Layer):
         # by default
         self.momentum = 0.99
         
+        assert (self.momentum > 0) and (self.momentum < 1)
+        
         # by default (used for numerical stability)
         self.epsilon = 1e-4
         
@@ -269,8 +292,8 @@ class BatchNormLayer(Layer):
             self.cached_input_data = (centered_input, input_std, normalized_input)
             
             # updating the non-trainable parameters
-            self.moving_mean = self.momentum * self.moving_mean + (1.0 - self.momentum) * np.mean(input_mean)
-            self.moving_var  = self.momentum * self.moving_var  + (1.0 - self.momentum) * np.mean(input_variance)
+            self.moving_mean = self.momentum * self.moving_mean + (1 - self.momentum) * np.mean(input_mean)
+            self.moving_var  = self.momentum * self.moving_var  + (1 - self.momentum) * np.mean(input_variance)
         else:
             if self.moving_std is None:
                 self.moving_std = np.sqrt(self.moving_var + self.epsilon)
@@ -282,6 +305,10 @@ class BatchNormLayer(Layer):
         return self.output
     
     def backward_propagation(self, output_gradient, learning_rate):
+        """
+        Computes dE/d_gamma and dE/d_beta for a given output_gradient=dE/dY,
+        updates gamma and beta, and returns the input_gradient=dE/dX
+        """
         centered_input, input_std, normalized_input = self.cached_input_data
         
         output_gradient_mean = output_gradient.mean(axis=1, keepdims=True)
@@ -310,26 +337,30 @@ class DropoutLayer(Layer):
     Dropout regularization layer
     """
     def __init__(self, dropout_rate, seed=None):
+        assert (dropout_rate > 0) and (dropout_rate < 1)
         self.dropout_rate = dropout_rate
-        assert (self.dropout_rate > 0) and (self.dropout_rate < 1)
         
         self.seed = seed
         
         # all the deactivated values will be set to this value (by default)
-        self.deactivated_value = 0.0
+        self.deactivated_value = 0
         
         # all the non-deactivated values will be scaled up by this factor (by default)
-        self.scaling_factor = 1.0 / (1 - self.dropout_rate)
+        self.scaling_factor = 1 / (1 - self.dropout_rate)
         
         self.nb_trainable_params = 0
     
     def __str__(self):
-        precision = 2 # by default
-        if self.dropout_rate < 10**(-precision):
-            precision = 4
-        return f"{self.__class__.__name__}({self.dropout_rate:.{precision}f})"
+        precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
+        return f"{self.__class__.__name__}({self.dropout_rate:.{precision_dropout_rate}f})"
     
     def generate_random_dropout_matrix(self, shape, dtype):
+        """
+        Returns a dropout matrix with the specified shape and datatype. For each
+        row of that matrix, the values have a probability of `self.dropout_rate`
+        to be deactivated (i.e. set to zero). All the non-deactivated values
+        will be set to `self.scaling_factor` (i.e. 1 / (1 - self.dropout_rate))
+        """
         assert len(shape) == 2
         batch_size, output_size = shape
         
@@ -347,7 +378,7 @@ class DropoutLayer(Layer):
     
     def forward_propagation(self, input_data, training=True):
         """
-        Returns the input with randomly deactivated neurons/nodes
+        Returns the input with randomly deactivated values
         """
         self.input = input_data
         

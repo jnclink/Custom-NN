@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Some activation functions and their derivatives
+Some activation functions (and their derivatives)
 """
 
 import numpy as np

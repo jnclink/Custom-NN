@@ -11,11 +11,20 @@ import pandas as pd
 ##############################################################################
 
 
+# Functions related to the `mnist_dataset.py` script
+
+
 def get_type_of_array(array):
+    """
+    Returns the type of an array (as a string)
+    """
     return "numpy." + array.dtype.type.__name__
 
 
 def get_range_of_array(array, precision=3):
+    """
+    Returns the range of an array (as a string)
+    """
     min_element_of_array = np.min(array)
     max_element_of_array = np.max(array)
     if issubclass(array.dtype.type, float) or (array.dtype.type == np.float32):
@@ -28,7 +37,13 @@ def get_range_of_array(array, precision=3):
     return str_range
 
 
-def display_distribution_of_classes(dict_of_label_vectors):
+def display_distribution_of_classes(dict_of_label_vectors, precision=2):
+    """
+    Prints the distribution of classes in the specified label vectors.
+    The input, `dict_of_label_vectors`, is a dictionary containing :
+        - As its keys   : the names of the label vectors (as strings)
+        - As its values : the corresponding 1D vectors of INTEGER labels
+    """
     displayed_string = "\nClass distributions :\n"
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
@@ -40,7 +55,7 @@ def display_distribution_of_classes(dict_of_label_vectors):
         for digit in range(nb_classes):
             nb_corresponding_digits = np.where(label_vector == digit)[0].size
             proportion = 100 * float(nb_corresponding_digits) / nb_labels
-            str_proportion = f"{proportion:.2f}"
+            str_proportion = f"{proportion:.{precision}f}"
             if proportion < 10:
                 str_proportion = "0" + str_proportion
             displayed_string += f"\n    {digit} --> {str_proportion} %"
@@ -51,6 +66,10 @@ def display_distribution_of_classes(dict_of_label_vectors):
 ##############################################################################
 
 
+# Functions used to switch from an integer vector of labels to a one-hot encoded
+# matrix (and vice-versa)
+
+
 def to_categorical(y, dtype="float32"):
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
@@ -59,7 +78,7 @@ def to_categorical(y, dtype="float32"):
     
     nb_labels = y.size
     nb_classes = np.unique(y).size
-    y_categorical = np.zeros((nb_labels, nb_classes)).astype(dtype)
+    y_categorical = np.zeros((nb_labels, nb_classes), dtype=dtype)
     
     for label_index in range(nb_labels):
         # by definition
@@ -78,6 +97,9 @@ def categorical_to_vector(y):
 
 
 ##############################################################################
+
+
+# Main function used to split the input data into batches
 
 
 def split_data_into_batches(
@@ -100,6 +122,7 @@ def split_data_into_batches(
     }
     
     nb_samples = data.shape[0]
+    assert labels.shape[0] == nb_samples
     assert batch_size <= nb_samples
     
     batch_indices = np.arange(nb_samples)
@@ -137,8 +160,10 @@ def split_data_into_batches(
     assert np.vstack(tuple(batches["data"])).shape == data.shape
     
     if len(labels.shape) == 1:
+        # in this case, the labels are a 1D vector of INTEGER values
         stacking_function = np.hstack
     else:
+        # in this case, the labels are one-hot encoded (2D matrix)
         assert len(labels.shape) == 2
         stacking_function = np.vstack
     assert stacking_function(tuple(batches["labels"])).shape == labels.shape
@@ -153,10 +178,19 @@ def split_data_into_batches(
 ##############################################################################
 
 
+# Functions related to the accuracy metric
+
+
 def accuracy_score(y_true, y_pred, normalize=True):
     """
+    Returns the proportion of the correctly predicted samples. The returned
+    proportion lies between 0 and 1
+    
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     """
+    assert y_true.shape == y_pred.shape
+    assert len(y_true.shape) == 1
+    
     acc_score = np.where(y_true == y_pred)[0].size
     if normalize:
         nb_test_samples = y_true.size
@@ -166,6 +200,15 @@ def accuracy_score(y_true, y_pred, normalize=True):
 
 def confusion_matrix(y_true, y_pred):
     """
+    Returns the raw confusion matrix of the tuple (y_true, y_pred). Its shape
+    will be (nb_classes, nb_classes), and, for all integers `i` and `j` in the
+    range [0, nb_classes - 1], the value of `conf_matrix[i, j]` (say, for
+    instance, `N`) indicates that :
+        - Out of all the test samples that were predicted to belong to class `i`,
+          `N` of them actually belonged to class `j`
+        - Or, equivalently, out of all the test samples that actually belonged
+          to class `j`, `N` of them were predicted to belong to class `i`
+    
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     
     NB : If you decide to use the `confusion_matrix` function of the
@@ -174,6 +217,9 @@ def confusion_matrix(y_true, y_pred):
           confusion matrix (i.e. the transposed version of the output of this
           function)
     """
+    assert y_true.shape == y_pred.shape
+    assert len(y_true.shape) == 1
+    
     nb_classes = np.unique(y_true).size
     conf_matrix = np.zeros((nb_classes, nb_classes), dtype=int)
     
@@ -194,6 +240,8 @@ def print_confusion_matrix(
         jupyter_notebook=False
     ):
     """
+    Prints the confusion matrix in a more user-friendly way
+    
     Here, `conf_matrix` is a non-normalized confusion matrix
     """
     
@@ -280,4 +328,33 @@ def print_confusion_matrix(
     str_conf_matrix_as_dataframe = f"\n{initial_spacing}" + str(conf_matrix_as_dataframe).replace("\n", f"\n{initial_spacing}") + "\n"
     
     print(str_conf_matrix_as_dataframe)
+
+
+##############################################################################
+
+
+# Function related to the `layers.py` script (it's used by some of the
+# `__str__` methods of the layer-typed classes)
+
+
+def count_nb_decimals_places(x, max_precision=6):
+    """
+    Returns the number of decimal places of the real number `x`
+    """
+    assert np.isscalar(x)
+    
+    # converting `x` into a positive number, since it doesn't affect the number
+    # of decimal places
+    x = round(float(abs(x)), max_precision)
+    
+    if x == int(x):
+        # here, `x` is a positive integer
+        return 0
+    elif x < 1:
+        # here, `x` is a float in the range ]0, 1[
+        return len(str(x)) - 2
+    else:
+        # here, `x` is a non-integer float in the range ]1, infinity[, therefore
+        # `x - int(x)` will be a float in the range ]0, 1[
+        return count_nb_decimals_places(x - int(x))
 
