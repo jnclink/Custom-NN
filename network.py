@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Main network/model class
+Main network class
 """
 
 import os
@@ -12,7 +12,10 @@ import matplotlib.pyplot as plt
 # used to force integer ticks on the x-axis of a plot
 from matplotlib.ticker import MaxNLocator
 
+import utils
 from utils import (
+    cast,
+    check_dtype,
     split_data_into_batches,
     categorical_to_vector,
     accuracy_score,
@@ -276,10 +279,11 @@ class Network:
         
         if len(self.layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
-        reversed_layers = self.layers[::-1]
         
         if (self.loss is None) or (self.loss_prime is None):
             raise Exception("Network.fit - Please set a loss function before training the network !")
+        
+        t_beginning_training = time()
         
         # initializing the network's history
         self.history = {
@@ -311,6 +315,10 @@ class Network:
         )
         nb_val_batches = len(val_batches["data"])
         
+        # for the backward propagation
+        reversed_layers = self.layers[::-1]
+        learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
+        
         # ================================================================== #
         
         # for display purposes only
@@ -336,21 +344,14 @@ class Network:
         
         # training loop
         
-        t_beginning_training = time()
-        
         print(transition)
         
         introduction = f"\n{initial_spacing}Starting the training loop ...\n"
         print(introduction)
         
+        seed = seed_train_batch_splits
+        
         for epoch_index in range(nb_epochs):
-            if seed_train_batch_splits is not None:
-                # updating the seed in order to make the shuffling of the
-                # training data different at each epoch
-                seed = seed_train_batch_splits + epoch_index
-            else:
-                seed = None
-            
             train_batches = split_data_into_batches(
                 X_train,
                 y_train,
@@ -361,10 +362,15 @@ class Network:
             )
             assert len(train_batches["data"]) == nb_train_batches
             
+            if seed is not None:
+                # updating the seed in order to make the shuffling of the
+                # training data different at each epoch
+                seed += 1
+            
             # for display purposes only
             formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
             
-            loss     = 0.0
+            loss     = cast(0.0, utils.DEFAULT_DATATYPE)
             accuracy = 0.0
             
             for train_batch_index in range(nb_train_batches):
@@ -398,14 +404,15 @@ class Network:
                     train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  batch {formatted_batch_index}/{nb_train_batches}\r"
                     print(train_batch_progress_row, end="")
             
-            loss /= nb_train_samples
+            loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
+            check_dtype(loss, utils.DEFAULT_DATATYPE)
             accuracy /= nb_train_samples
             
             # -------------------------------------------------------------- #
             
             # validation step for the current epoch
             
-            val_loss     = 0.0
+            val_loss     = cast(0.0, utils.DEFAULT_DATATYPE)
             val_accuracy = 0.0
             
             for val_batch_index in range(nb_val_batches):
@@ -425,7 +432,8 @@ class Network:
                     normalize=False
                 )
             
-            val_loss /= nb_val_samples
+            val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
+            check_dtype(val_loss, utils.DEFAULT_DATATYPE)
             val_accuracy /= nb_val_samples
             
             # -------------------------------------------------------------- #
@@ -453,7 +461,7 @@ class Network:
         duration_training = t_end_training - t_beginning_training
         
         average_epoch_duration = duration_training / nb_epochs
-        average_batch_duration = average_epoch_duration / nb_train_batches
+        average_batch_duration = average_epoch_duration / (nb_train_batches + nb_val_batches)
         average_batch_duration_in_milliseconds = 1000 * average_batch_duration
         
         conclusion = f"\n{initial_spacing}Training complete ! Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
@@ -526,21 +534,22 @@ class Network:
         # saving the plot (if requested)
         
         if save_plot_to_disk:
+            t_beginning_image_saving = time()
+            
+            # creating the folder containing the saved plot (if it doesn't exist)
+            DEFAULT_SAVED_IMAGES_FOLDER_NAME = "saved_plots"
+            if not(os.path.exists(DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
+                os.mkdir(DEFAULT_SAVED_IMAGES_FOLDER_NAME)
+            
             if saved_image_name[-4 : ] != ".png": 
                 saved_image_full_name = saved_image_name + ".png"
             else:
                 saved_image_full_name = saved_image_name
             
-            DEFAULT_SAVED_IMAGES_FOLDER = "saved_plots"
-            if not(os.path.exists(DEFAULT_SAVED_IMAGES_FOLDER)):
-                os.mkdir(DEFAULT_SAVED_IMAGES_FOLDER)
-            
             saved_image_path = os.path.join(
-                DEFAULT_SAVED_IMAGES_FOLDER,
+                DEFAULT_SAVED_IMAGES_FOLDER_NAME,
                 saved_image_full_name
             )
-            
-            t_beginning_image_saving = time()
             
             # actually saving the plot
             plt.savefig(saved_image_path, dpi=300, format="png")
@@ -604,6 +613,9 @@ class Network:
         """
         Computes the network's prediction of `X_test` (i.e. `y_pred`), then
         computes the accuracy score and the confusion matrix of (y_test, y_pred)
+        
+        Here, `y_test` can either be a 1D vector of INTEGER labels or its
+        one-hot encoded equivalent (in that case it will be a 2D matrix)
         """
         
         if self.history is None:
@@ -616,6 +628,8 @@ class Network:
             assert len(y_test.shape) == 2
             y_test_flat = categorical_to_vector(y_test)
         
+        # here we don't need the logits, we only need the predicted (1D) vector
+        # of INTEGER labels
         y_pred_flat = self.predict(
             X_test,
             test_batch_size=test_batch_size,
@@ -637,6 +651,9 @@ class Network:
     def display_some_predictions(self, X_test, y_test, seed=None):
         """
         Displays predictions of random test samples
+        
+        Here, `y_test` can either be a 1D vector of INTEGER labels or its
+        one-hot encoded equivalent (in that case it will be a 2D matrix)
         """
         
         if self.history is None:

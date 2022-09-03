@@ -17,7 +17,10 @@ from tensorflow.keras.datasets import mnist
 # `train_test_split` function)
 from sklearn.model_selection import train_test_split
 
+import utils
 from utils import (
+    cast,
+    check_dtype,
     get_type_of_array,
     get_range_of_array,
     to_categorical,
@@ -137,8 +140,8 @@ def format_raw_MNIST_dataset(
         verbose=False
     ):
     """
-    Formats/preprocesses the raw MNIST data so that it can be directly interpreted
-    by a regular MLP neural network
+    Formats the raw MNIST data so that it can be directly interpreted by a
+    regular MLP neural network
     """
     
     # the validation set will be extracted from the raw training set
@@ -170,17 +173,18 @@ def format_raw_MNIST_dataset(
     X_train = X_train.reshape((total_nb_of_raw_train_samples, nb_pixels_per_image))
     X_test  = X_test.reshape((total_nb_of_raw_test_samples, nb_pixels_per_image))
     
-    # converting the "uint8" data into "float32" data
-    X_train = X_train.astype("float32")
-    X_test  = X_test.astype("float32")
+    # casting the "uint8" data into `utils.DEFAULT_DATATYPE` data
+    X_train = cast(X_train, utils.DEFAULT_DATATYPE)
+    X_test  = cast(X_test,  utils.DEFAULT_DATATYPE)
     
-    # converting the "uint8" labels into "int32" labels (optional)
+    # casting the "uint8" labels into "int32" labels (optional)
     y_train = np.int_(y_train)
     y_test  = np.int_(y_test)
     
     # normalizing the data between 0 and 1 (by convention)
-    X_train = (1.0 / 255) * X_train
-    X_test  = (1.0 / 255) * X_test
+    normalizing_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(255, utils.DEFAULT_DATATYPE)
+    X_train = normalizing_factor * X_train
+    X_test  = normalizing_factor * X_test
     
     # getting the cropped version of "train+val" (from the raw "train" data)
     if total_nb_of_raw_train_samples - (nb_train_samples + nb_val_samples) >= nb_classes:
@@ -233,9 +237,9 @@ def format_raw_MNIST_dataset(
     assert np.unique(y_test).size == nb_classes
     
     # one-hot encoding the label vectors
-    y_train = to_categorical(y_train, dtype="float32")
-    y_val   = to_categorical(y_val,   dtype="float32")
-    y_test  = to_categorical(y_test,  dtype="float32")
+    y_train = to_categorical(y_train, dtype=utils.DEFAULT_DATATYPE)
+    y_val   = to_categorical(y_val,   dtype=utils.DEFAULT_DATATYPE)
+    y_test  = to_categorical(y_test,  dtype=utils.DEFAULT_DATATYPE)
     
     # ---------------------------------------------------------------------- #
     
@@ -299,6 +303,13 @@ def format_raw_MNIST_dataset(
         display_distribution_of_classes(dict_of_label_vectors, precision=2)
     
     print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_formatting:.3f} seconds")
+    
+    check_dtype(X_train, utils.DEFAULT_DATATYPE)
+    check_dtype(y_train, utils.DEFAULT_DATATYPE)
+    check_dtype(X_val,   utils.DEFAULT_DATATYPE)
+    check_dtype(y_val,   utils.DEFAULT_DATATYPE)
+    check_dtype(X_test,  utils.DEFAULT_DATATYPE)
+    check_dtype(y_test,  utils.DEFAULT_DATATYPE)
     
     return X_train, y_train, X_val, y_val, X_test, y_test
 

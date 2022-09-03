@@ -4,6 +4,11 @@
 Script implementing a Multi-Layer Perceptron (MLP) from scratch
 """
 
+from utils import (
+    set_global_datatype,
+    print_confusion_matrix
+)
+
 from mnist_dataset import (
     load_raw_MNIST_dataset,
     plot_random_images_from_raw_MNIST_dataset,
@@ -20,8 +25,6 @@ from layers import (
 
 from network import Network
 
-from utils import print_confusion_matrix
-
 
 ##############################################################################
 
@@ -29,6 +32,15 @@ from utils import print_confusion_matrix
 # DEBUGGING
 
 if __name__ == "__main__":
+    # ====================================================================== #
+    
+    # Defining the datatype of ALL the data that will flow through the network
+    
+    # = "float32" or "float64"
+    datatype = "float32"
+    
+    set_global_datatype(datatype)
+    
     # ====================================================================== #
     
     # Loading and formatting the data
@@ -109,14 +121,21 @@ if __name__ == "__main__":
         32
     ]
     
+    # The BatchNorm layer is a regularization layer that helps prevent overfitting
+    # (without necessarily improving the overall accuracy of the network). It
+    # basically standardizes (i.e. normalizes with mean=0 and std=1) the outputs
+    # of the previous layer, and then applies an affine transform to the
+    # standardized outputs. The 2 parameters of the affine transform (typically
+    # called "gamma" and "beta") are the trainable parameters of the layer
     use_batch_norm_layers = False
     
+    # Just like the BatchNorm layer, the Dropout layer is a regularization layer
+    # that helps prevent overfitting, without necessarily improving the overall
+    # accuracy of the network. Basically, it randomly sets input values to 0 with
+    # a frequency of `dropout_rate` at each step during the training phase. This
+    # layer doesn't have any trainable parameters
     use_dropout_layers = False
-    if use_dropout_layers:
-        # The Dropout layer randomly sets input units to 0 with a frequency of
-        # `dropout_rate` at each step during the training phase. This regularization
-        # method helps prevent overfitting
-        dropout_rate = 0.10
+    dropout_rate = 0.10
     
     # ====================================================================== #
     
@@ -141,14 +160,9 @@ if __name__ == "__main__":
     
     # Hidden layers
     
+    seed = seed_network
+    
     for hidden_layer_index, nb_neurons in enumerate(nb_neurons_hidden_dense_layers):
-        if seed_network is not None:
-            # updating the seed such that the "randomness" in the added
-            # Dense/Dropout layers is different each time
-            seed = seed_network + hidden_layer_index
-        else:
-            seed = None
-        
         network.add(DenseLayer(nb_neurons, seed=seed))
         
         if use_batch_norm_layers:
@@ -166,18 +180,20 @@ if __name__ == "__main__":
         network.add(ActivationLayer("ReLU"))
         
         if use_dropout_layers:
-            # Adding a dropout regularization layer (if requested)
+            # Adding a Dropout regularization layer (if requested)
             network.add(DropoutLayer(dropout_rate, seed=seed))
+        
+        if seed is not None:
+            # updating the seed such that the "randomness" in the added
+            # Dense/Dropout layers is different each time
+            seed += 1
     
     # ---------------------------------------------------------------------- #
     
     # Output layers
     
     if seed_network is not None:
-        # updating the seed (for the same reasons as before)
-        seed = seed_network + len(nb_neurons_hidden_dense_layers)
-    else:
-        seed = None
+        assert seed == seed_network + len(nb_neurons_hidden_dense_layers)
     
     network.add(DenseLayer(nb_classes, seed=seed))
     

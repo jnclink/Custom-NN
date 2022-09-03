@@ -11,6 +11,102 @@ import pandas as pd
 ##############################################################################
 
 
+# Defining the datatype of ALL the data that will flow through the network
+# (i.e. we're defining the "global datatype")
+
+
+# global variable (it's the only global variable of the entire project)
+DEFAULT_DATATYPE = "float32"
+
+
+def is_an_available_global_datatype(datatype):
+    """
+    Checks if the specified datatype can be the "global datatype" of the
+    network (or not). For now, the only available datatypes are float32 and float64
+    """
+    if isinstance(datatype, str):
+        datatype = datatype.lower()
+    
+    AVAILABLE_DATATYPES = (
+        "float32",
+        np.float32,
+        "float64",
+        np.float64,
+        float,      # basically float64
+        np.float_   # basically float64
+    )
+    
+    if datatype not in AVAILABLE_DATATYPES:
+        if isinstance(datatype, type):
+            str_datatype = datatype.__name__
+        else:
+            str_datatype = str(datatype)
+        raise ValueError(f"is_an_available_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
+
+
+# checking the hard-coded value of `DEFAULT_DATATYPE` (just in case)
+is_an_available_global_datatype(DEFAULT_DATATYPE)
+
+
+def set_global_datatype(datatype):
+    """
+    Sets the global variable `DEFAULT_DATATYPE` to the specified datatype
+    
+    IMPORTANT NOTE
+    --------------
+    If you ever change the default value of `DEFAULT_DATATYPE` (using this
+    function), in order to access the UPDATED version of `DEFAULT_DATATYPE`
+    inside the code, make sure you add the following import : `import utils`,
+    then use the variable `utils.DEFAULT_DATATYPE`. Please DO NOT add the import
+    `from utils import DEFAULT_DATATYPE` before calling this function, as it
+    will be the default value of `DEFAULT_DATATYPE`, not the updated one !
+    """
+    # checking the specified datatype first
+    is_an_available_global_datatype(datatype)
+    
+    global DEFAULT_DATATYPE
+    DEFAULT_DATATYPE = datatype
+
+
+##############################################################################
+
+
+# Functions related to the checking/casting of the global datatype of the network
+
+
+def check_dtype(x, dtype):
+    """
+    Checks if the datatype of `x` is `dtype` or not. Here, `x` can either be
+    a scalar or a vector/matrix. By design, in most cases, `dtype` will be
+    equal to `utils.DEFAULT_DATATYPE`
+    """
+    if np.isscalar(x):
+        assert type(x) == np.dtype(dtype)
+    else:
+        # here, `x` is a vector/matrix
+        assert x.dtype == dtype
+
+
+def cast(x, dtype):
+    """
+    Returns the cast version of `x` to `dtype`. Here, `x` can either be a
+    scalar or a vector/matrix. By design, in most cases, `dtype` will be
+    equal to `utils.DEFAULT_DATATYPE`
+    """
+    if np.isscalar(x):
+        # there might be a more efficient way to do this, but at least it works
+        cast_x = np.array([x], dtype=dtype)[0]
+    else:
+        # here, `x` is a vector/matrix
+        cast_x = x.astype(dtype)
+    
+    check_dtype(cast_x, dtype)
+    return cast_x
+
+
+##############################################################################
+
+
 # Functions related to the `mnist_dataset.py` script
 
 
@@ -18,6 +114,7 @@ def get_type_of_array(array):
     """
     Returns the type of an array (as a string)
     """
+    assert isinstance(array, np.ndarray)
     return "numpy." + array.dtype.type.__name__
 
 
@@ -25,14 +122,37 @@ def get_range_of_array(array, precision=3):
     """
     Returns the range of an array (as a string)
     """
+    assert isinstance(array, np.ndarray)
     min_element_of_array = np.min(array)
     max_element_of_array = np.max(array)
-    if issubclass(array.dtype.type, float) or (array.dtype.type == np.float32):
+    
+    FLOAT_TYPES = (
+        float,
+        np.float_,
+        np.floating,
+        np.float16,
+        np.float32,
+        np.float64
+    )
+    
+    INTEGER_TYPES = (
+        int,
+        np.int_,
+        np.integer,
+        np.int8,  np.uint8,
+        np.int16, np.uint16,
+        np.int32, np.uint32,
+        np.int64, np.uint64
+    )
+    
+    array_dtype = array.dtype.type
+    
+    if array_dtype in FLOAT_TYPES:
         # float-like data
         str_range = f"{min_element_of_array:.{precision}f} -> {max_element_of_array:.{precision}f}"
     else:
-        # int-like data
-        assert issubclass(array.dtype.type, np.integer)
+        # integer-like data
+        assert array_dtype in INTEGER_TYPES
         str_range = f"{min_element_of_array} -> {max_element_of_array}"
     return str_range
 
@@ -41,12 +161,15 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
     """
     Prints the distribution of classes in the specified label vectors.
     The input, `dict_of_label_vectors`, is a dictionary containing :
-        - As its keys   : the names of the label vectors (as strings)
-        - As its values : the corresponding 1D vectors of INTEGER labels
+        - as its keys   : the names of the label vectors (as strings)
+        - as its values : the corresponding 1D vectors of INTEGER labels
     """
     displayed_string = "\nClass distributions :\n"
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
+        assert isinstance(label_vector_name, str)
+        assert isinstance(label_vector, np.ndarray)
+        
         displayed_string += f"\n{label_vector_name} :"
         
         nb_labels = label_vector.size
@@ -70,14 +193,22 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
 # matrix (and vice-versa)
 
 
-def to_categorical(y, dtype="float32"):
+def to_categorical(y, dtype=int):
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
     """
     assert len(y.shape) == 1
     
     nb_labels = y.size
-    nb_classes = np.unique(y).size
+    
+    distinct_elements_of_y = np.unique(y)
+    nb_classes = distinct_elements_of_y.size
+    
+    # checking that all the integers between 0 (inclusive) and `nb_classes - 1`
+    # (inclusive) are contained in the vector `y`
+    for class_index in range(nb_classes):
+        assert class_index in distinct_elements_of_y
+    
     y_categorical = np.zeros((nb_labels, nb_classes), dtype=dtype)
     
     for label_index in range(nb_labels):
@@ -114,6 +245,9 @@ def split_data_into_batches(
     Splits the input data and labels into batches with `batch_size` samples each
     (if `batch_size` doesn't divide the number of samples, then the very last
     batch will simply have `nb_samples % batch_size` samples)
+    
+    Here, `labels` can either be a 1D vector of INTEGER labels or its one-hot
+    encoded equivalent (in that case it will be a 2D matrix)
     """
     
     batches = {
@@ -144,8 +278,11 @@ def split_data_into_batches(
         
         # checking if the batch size is correct
         if indices_of_current_batch.size != batch_size:
-            assert indices_of_current_batch.size > 0
+            # if the batch size isn't equal to `batch_size`, then it means
+            # that we are generating the very last batch (it also implies that
+            # `batch_size` doesn't divide `nb_samples`)
             assert batch_index == nb_samples - nb_samples % batch_size
+            assert indices_of_current_batch.size > 0
             assert indices_of_current_batch.size == nb_samples % batch_size
         
         if normalize_batches:
@@ -334,12 +471,12 @@ def print_confusion_matrix(
 
 
 # Function related to the `layers.py` script (it's used by some of the
-# `__str__` methods of the layer-typed classes)
+# `__str__` methods of the layer classes)
 
 
 def count_nb_decimals_places(x, max_precision=6):
     """
-    Returns the number of decimal places of the real number `x`
+    Returns the number of decimal places of the scalar `x`
     """
     assert np.isscalar(x)
     
