@@ -40,6 +40,9 @@ def CCE(y_true, y_pred):
     else:
         assert len(y_true.shape) == 2
         
+        nb_negative_values_in_y_pred = np.where(y_pred <= 0)[0].size
+        assert nb_negative_values_in_y_pred == 0
+        
         batch_size = y_true.shape[0]
         CCE_output = np.zeros((batch_size, ), dtype=y_true.dtype)
         

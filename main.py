@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Script implementing a Multi-Layer Perceptron (MLP) from scratch
+Script debugging the custom Multi-Layer Perceptron (MLP) implementation
 """
 
 from utils import (
@@ -29,9 +29,11 @@ from network import Network
 ##############################################################################
 
 
-# DEBUGGING
-
-if __name__ == "__main__":
+def main():
+    """
+    Main debugging function
+    """
+    
     # ====================================================================== #
     
     # Defining the datatype of ALL the data that will flow through the network
@@ -113,9 +115,11 @@ if __name__ == "__main__":
     nb_epochs = 10
     learning_rate = 0.15
     
+    # if you lower the batch size, you might also want to lower the learning
+    # rate (to prevent the network from overfitting)
     train_batch_size = 40
     
-    nb_neurons_hidden_dense_layers = [
+    nb_neurons_in_hidden_dense_layers = [
         256,
         64,
         32
@@ -123,10 +127,11 @@ if __name__ == "__main__":
     
     # The BatchNorm layer is a regularization layer that helps prevent overfitting
     # (without necessarily improving the overall accuracy of the network). It
-    # basically standardizes (i.e. normalizes with mean=0 and std=1) the outputs
-    # of the previous layer, and then applies an affine transform to the
-    # standardized outputs. The 2 parameters of the affine transform (typically
-    # called "gamma" and "beta") are the trainable parameters of the layer
+    # basically standardizes (i.e. it normalizes with a mean of 0 and a standard
+    # deviation of 1) the outputs of the previous layer, and then applies an affine
+    # transform to the standardized outputs. The 2 parameters of the affine
+    # transform (typically called "gamma" and "beta") are the trainable parameters
+    # of the layer
     use_batch_norm_layers = False
     
     # Just like the BatchNorm layer, the Dropout layer is a regularization layer
@@ -162,7 +167,7 @@ if __name__ == "__main__":
     
     seed = seed_network
     
-    for hidden_layer_index, nb_neurons in enumerate(nb_neurons_hidden_dense_layers):
+    for hidden_layer_index, nb_neurons in enumerate(nb_neurons_in_hidden_dense_layers):
         network.add(DenseLayer(nb_neurons, seed=seed))
         
         if use_batch_norm_layers:
@@ -193,7 +198,7 @@ if __name__ == "__main__":
     # Output layers
     
     if seed_network is not None:
-        assert seed == seed_network + len(nb_neurons_hidden_dense_layers)
+        assert seed == seed_network + len(nb_neurons_in_hidden_dense_layers)
     
     network.add(DenseLayer(nb_classes, seed=seed))
     
@@ -265,6 +270,8 @@ if __name__ == "__main__":
         test_batch_size=32
     )
     
+    # Displaying the precision of the network (i.e. the confusion matrix
+    # normalized over its rows)
     print_confusion_matrix(
         conf_matrix,
         normalize="rows", # = "rows", "columns" or "no"
@@ -273,6 +280,17 @@ if __name__ == "__main__":
         display_with_line_breaks=True
     )
     
+    # Displaying the recall of the network (i.e. the confusion matrix
+    # normalized over its columns)
+    print_confusion_matrix(
+        conf_matrix,
+        normalize="columns", # = "rows", "columns" or "no"
+        precision=1,
+        initial_spacing=1,
+        display_with_line_breaks=True
+    )
+    
+    # Displaying the global accuracy score of the network
     precision_global_accuracy = 2 # by default
     print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_global_accuracy}f} %\n")
     
@@ -284,4 +302,13 @@ if __name__ == "__main__":
     )
     
     # ===============================  END  =============================== #
+
+
+##############################################################################
+
+
+# DEBUGGING
+
+if __name__ == "__main__":
+    main()
 

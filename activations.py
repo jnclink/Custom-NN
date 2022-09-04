@@ -170,6 +170,14 @@ def softmax(x):
         softmax_output = np.zeros(x.shape, dtype=x.dtype)
         for batch_sample_index in range(batch_size):
             softmax_output[batch_sample_index, :] = softmax(x[batch_sample_index, :])
+        
+        # replacing the softmax output values that are *very close* to zero
+        # with the smallest possible positive value of the current global datatype
+        resolution = utils.DTYPE_RESOLUTION
+        softmax_output[softmax_output < resolution] = resolution
+        
+        nb_negative_values_in_softmax_output = np.where(softmax_output <= 0)[0].size
+        assert nb_negative_values_in_softmax_output == 0
     
     check_dtype(softmax_output, utils.DEFAULT_DATATYPE)
     return softmax_output
@@ -224,6 +232,14 @@ def sigmoid(x):
         batch_size = x.shape[0]
         for batch_sample_index in range(batch_size):
             sigmoid_output[batch_sample_index, :] = sigmoid(x[batch_sample_index, :])
+        
+        # replacing the sigmoid output values that are *very close* to zero
+        # with the smallest possible positive value of the current global datatype
+        resolution = utils.DTYPE_RESOLUTION
+        sigmoid_output[sigmoid_output < resolution] = resolution
+        
+        nb_negative_values_in_sigmoid_output = np.where(sigmoid_output <= 0)[0].size
+        assert nb_negative_values_in_sigmoid_output == 0
     
     check_dtype(sigmoid_output, utils.DEFAULT_DATATYPE)
     return sigmoid_output

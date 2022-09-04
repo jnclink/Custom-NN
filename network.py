@@ -280,6 +280,13 @@ class Network:
         if len(self.layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
         
+        try:
+            last_layer = self.layers[-1]
+            assert isinstance(last_layer, ActivationLayer)
+            assert last_layer.activation_name in ["softmax", "sigmoid"]
+        except:
+            raise Exception("Network.fit - The very last layer of the network must be a softmax or a sigmoid activation layer !")
+        
         if (self.loss is None) or (self.loss_prime is None):
             raise Exception("Network.fit - Please set a loss function before training the network !")
         
@@ -370,7 +377,7 @@ class Network:
             # for display purposes only
             formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
             
-            loss     = cast(0.0, utils.DEFAULT_DATATYPE)
+            loss     = cast(0, utils.DEFAULT_DATATYPE)
             accuracy = 0.0
             
             for train_batch_index in range(nb_train_batches):
@@ -412,7 +419,7 @@ class Network:
             
             # validation step for the current epoch
             
-            val_loss     = cast(0.0, utils.DEFAULT_DATATYPE)
+            val_loss     = cast(0, utils.DEFAULT_DATATYPE)
             val_accuracy = 0.0
             
             for val_batch_index in range(nb_val_batches):

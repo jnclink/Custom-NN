@@ -15,8 +15,9 @@ import pandas as pd
 # (i.e. we're defining the "global datatype")
 
 
-# global variable (it's the only global variable of the entire project)
+# global variables (these are the 2 only global variables of the entire project)
 DEFAULT_DATATYPE = "float32"
+DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
 
 
 def is_an_available_global_datatype(datatype):
@@ -25,15 +26,14 @@ def is_an_available_global_datatype(datatype):
     network (or not). For now, the only available datatypes are float32 and float64
     """
     if isinstance(datatype, str):
-        datatype = datatype.lower()
+        datatype = datatype.lower().replace(" ", "")
     
     AVAILABLE_DATATYPES = (
         "float32",
         np.float32,
         "float64",
         np.float64,
-        float,      # basically float64
-        np.float_   # basically float64
+        np.float_   # is either np.float32 or np.float64, depending on your PC
     )
     
     if datatype not in AVAILABLE_DATATYPES:
@@ -50,7 +50,9 @@ is_an_available_global_datatype(DEFAULT_DATATYPE)
 
 def set_global_datatype(datatype):
     """
-    Sets the global variable `DEFAULT_DATATYPE` to the specified datatype
+    Sets the global variable `DEFAULT_DATATYPE` to the specified datatype. The
+    resolution of the global datatype (i.e. the global variable `DTYPE_RESOLUTION`)
+    is also updated. The resolution is `1e-6` for float32, and `1e-15` for float64
     
     IMPORTANT NOTE
     --------------
@@ -60,12 +62,17 @@ def set_global_datatype(datatype):
     then use the variable `utils.DEFAULT_DATATYPE`. Please DO NOT add the import
     `from utils import DEFAULT_DATATYPE` before calling this function, as it
     will be the default value of `DEFAULT_DATATYPE`, not the updated one !
+    The same goes with the global variable `DTYPE_RESOLUTION`
     """
+    if datatype == float:
+        set_global_datatype(np.float_)
+    
     # checking the specified datatype first
     is_an_available_global_datatype(datatype)
     
-    global DEFAULT_DATATYPE
+    global DEFAULT_DATATYPE, DTYPE_RESOLUTION
     DEFAULT_DATATYPE = datatype
+    DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
 
 
 ##############################################################################
@@ -115,7 +122,7 @@ def get_type_of_array(array):
     Returns the type of an array (as a string)
     """
     assert isinstance(array, np.ndarray)
-    return "numpy." + array.dtype.type.__name__
+    return "numpy." + str(array.dtype)
 
 
 def get_range_of_array(array, precision=3):

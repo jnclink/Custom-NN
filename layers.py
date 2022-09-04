@@ -63,7 +63,7 @@ class InputLayer(Layer):
     of the network
     """
     def __init__(self, input_size):
-        assert input_size > 0
+        assert input_size > 1
         self.input_size = input_size
         self.nb_trainable_params = 0
     
@@ -107,7 +107,7 @@ class DenseLayer(Layer):
     Dense (i.e. fully connected) layer
     """
     def __init__(self, nb_neurons, seed=None):
-        assert nb_neurons > 0
+        assert nb_neurons > 1
         self.output_size = nb_neurons
         self.seed = seed
     
@@ -120,7 +120,7 @@ class DenseLayer(Layer):
         the latter. This layer is built when it is added to the network (with
         the `Network.add` method of the "network.py" script)
         """
-        assert input_size > 0
+        assert input_size > 1
         self.input_size = input_size
         
         # ------------------------------------------------------------------ #
@@ -128,17 +128,14 @@ class DenseLayer(Layer):
         # Using the "He initialization" (mostly because it works well with
         # ReLU-like activations)
         
-        initial_var = cast(2.0, utils.DEFAULT_DATATYPE) / cast(self.input_size, utils.DEFAULT_DATATYPE)
+        initial_var = cast(2, utils.DEFAULT_DATATYPE) / cast(self.input_size, utils.DEFAULT_DATATYPE)
         initial_std = np.sqrt(initial_var)
         check_dtype(initial_std, utils.DEFAULT_DATATYPE)
         
         np.random.seed(self.seed)
-        self.weights = initial_std * cast(np.random.randn(self.input_size, self.output_size), utils.DEFAULT_DATATYPE)
-        self.biases  = initial_std * cast(np.random.randn(1, self.output_size), utils.DEFAULT_DATATYPE)
+        self.weights = initial_std * np.random.randn(self.input_size, self.output_size).astype(utils.DEFAULT_DATATYPE)
+        self.biases  = initial_std * np.random.randn(1, self.output_size).astype(utils.DEFAULT_DATATYPE)
         np.random.seed(None) # resetting the seed
-        
-        check_dtype(self.weights, utils.DEFAULT_DATATYPE)
-        check_dtype(self.biases,  utils.DEFAULT_DATATYPE)
         
         # ------------------------------------------------------------------ #
         
@@ -156,11 +153,7 @@ class DenseLayer(Layer):
         check_dtype(input_data, utils.DEFAULT_DATATYPE)
         self.input  = input_data
         
-        # duplicating the biases for batch processing
-        batch_size = self.input.shape[0]
-        duplicated_biases = np.tile(self.biases, (batch_size, 1))
-        
-        self.output = self.input @ self.weights + duplicated_biases
+        self.output = self.input @ self.weights + self.biases
         
         check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
@@ -176,15 +169,20 @@ class DenseLayer(Layer):
         
         input_gradient = output_gradient @ self.weights.T # = dE/dX
         
-        # gradient averaging for batch processing
         batch_size = output_gradient.shape[0]
-        scaling_factor = cast(1.0, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
-        weights_gradient = scaling_factor * self.input.T @ output_gradient # = dE/dW
-        biases_gradient = np.mean(output_gradient, axis=0, keepdims=True) # = dE/dB
+        averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
+        
+        # gradient averaging for batch processing
+        weights_gradient = averaging_factor * self.input.T @ output_gradient # = dE/dW
+        biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)  # = dE/dB
         
         check_dtype(weights_gradient, utils.DEFAULT_DATATYPE)
         check_dtype(biases_gradient,  utils.DEFAULT_DATATYPE)
-        check_dtype(learning_rate,    utils.DEFAULT_DATATYPE)
+        
+        try:
+            check_dtype(learning_rate, utils.DEFAULT_DATATYPE)
+        except:
+            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         # updating the trainable parameters (using gradient descent)
         self.weights -= learning_rate * weights_gradient
@@ -313,31 +311,27 @@ class BatchNormLayer(Layer):
     BatchNorm regularization layer
     """
     def __init__(self):
-        # initializing the trainable parameters (cast to `utils.DEFAULT_DATATYPE`)
-        self.gamma = cast(1.0, utils.DEFAULT_DATATYPE)
-        self.beta  = cast(0.0, utils.DEFAULT_DATATYPE)
+        # initializing the trainable parameters
+        self.gamma = cast(1, utils.DEFAULT_DATATYPE)
+        self.beta  = cast(0, utils.DEFAULT_DATATYPE)
         
         self.nb_trainable_params = 2
         
         # initializing the non-trainable parameters
-        self.moving_mean = cast(0.0, utils.DEFAULT_DATATYPE)
-        self.moving_var  = cast(1.0, utils.DEFAULT_DATATYPE)
-        self.moving_std  = None
+        self.moving_mean = cast(0, utils.DEFAULT_DATATYPE)
+        self.moving_var  = cast(1, utils.DEFAULT_DATATYPE)
         
         # by default
         self.momentum = cast(0.99, utils.DEFAULT_DATATYPE)
         assert (self.momentum > 0) and (self.momentum < 1)
         
-        one = cast(1.0, utils.DEFAULT_DATATYPE)
+        one = cast(1, utils.DEFAULT_DATATYPE)
         self.inverse_momentum = one - self.momentum
         check_dtype(self.inverse_momentum, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
-        self.epsilon = cast(1e-4, utils.DEFAULT_DATATYPE)
+        self.epsilon = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
-        
-        # initializing the cache
-        self.cached_input_data = None
     
     def __str__(self):
         return f"{self.__class__.__name__}()"
@@ -346,7 +340,8 @@ class BatchNormLayer(Layer):
         """
         Forward propagation of the BatchNorm layer
         
-        Returns the normalized (and rescaled) input
+        Returns the normalized (and rescaled) input along the 1st axis, i.e.
+        along the batches/rows
         """
         check_dtype(input_data, utils.DEFAULT_DATATYPE)
         self.input = input_data
@@ -355,12 +350,10 @@ class BatchNormLayer(Layer):
             input_mean = self.input.mean(axis=1, keepdims=True)
             centered_input = self.input - input_mean
             input_variance = self.input.var(axis=1, keepdims=True)
-            input_std = np.sqrt(input_variance + self.epsilon)
-            normalized_input = centered_input / input_std
+            self.input_std = np.sqrt(input_variance + self.epsilon)
             
-            # we're caching the input data in order to save some computational
-            # time during backpropagation
-            self.cached_input_data = (centered_input, input_std, normalized_input)
+            # actually normalizing/standardizing the input
+            self.normalized_input = centered_input / self.input_std
             
             # updating the non-trainable parameters
             self.moving_mean = self.momentum * self.moving_mean + self.inverse_momentum * np.mean(input_mean)
@@ -369,13 +362,15 @@ class BatchNormLayer(Layer):
             check_dtype(self.moving_mean, utils.DEFAULT_DATATYPE)
             check_dtype(self.moving_var,  utils.DEFAULT_DATATYPE)
         else:
-            if self.moving_std is None:
-                self.moving_std = np.sqrt(self.moving_var + self.epsilon)
-                check_dtype(self.moving_std, utils.DEFAULT_DATATYPE)
-            normalized_input = (self.input - self.moving_mean) / self.moving_std
+            self.moving_std = np.sqrt(self.moving_var + self.epsilon)
+            check_dtype(self.moving_std, utils.DEFAULT_DATATYPE)
+            
+            self.normalized_input = (self.input - self.moving_mean) / self.moving_std
+        
+        check_dtype(self.normalized_input, utils.DEFAULT_DATATYPE)
         
         # rescaling the normalized input
-        self.output = self.gamma * normalized_input + self.beta
+        self.output = self.gamma * self.normalized_input + self.beta
         
         check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
@@ -389,24 +384,26 @@ class BatchNormLayer(Layer):
         """
         check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
         
-        # getting the cached input data (computed during the previous forward
-        # propagation)
-        centered_input, input_std, normalized_input = self.cached_input_data
-        
         output_gradient_mean = output_gradient.mean(axis=1, keepdims=True)
         centered_output_gradient = output_gradient - output_gradient_mean
         
-        intermediate_mean = np.mean(output_gradient * centered_input, axis=1, keepdims=True)
+        # this variable is just defined to simplify the computations of the
+        # input gradient
+        intermediate_mean = np.mean(output_gradient * self.normalized_input, axis=1, keepdims=True)
         
-        input_gradient = self.gamma * (centered_output_gradient - (centered_input * intermediate_mean) / input_std**2) / input_std
+        input_gradient = self.gamma * (centered_output_gradient - intermediate_mean * self.normalized_input) / self.input_std
         
         # gradient averaging for batch processing
-        gamma_gradient = np.mean(np.sum(output_gradient * normalized_input, axis=1))
+        gamma_gradient = np.mean(np.sum(output_gradient * self.normalized_input, axis=1))
         beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
         
         check_dtype(gamma_gradient, utils.DEFAULT_DATATYPE)
         check_dtype(beta_gradient,  utils.DEFAULT_DATATYPE)
-        check_dtype(learning_rate,  utils.DEFAULT_DATATYPE)
+        
+        try:
+            check_dtype(learning_rate, utils.DEFAULT_DATATYPE)
+        except:
+            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         # updating the trainable parameters (using gradient descent)
         self.gamma -= learning_rate * gamma_gradient
