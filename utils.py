@@ -31,9 +31,11 @@ def is_an_available_global_datatype(datatype):
     AVAILABLE_DATATYPES = (
         "float32",
         np.float32,
+        np.single,    # basically float32
         "float64",
         np.float64,
-        np.float_   # is either np.float32 or np.float64, depending on your PC
+        np.longfloat, # basically float64
+        np.float_     # is either float32 or float64, depending on your PC (usually it's float64)
     )
     
     if datatype not in AVAILABLE_DATATYPES:
@@ -88,7 +90,7 @@ def check_dtype(x, dtype):
     equal to `utils.DEFAULT_DATATYPE`
     """
     if np.isscalar(x):
-        assert type(x) == np.dtype(dtype)
+        assert type(x) == np.dtype(dtype).type
     else:
         # here, `x` is a vector/matrix
         assert x.dtype == dtype
@@ -101,8 +103,7 @@ def cast(x, dtype):
     equal to `utils.DEFAULT_DATATYPE`
     """
     if np.isscalar(x):
-        # there might be a more efficient way to do this, but at least it works
-        cast_x = np.array([x], dtype=dtype)[0]
+        cast_x = np.dtype(dtype).type(x)
     else:
         # here, `x` is a vector/matrix
         cast_x = x.astype(dtype)
