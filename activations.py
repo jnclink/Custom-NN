@@ -176,8 +176,9 @@ def softmax(x):
         resolution = utils.DTYPE_RESOLUTION
         softmax_output[softmax_output < resolution] = resolution
         
-        nb_negative_values_in_softmax_output = np.where(softmax_output <= 0)[0].size
-        assert nb_negative_values_in_softmax_output == 0
+        # the values of the softmax output have to be strictly positive
+        nb_illegal_values_in_softmax_output = np.where(softmax_output <= 0)[0].size
+        assert nb_illegal_values_in_softmax_output == 0
     
     check_dtype(softmax_output, utils.DEFAULT_DATATYPE)
     return softmax_output
@@ -238,8 +239,9 @@ def sigmoid(x):
         resolution = utils.DTYPE_RESOLUTION
         sigmoid_output[sigmoid_output < resolution] = resolution
         
-        nb_negative_values_in_sigmoid_output = np.where(sigmoid_output <= 0)[0].size
-        assert nb_negative_values_in_sigmoid_output == 0
+        # the values of the sigmoid output have to be strictly positive
+        nb_illegal_values_in_sigmoid_output = np.where(sigmoid_output <= 0)[0].size
+        assert nb_illegal_values_in_sigmoid_output == 0
     
     check_dtype(sigmoid_output, utils.DEFAULT_DATATYPE)
     return sigmoid_output

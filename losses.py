@@ -26,7 +26,7 @@ def CCE(y_true, y_pred):
     `y_true` and `y_pred` are 1D vectors or 2D matrices
     
     `y_true` has to be one-hot encoded, and all the values of `y_pred` have to
-    be strictly positive (usually those 2 conditions are satisfied when this
+    be in the range ]0, 1] (usually those 2 conditions are satisfied when this
     function is called)
     """
     assert isinstance(y_true, np.ndarray) and isinstance(y_pred, np.ndarray)
@@ -40,8 +40,9 @@ def CCE(y_true, y_pred):
     else:
         assert len(y_true.shape) == 2
         
-        nb_negative_values_in_y_pred = np.where(y_pred <= 0)[0].size
-        assert nb_negative_values_in_y_pred == 0
+        # the values of `y_pred` have to be in the range ]0, 1]
+        nb_illegal_values_in_y_pred = np.where(y_pred <= 0)[0].size + np.where(y_pred > 1)[0].size
+        assert nb_illegal_values_in_y_pred == 0
         
         batch_size = y_true.shape[0]
         CCE_output = np.zeros((batch_size, ), dtype=y_true.dtype)
@@ -60,7 +61,7 @@ def CCE_prime(y_true, y_pred):
     `y_true` and `y_pred` are 1D vectors or 2D matrices
     
     `y_true` has to be one-hot encoded, and all the values of `y_pred` have to
-    be strictly positive (usually those 2 conditions are satisfied when this
+    be in the range ]0, 1] (usually those 2 conditions are satisfied when this
     function is called)
     """
     assert isinstance(y_true, np.ndarray) and isinstance(y_pred, np.ndarray)
