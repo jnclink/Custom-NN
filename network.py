@@ -276,6 +276,7 @@ class Network:
         """
         Trains the network on `nb_epochs` epochs
         """
+        assert nb_epochs > 0
         
         if len(self.layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
@@ -583,7 +584,7 @@ class Network:
         nb_test_samples = X_test.shape[0]
         
         # only used to split the testing data into batches
-        dummy_y_test = np.zeros((nb_test_samples, ), dtype=X_test.dtype)
+        dummy_y_test = np.zeros((nb_test_samples, ), dtype=int)
         
         test_batches = split_data_into_batches(
             X_test,
