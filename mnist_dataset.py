@@ -21,7 +21,7 @@ import utils
 from utils import (
     cast,
     check_dtype,
-    get_type_of_array,
+    get_dtype_of_array,
     get_range_of_array,
     to_categorical,
     categorical_to_vector,
@@ -53,10 +53,10 @@ def load_raw_MNIST_dataset(verbose=False):
         print(f"    - y_test  : {raw_y_test.shape}")
         
         print("\nTypes of the raw MNIST data (loaded from Keras) :")
-        print(f"    - X_train : {get_type_of_array(raw_X_train)}")
-        print(f"    - y_train : {get_type_of_array(raw_y_train)}")
-        print(f"    - X_test  : {get_type_of_array(raw_X_test)}")
-        print(f"    - y_test  : {get_type_of_array(raw_y_test)}")
+        print(f"    - X_train : {get_dtype_of_array(raw_X_train)}")
+        print(f"    - y_train : {get_dtype_of_array(raw_y_train)}")
+        print(f"    - X_test  : {get_dtype_of_array(raw_X_test)}")
+        print(f"    - y_test  : {get_dtype_of_array(raw_y_test)}")
         
         precision_of_printed_info = 3
         print("\nRanges of the raw MNIST data (loaded from Keras) :")
@@ -64,6 +64,13 @@ def load_raw_MNIST_dataset(verbose=False):
         print(f"    - y_train : {get_range_of_array(raw_y_train, precision=precision_of_printed_info)}")
         print(f"    - X_test  : {get_range_of_array(raw_X_test, precision=precision_of_printed_info)}")
         print(f"    - y_test  : {get_range_of_array(raw_y_test, precision=precision_of_printed_info)}")
+        
+        # displaying the proportions of the digits in the raw MNIST data
+        dict_of_label_vectors = {
+            "y_train" : raw_y_train,
+            "y_test"  : raw_y_test
+        }
+        display_distribution_of_classes(dict_of_label_vectors, precision=2)
     
     print(f"\nThe raw MNIST dataset was successfully loaded. Done in {duration_loading:.3f} seconds")
     
@@ -278,12 +285,12 @@ def format_raw_MNIST_dataset(
         print(f"    - y_test  : {y_test.shape}")
         
         print("\nTypes of the formatted MNIST data :")
-        print(f"    - X_train : {get_type_of_array(X_train)}")
-        print(f"    - y_train : {get_type_of_array(y_train)}")
-        print(f"    - X_val   : {get_type_of_array(X_val)}")
-        print(f"    - y_val   : {get_type_of_array(y_val)}")
-        print(f"    - X_test  : {get_type_of_array(X_test)}")
-        print(f"    - y_test  : {get_type_of_array(y_test)}")
+        print(f"    - X_train : {get_dtype_of_array(X_train)}")
+        print(f"    - y_train : {get_dtype_of_array(y_train)}")
+        print(f"    - X_val   : {get_dtype_of_array(X_val)}")
+        print(f"    - y_val   : {get_dtype_of_array(y_val)}")
+        print(f"    - X_test  : {get_dtype_of_array(X_test)}")
+        print(f"    - y_test  : {get_dtype_of_array(y_test)}")
         
         precision_of_printed_info = 3
         print("\nRanges of the formatted MNIST data :")

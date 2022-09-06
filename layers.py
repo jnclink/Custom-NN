@@ -249,10 +249,10 @@ class ActivationLayer(Layer):
         if self.activation_name == "leaky_relu":
             leaky_ReLU_coeff = self.activation_kwargs["leaky_ReLU_coeff"]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
-            extra_information = f", {leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
+            extra_info = f", {leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
         else:
-            extra_information = ""
-        return f"{self.__class__.__name__}(\"{self.activation_name}\"{extra_information})"
+            extra_info = ""
+        return f"{self.__class__.__name__}(\"{self.activation_name}\"{extra_info})"
     
     def forward_propagation(self, input_data, training=True):
         """

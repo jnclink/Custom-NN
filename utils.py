@@ -118,12 +118,13 @@ def cast(x, dtype):
 # Functions related to the `mnist_dataset.py` script
 
 
-def get_type_of_array(array):
+def get_dtype_of_array(array):
     """
-    Returns the type of an array (as a string)
+    Returns the datatype of an array (as a string)
     """
     assert isinstance(array, np.ndarray)
-    return "numpy." + str(array.dtype)
+    str_dtype = "numpy." + str(array.dtype)
+    return str_dtype
 
 
 def get_range_of_array(array, precision=3):
@@ -134,17 +135,17 @@ def get_range_of_array(array, precision=3):
     min_element_of_array = np.min(array)
     max_element_of_array = np.max(array)
     
-    FLOAT_TYPES = (
-        float,
+    FLOAT_DATATYPES = (
         np.float_,
         np.floating,
         np.float16,
         np.float32,
-        np.float64
+        np.float64,
+        np.single,
+        np.longfloat
     )
     
-    INTEGER_TYPES = (
-        int,
+    INTEGER_DATATYPES = (
         np.int_,
         np.integer,
         np.int8,  np.uint8,
@@ -155,12 +156,12 @@ def get_range_of_array(array, precision=3):
     
     array_dtype = array.dtype.type
     
-    if array_dtype in FLOAT_TYPES:
-        # float-like data
+    if array_dtype in FLOAT_DATATYPES:
+        # floating-point data
         str_range = f"{min_element_of_array:.{precision}f} -> {max_element_of_array:.{precision}f}"
     else:
-        # integer-like data
-        assert array_dtype in INTEGER_TYPES
+        # integer data
+        assert array_dtype in INTEGER_DATATYPES
         str_range = f"{min_element_of_array} -> {max_element_of_array}"
     return str_range
 
@@ -172,6 +173,7 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
         - as its keys   : the names of the label vectors (as strings)
         - as its values : the corresponding 1D vectors of INTEGER labels
     """
+    assert isinstance(dict_of_label_vectors, dict)
     displayed_string = "\nClass distributions :\n"
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
@@ -201,7 +203,7 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
 # matrix (and vice-versa)
 
 
-def to_categorical(y, dtype=int):
+def to_categorical(y, dtype=int, nb_classes=None):
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
     """
@@ -209,19 +211,26 @@ def to_categorical(y, dtype=int):
     
     nb_labels = y.size
     
-    distinct_elements_of_y = np.unique(y)
-    nb_classes = distinct_elements_of_y.size
+    distinct_labels = np.unique(y)
     
-    # checking that all the integers between 0 (inclusive) and `nb_classes - 1`
-    # (inclusive) are contained in the vector `y`
-    for class_index in range(nb_classes):
-        assert class_index in distinct_elements_of_y
+    if nb_classes is None:
+        nb_classes = distinct_labels.size
+        
+        # checking if all the integers between 0 (inclusive) and `nb_classes - 1`
+        # (inclusive) are contained in the vector `y`
+        for class_index in range(nb_classes):
+            assert class_index in distinct_labels
+    else:
+        # in this case, `nb_classes` is forced (which would imply that the user
+        # isn't sure if the labels vector `y` contains all the classes or not)
+        assert isinstance(nb_classes, int)
+        assert nb_classes >= max(2, distinct_labels.size)
     
     y_categorical = np.zeros((nb_labels, nb_classes), dtype=dtype)
     
-    for label_index in range(nb_labels):
+    for label_index, label in enumerate(y):
         # by definition
-        y_categorical[label_index, y[label_index]] = 1
+        y_categorical[label_index, label] = 1
     
     return y_categorical
 
@@ -345,8 +354,8 @@ def accuracy_score(y_true, y_pred, normalize=True):
 
 def confusion_matrix(y_true, y_pred):
     """
-    Returns the raw confusion matrix of the tuple (y_true, y_pred). Its shape
-    will be (nb_classes, nb_classes), and, for all integers `i` and `j` in the
+    Returns the raw confusion matrix of `y_true` and `y_pred`. Its shape will
+    be `(nb_classes, nb_classes)`, and, for all integers `i` and `j` in the
     range [0, nb_classes - 1], the value of `conf_matrix[i, j]` (say, for
     instance, `N`) indicates that :
         - Out of all the test samples that were predicted to belong to class `i`,
@@ -366,12 +375,17 @@ def confusion_matrix(y_true, y_pred):
     assert len(y_true.shape) == 1
     
     nb_classes = np.unique(y_true).size
+    assert np.unique(y_pred).size <= nb_classes
+    
     conf_matrix = np.zeros((nb_classes, nb_classes), dtype=int)
     
     nb_test_samples = y_true.size
     for test_sample_index in range(nb_test_samples):
+        predicted_class = y_pred[test_sample_index]
+        actual_class    = y_true[test_sample_index]
+        
         # by definition (rows=predicted_classes and columns=actual_classes)
-        conf_matrix[y_pred[test_sample_index], y_true[test_sample_index]] += 1
+        conf_matrix[predicted_class, actual_class] += 1
     
     return conf_matrix
 
@@ -478,8 +492,8 @@ def print_confusion_matrix(
 ##############################################################################
 
 
-# Function related to the `layers.py` script (it's used by some of the
-# `__str__` methods of the layer classes)
+# Function related to the `layers.py` script (it's used by the `__str__` methods
+# of both the `ActivationLayer` and `DropoutLayer` classes)
 
 
 def count_nb_decimals_places(x, max_precision=6):
