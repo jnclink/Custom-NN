@@ -148,6 +148,8 @@ def get_range_of_array(array, precision=3):
     Returns the range of an array (as a string)
     """
     assert isinstance(array, np.ndarray)
+    assert precision >= 0
+    
     min_element_of_array = np.min(array)
     max_element_of_array = np.max(array)
     
@@ -175,10 +177,12 @@ def get_range_of_array(array, precision=3):
     if array_dtype in FLOAT_DATATYPES:
         # floating-point data
         str_range = f"{min_element_of_array:.{precision}f} -> {max_element_of_array:.{precision}f}"
-    else:
+    elif array_dtype in INTEGER_DATATYPES:
         # integer data
-        assert array_dtype in INTEGER_DATATYPES
         str_range = f"{min_element_of_array} -> {max_element_of_array}"
+    else:
+        raise ValueError(f"get_range_of_array (utils.py) - The input `array` has an unrecognized datatype : \"{array_dtype.__name__}\"")
+    
     return str_range
 
 
@@ -190,11 +194,12 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
         - as its values : the corresponding 1D vectors of INTEGER labels
     """
     assert isinstance(dict_of_label_vectors, dict)
+    assert precision >= 0
+    
     displayed_string = "\nClass distributions :\n"
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
         assert isinstance(label_vector_name, str)
-        assert isinstance(label_vector, np.ndarray)
         check_if_label_vector_is_valid(label_vector)
         
         displayed_string += f"\n{label_vector_name} :"
@@ -257,8 +262,8 @@ def to_categorical(y, dtype=int, nb_classes=None):
 
 def categorical_to_vector(y):
     """
-    Converts a one-hot encoded (2D) matrix into its associated 1D vector of
-    INTEGER labels
+    Converts a 2D categorical matrix (one-hot encoded matrix or logits) into
+    its associated 1D vector of INTEGER labels
     """
     assert len(y.shape) == 2
     return np.argmax(y, axis=1)
@@ -284,7 +289,7 @@ def split_data_into_batches(
     batch will simply have `nb_samples % batch_size` samples)
     
     Here, `labels` can either be a 1D vector of INTEGER labels or its one-hot
-    encoded equivalent (in that case it will be a 2D matrix)
+    encoded equivalent (in that case, `labels` will be a 2D matrix)
     """
     
     batches = {
@@ -537,6 +542,7 @@ def count_nb_decimals_places(x, max_precision=6):
     Returns the number of decimal places of the scalar `x`
     """
     assert np.isscalar(x)
+    assert max_precision >= 0
     
     # converting `x` into a positive number, since it doesn't affect the number
     # of decimal places

@@ -62,8 +62,8 @@ def load_raw_MNIST_dataset(verbose=False):
         print("\nRanges of the raw MNIST data (loaded from Keras) :")
         print(f"    - X_train : {get_range_of_array(raw_X_train, precision=precision_of_printed_info)}")
         print(f"    - y_train : {get_range_of_array(raw_y_train, precision=precision_of_printed_info)}")
-        print(f"    - X_test  : {get_range_of_array(raw_X_test, precision=precision_of_printed_info)}")
-        print(f"    - y_test  : {get_range_of_array(raw_y_test, precision=precision_of_printed_info)}")
+        print(f"    - X_test  : {get_range_of_array(raw_X_test,  precision=precision_of_printed_info)}")
+        print(f"    - y_test  : {get_range_of_array(raw_y_test,  precision=precision_of_printed_info)}")
         
         # displaying the proportions of the digits in the raw MNIST data
         dict_of_label_vectors = {
@@ -296,10 +296,10 @@ def format_raw_MNIST_dataset(
         print("\nRanges of the formatted MNIST data :")
         print(f"    - X_train : {get_range_of_array(X_train, precision=precision_of_printed_info)} (mean={X_train.mean():.{precision_of_printed_info}f}, std={X_train.std():.{precision_of_printed_info}f})")
         print(f"    - y_train : {get_range_of_array(y_train, precision=precision_of_printed_info)} (one-hot encoded)")
-        print(f"    - X_val   : {get_range_of_array(X_val, precision=precision_of_printed_info)} (mean={X_val.mean():.{precision_of_printed_info}f}, std={X_val.std():.{precision_of_printed_info}f})")
-        print(f"    - y_val   : {get_range_of_array(y_val, precision=precision_of_printed_info)} (one-hot encoded)")
-        print(f"    - X_test  : {get_range_of_array(X_test, precision=precision_of_printed_info)} (mean={X_test.mean():.{precision_of_printed_info}f}, std={X_test.std():.{precision_of_printed_info}f})")
-        print(f"    - y_test  : {get_range_of_array(y_test, precision=precision_of_printed_info)} (one-hot encoded)")
+        print(f"    - X_val   : {get_range_of_array(X_val,   precision=precision_of_printed_info)} (mean={X_val.mean():.{precision_of_printed_info}f}, std={X_val.std():.{precision_of_printed_info}f})")
+        print(f"    - y_val   : {get_range_of_array(y_val,   precision=precision_of_printed_info)} (one-hot encoded)")
+        print(f"    - X_test  : {get_range_of_array(X_test,  precision=precision_of_printed_info)} (mean={X_test.mean():.{precision_of_printed_info}f}, std={X_test.std():.{precision_of_printed_info}f})")
+        print(f"    - y_test  : {get_range_of_array(y_test,  precision=precision_of_printed_info)} (one-hot encoded)")
         
         # displaying the proportions of the digits in the final formatted data
         dict_of_label_vectors = {

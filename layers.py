@@ -168,6 +168,7 @@ class DenseLayer(Layer):
         check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
         
         input_gradient = output_gradient @ self.weights.T # = dE/dX
+        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
         batch_size = output_gradient.shape[0]
         averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
@@ -188,9 +189,8 @@ class DenseLayer(Layer):
         self.weights -= learning_rate * weights_gradient
         self.biases  -= learning_rate * biases_gradient
         
-        check_dtype(self.weights,   utils.DEFAULT_DATATYPE)
-        check_dtype(self.biases,    utils.DEFAULT_DATATYPE)
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        check_dtype(self.weights, utils.DEFAULT_DATATYPE)
+        check_dtype(self.biases,  utils.DEFAULT_DATATYPE)
         
         return input_gradient
 
@@ -392,6 +392,7 @@ class BatchNormLayer(Layer):
         intermediate_mean = np.mean(output_gradient * self.normalized_input, axis=1, keepdims=True)
         
         input_gradient = self.gamma * (centered_output_gradient - intermediate_mean * self.normalized_input) / self.input_std
+        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
         # gradient averaging for batch processing
         gamma_gradient = np.mean(np.sum(output_gradient * self.normalized_input, axis=1))
@@ -409,9 +410,8 @@ class BatchNormLayer(Layer):
         self.gamma -= learning_rate * gamma_gradient
         self.beta  -= learning_rate * beta_gradient
         
-        check_dtype(self.gamma,     utils.DEFAULT_DATATYPE)
-        check_dtype(self.beta,      utils.DEFAULT_DATATYPE)
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        check_dtype(self.gamma, utils.DEFAULT_DATATYPE)
+        check_dtype(self.beta,  utils.DEFAULT_DATATYPE)
         
         return input_gradient
 

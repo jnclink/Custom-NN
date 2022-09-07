@@ -651,7 +651,7 @@ class Network:
         # checking that the accuracy score computed from the confusion matrix
         # is the same as the one computed by the `accuracy_score` function
         acc_score_from_conf_matrix = 100 * float(np.sum(np.diag(conf_matrix))) / y_test_flat.size
-        assert np.allclose(acc_score, acc_score_from_conf_matrix)
+        assert np.allclose(acc_score_from_conf_matrix, acc_score)
         
         return acc_score, conf_matrix
     
