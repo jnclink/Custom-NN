@@ -19,6 +19,7 @@ from utils import (
     list_to_string,
     split_data_into_batches,
     categorical_to_vector,
+    check_if_label_vector_is_valid,
     accuracy_score,
     confusion_matrix
 )
@@ -620,33 +621,49 @@ class Network:
         return y_pred
     
     
-    def evaluate(self, X_test, y_test, test_batch_size=32):
+    def evaluate(
+            self,
+            X_test,
+            y_test,
+            top_N_accuracy=2,
+            test_batch_size=32
+        ):
         """
         Computes the network's prediction of `X_test` (i.e. `y_pred`), then
-        computes the accuracy score and the confusion matrix of (y_test, y_pred)
+        returns the accuracy score and the confusion matrix of `y_test` and `y_pred`
         
         Here, `y_test` can either be a 1D vector of INTEGER labels or its
         one-hot encoded equivalent (in that case it will be a 2D matrix)
+        
+        The "top-N accuracy" of `y_test` and `y_pred` is also returned. It's
+        defined as the proportion of the classes in `y_true` that lie within
+        the `N` most probable classes of each prediction of `y_pred` (here, `N`
+        is actually the `top_N_accuracy` kwarg)
         """
         
         if self.history is None:
             raise Exception("Network.evaluate - You haven't trained the network yet !")
         
         if len(y_test.shape) == 1:
-           y_test_flat = y_test.copy()
+            check_if_label_vector_is_valid(y_test)
+            y_test_flat = y_test.copy()
         else:
             # here, `y_test` is a one-hot encoded matrix
             assert len(y_test.shape) == 2
             y_test_flat = categorical_to_vector(y_test)
         
-        # here we don't need the logits, we only need the predicted (1D) vector
-        # of INTEGER labels
-        y_pred_flat = self.predict(
+        nb_classes = np.unique(y_test_flat).size
+        
+        assert isinstance(top_N_accuracy, int)
+        assert (top_N_accuracy >= 1) and (top_N_accuracy <= nb_classes)
+        
+        # getting the raw prediction of the network (i.e. the logits)
+        y_pred = self.predict(
             X_test,
-            test_batch_size=test_batch_size,
-            return_logits=False
+            test_batch_size=test_batch_size
         )
-        assert len(y_pred_flat.shape) == 1
+        
+        y_pred_flat = categorical_to_vector(y_pred)
         
         acc_score = 100 * accuracy_score(y_test_flat, y_pred_flat)
         conf_matrix = confusion_matrix(y_test_flat, y_pred_flat)
@@ -656,7 +673,27 @@ class Network:
         acc_score_from_conf_matrix = 100 * float(np.sum(np.diag(conf_matrix))) / y_test_flat.size
         assert np.allclose(acc_score_from_conf_matrix, acc_score)
         
-        return acc_score, conf_matrix
+        if top_N_accuracy == 1:
+            top_N_acc_score = acc_score
+        else:
+            # each row of `top_N_integer_predictions` will contain the
+            # `top_N_accuracy` most probable predicted classes (in descending
+            # order of probability)
+            top_N_integer_predictions = np.fliplr(np.argsort(y_pred, axis=1))[:, 0 : top_N_accuracy]
+            
+            top_N_acc_score = 0
+            
+            for test_label, top_N_predictions in zip(y_test_flat, top_N_integer_predictions):
+                # by definition of the "top-N accuracy"
+                if test_label in top_N_predictions:
+                    top_N_acc_score += 1
+            
+            nb_test_samples = y_test_flat.size
+            top_N_acc_score = 100 * float(top_N_acc_score) / nb_test_samples
+        
+        assert top_N_acc_score >= acc_score
+        
+        return acc_score, top_N_acc_score, conf_matrix
     
     
     def display_some_predictions(self, X_test, y_test, seed=None):
@@ -682,6 +719,7 @@ class Network:
         default_image_size = (sidelength_of_each_image, sidelength_of_each_image)
         
         if len(y_test.shape) == 1:
+            check_if_label_vector_is_valid(y_test)
             y_test_flat = y_test.copy()
         else:
             # here, `y_test` is a one-hot encoded matrix
@@ -698,7 +736,9 @@ class Network:
         
         random_test_samples = X_test[random_test_indices, :]
         logits = self.predict(random_test_samples)
-        predicted_digit_values = categorical_to_vector(logits)
+        
+        # getting the "top-2 integer predictions"
+        predicted_digit_values = np.fliplr(np.argsort(logits, axis=1))[:, 0 : 2]
         
         # by default
         confidence_level_precision = 0
@@ -716,10 +756,10 @@ class Network:
         plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples (and their confidence level)", fontsize=15)
         
         for image_index in range(nb_predictions):
-            predicted_digit_value = predicted_digit_values[image_index]
+            predicted_digit_value = predicted_digit_values[image_index, 0]
             confidence_level_first_choice = 100 * logits[image_index, predicted_digit_value]
             
-            second_choice_predicted_digit = np.argsort(logits[image_index, :])[::-1][1]
+            second_choice_predicted_digit = predicted_digit_values[image_index, 1]
             confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_digit]
             
             actual_digit_value = y_test_flat[random_test_indices[image_index]]

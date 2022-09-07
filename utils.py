@@ -427,7 +427,8 @@ def confusion_matrix(y_true, y_pred, nb_classes=None):
     check_if_label_vector_is_valid(y_pred)
     assert y_true.size == y_pred.size
     
-    nb_distinct_labels = max(np.unique(y_true).size, np.unique(y_pred).size)
+    distinct_labels = list(set(np.unique(y_true)).union(set(np.unique(y_pred))))
+    nb_distinct_labels = len(distinct_labels)
     
     if nb_classes is None:
         nb_classes = nb_distinct_labels

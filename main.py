@@ -264,9 +264,16 @@ def main():
         saved_image_name="network_history" # it will be saved as a PNG image by default
     )
     
-    acc_score, conf_matrix = network.evaluate(
+    # The "top-N accuracy" is defined as the proportion of the true classes
+    # that lie within the `N` most probable predicted classes (here, `N` is
+    # actually `top_N_accuracy`)
+    top_N_accuracy = 2
+    
+    # Computing the global accuracy scores and the confusion matrix
+    acc_score, top_N_acc_score, conf_matrix = network.evaluate(
         X_test,
         y_test,
+        top_N_accuracy=top_N_accuracy,
         test_batch_size=32
     )
     
@@ -290,9 +297,10 @@ def main():
         display_with_line_breaks=True
     )
     
-    # Displaying the global accuracy score of the network
-    precision_global_accuracy = 2 # by default
-    print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_global_accuracy}f} %\n")
+    # Displaying the global accuracy scores of the network
+    precision_accuracy = 2 # by default
+    print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_accuracy}f} %")
+    print(f"\nTOP-{top_N_accuracy} ACCURACY  : {top_N_acc_score:.{precision_accuracy}f} %\n")
     
     # Just for testing purposes
     network.display_some_predictions(
