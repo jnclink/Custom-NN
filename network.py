@@ -16,6 +16,7 @@ import utils
 from utils import (
     cast,
     check_dtype,
+    list_to_string,
     split_data_into_batches,
     categorical_to_vector,
     accuracy_score,
@@ -96,7 +97,7 @@ class Network:
         Adds a layer to the network
         """
         if not(isinstance(layer, Network.AVAILABLE_LAYER_TYPES)):
-            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\"")
+            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\" (available layer types : {list_to_string(Network.AVAILABLE_LAYER_TYPES)})")
         
         if isinstance(layer, InputLayer):
             assert len(self.layers) == 0, "\nNetwork.add - ERROR - You cannot add an InputLayer if other layers have already been added to the Network !"
@@ -253,10 +254,12 @@ class Network:
         """
         Sets the loss function of the network
         """
+        # checking the validity of the specified loss function name
         assert isinstance(loss_name, str)
         loss_name = loss_name.lower()
-        if loss_name not in list(Network.AVAILABLE_LOSSES.keys()):
-            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\"")
+        possible_loss_names = list(Network.AVAILABLE_LOSSES.keys())
+        if loss_name not in possible_loss_names:
+            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(possible_loss_names)})")
         
         self.loss_name = loss_name
         self.loss, self.loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]

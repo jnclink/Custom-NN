@@ -11,6 +11,7 @@ import utils
 from utils import (
     cast,
     check_dtype,
+    list_to_string,
     count_nb_decimals_places
 )
 
@@ -213,10 +214,12 @@ class ActivationLayer(Layer):
     }
     
     def __init__(self, activation_name, **kwargs):
+        # checking the validity of the specified activation name
         assert isinstance(activation_name, str)
         activation_name = activation_name.lower()
-        if activation_name not in list(ActivationLayer.AVAILABLE_ACTIVATIONS.keys()):
-            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\"")
+        possible_activation_names = list(ActivationLayer.AVAILABLE_ACTIVATIONS.keys())
+        if activation_name not in possible_activation_names:
+            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\" (possible activation names : {list_to_string(possible_activation_names)})")
         
         self.activation_name = activation_name
         self.activation, self.activation_prime = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]

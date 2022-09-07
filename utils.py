@@ -31,11 +31,8 @@ def is_an_available_global_datatype(datatype):
     AVAILABLE_DATATYPES = (
         "float32",
         np.float32,
-        np.single,    # basically float32
         "float64",
-        np.float64,
-        np.longfloat, # basically float64
-        np.float_     # is either float32 or float64, depending on your PC (usually it's float64)
+        np.float64
     )
     
     if datatype not in AVAILABLE_DATATYPES:
@@ -115,12 +112,41 @@ def cast(x, dtype):
 ##############################################################################
 
 
-# Generally useful function (which is only used inside this script)
+# Generally useful functions
+
+
+def list_to_string(L):
+    """
+    Converts the specified list (or tuple) into a string
+    """
+    if not(isinstance(L, (list, tuple))):
+        raise TypeError(f"list_to_string (utils.py) - The input `L` isn't a list (or a tuple), it's a \"{L.__class__.__name__}\" !")
+    
+    nb_elements = len(L)
+    str_L = ""
+    
+    for element_index, element in enumerate(L):
+        if isinstance(element, type):
+            str_element = element.__name__
+        else:
+            str_element = str(element)
+        str_element = f"\"{str_element}\""
+        
+        if element_index == 0:
+            # first element of the list/tuple
+            str_L += str_element
+        elif element_index < nb_elements - 1:
+            str_L += ", " + str_element
+        else:
+            # last element of the list/tuple
+            str_L += " and " + str_element
+    
+    return str_L
 
 
 def check_if_label_vector_is_valid(y):
     """
-    Checks if the label vector `y` is legitimate or not
+    Checks the validity of the label vector `y`
     """
     assert isinstance(y, np.ndarray)
     assert len(y.shape) == 1
@@ -154,18 +180,12 @@ def get_range_of_array(array, precision=3):
     max_element_of_array = np.max(array)
     
     FLOAT_DATATYPES = (
-        np.float_,
-        np.floating,
         np.float16,
         np.float32,
-        np.float64,
-        np.single,
-        np.longfloat
+        np.float64
     )
     
     INTEGER_DATATYPES = (
-        np.int_,
-        np.integer,
         np.int8,  np.uint8,
         np.int16, np.uint16,
         np.int32, np.uint32,
@@ -181,7 +201,7 @@ def get_range_of_array(array, precision=3):
         # integer data
         str_range = f"{min_element_of_array} -> {max_element_of_array}"
     else:
-        raise ValueError(f"get_range_of_array (utils.py) - The input `array` has an unrecognized datatype : \"{array_dtype.__name__}\"")
+        raise TypeError(f"get_range_of_array (utils.py) - The input `array` has an unrecognized datatype : \"{array_dtype.__name__}\" (it has to be numerical, i.e. float or int)")
     
     return str_range
 
@@ -438,11 +458,12 @@ def print_confusion_matrix(
     
     Here, `conf_matrix` is a non-normalized confusion matrix
     """
-    
+    # checking the validity of the `normalize` kwarg
     assert isinstance(normalize, str)
     normalize = normalize.lower()
-    if normalize not in ["rows", "columns", "no"]:
-        raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\"")
+    possible_values_for_normalize_kwarg = ["rows", "columns", "no"]
+    if normalize not in possible_values_for_normalize_kwarg:
+        raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
     
     assert precision >= 0
     if not(jupyter_notebook):
