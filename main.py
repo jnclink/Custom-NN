@@ -53,11 +53,18 @@ def main():
     # Set this seed to `None` for "real" randomness during those 2 processes
     seed_data_formatting = 555
     
+    # Here, `selected_classes` can either be :
+    #     - The string "all" (if you want to work with all the digits ranging
+    #       from 0 to 9)
+    #     - A list/tuple/1D-array containing the specific digits you want to
+    #       work with (e.g. [2, 4, 7])
+    selected_classes = "all"
+    
     # Defining the number of samples in the "train", "val" and "test" sets
     # NB : The validation set is extracted from the raw "train" data, not from
-    #      the raw "test" data. As a reminder, there are :
-    #          - 60000 samples in the raw "train" data
-    #          - 10000 samples in the raw "test" data
+    # the raw "test" data. As a reminder, there are :
+    #     - 60000 samples in the raw "train" data (if ALL the classes are selected)
+    #     - 10000 samples in the raw "test" data (if ALL the classes are selected)
     nb_train_samples = 10000
     nb_val_samples   = 1000
     nb_test_samples  = 1000
@@ -84,6 +91,7 @@ def main():
         nb_train_samples,
         nb_val_samples,
         nb_test_samples,
+        selected_classes=selected_classes,
         nb_shuffles=20,
         seed=seed_data_formatting,
         verbose=False
@@ -96,7 +104,7 @@ def main():
     # = 28 * 28 = 784 pixels per image
     nb_pixels_per_image = X_train.shape[1]
     
-    # = 10 digits
+    # = number of (distinct) selected digits
     nb_classes = y_train.shape[1]
     
     # ====================================================================== #
@@ -281,6 +289,7 @@ def main():
     # normalized over its rows)
     print_confusion_matrix(
         conf_matrix,
+        selected_classes=selected_classes,
         normalize="rows", # = "rows", "columns" or "no"
         precision=1,
         initial_spacing=1,
@@ -291,6 +300,7 @@ def main():
     # normalized over its columns)
     print_confusion_matrix(
         conf_matrix,
+        selected_classes=selected_classes,
         normalize="columns", # = "rows", "columns" or "no"
         precision=1,
         initial_spacing=1,
@@ -306,6 +316,7 @@ def main():
     network.display_some_predictions(
         X_test,
         y_test,
+        selected_classes=selected_classes,
         seed=None
     )
     

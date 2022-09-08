@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Main layer classes
+Script defining the main layer classes
 """
 
 import numpy as np
@@ -464,11 +464,10 @@ class DropoutLayer(Layer):
         
         np.random.seed(self.seed)
         for batch_sample_index in range(batch_size):
-            indices_of_randomly_dropped_values = np.random.choice(choices_for_dropped_indices, size=(nb_of_values_to_drop_per_input_sample, ))
+            indices_of_randomly_dropped_values = np.random.choice(choices_for_dropped_indices, size=(nb_of_values_to_drop_per_input_sample, ), replace=False)
             dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
         np.random.seed(None) # resetting the seed
         
-        check_dtype(dropout_matrix, utils.DEFAULT_DATATYPE)
         return dropout_matrix
     
     def forward_propagation(self, input_data, training=True):

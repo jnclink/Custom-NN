@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Miscellaneous useful functions
+Script defining miscellaneous useful functions
 """
 
 import numpy as np
@@ -43,7 +43,7 @@ def is_an_available_global_datatype(datatype):
         raise ValueError(f"is_an_available_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
 
 
-# checking the hard-coded value of `DEFAULT_DATATYPE` (just in case)
+# checking the hard-coded value of `DEFAULT_DATATYPE` (just in case there's a typo)
 is_an_available_global_datatype(DEFAULT_DATATYPE)
 
 
@@ -60,7 +60,7 @@ def set_global_datatype(datatype):
     inside the code, make sure you add the following import : `import utils`,
     then use the variable `utils.DEFAULT_DATATYPE`. Please DO NOT add the import
     `from utils import DEFAULT_DATATYPE` before calling this function, as it
-    will be the default value of `DEFAULT_DATATYPE`, not the updated one !
+    will return the default value of `DEFAULT_DATATYPE`, not the updated one !
     The same goes with the global variable `DTYPE_RESOLUTION`
     """
     if datatype == float:
@@ -117,12 +117,17 @@ def cast(x, dtype):
 
 def list_to_string(L):
     """
-    Converts the specified list (or tuple) into a string
+    Converts the specified non-empty list (or tuple or 1D numpy array) into a string
     """
-    if not(isinstance(L, (list, tuple))):
-        raise TypeError(f"list_to_string (utils.py) - The input `L` isn't a list (or a tuple), it's a \"{L.__class__.__name__}\" !")
+    if not(isinstance(L, (list, tuple, np.ndarray))):
+        raise TypeError(f"list_to_string (utils.py) - The input `L` isn't a list (or a tuple or a 1D numpy array), it's a \"{L.__class__.__name__}\" !")
+    
+    if isinstance(L, np.ndarray):
+        assert len(L.shape) == 1, "The input `L` has to be 1-dimensional !"
     
     nb_elements = len(L)
+    assert nb_elements > 0, "The input `L` is empty !"
+    
     str_L = ""
     
     for element_index, element in enumerate(L):
@@ -206,15 +211,40 @@ def get_range_of_array(array, precision=3):
     return str_range
 
 
-def display_distribution_of_classes(dict_of_label_vectors, precision=2):
+def display_class_distributions(
+        dict_of_label_vectors,
+        selected_classes="all",
+        precision=2
+    ):
     """
-    Prints the distribution of classes in the specified label vectors.
-    The input, `dict_of_label_vectors`, is a dictionary containing :
-        - as its keys   : the names of the label vectors (as strings)
-        - as its values : the corresponding 1D vectors of INTEGER labels
+    Prints the class distributions of the specified label vectors (i.e. the
+    values of the dictionary `dict_of_label_vectors`). The keys of `dict_of_label_vectors`
+    are the names of the corresponding label vectors (as strings)
+    
+    The kwarg `selected_classes` can either be :
+        - the string "all" (if you want to work with all the digits ranging
+          from 0 to 9)
+        - a list/tuple/1D-array containing the specific digits you want to work
+          with (e.g. [2, 4, 7])
     """
     assert isinstance(dict_of_label_vectors, dict)
     assert precision >= 0
+    
+    if isinstance(selected_classes, str):
+        selected_classes = selected_classes.lower()
+        if selected_classes != "all":
+            raise ValueError(f"display_distribution_of_classes (utils.py) - Invalid value for the kwarg `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
+    else:
+        if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
+            raise TypeError(f"display_distribution_of_classes (utils.py) - The `selected_classes` kwarg isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
+        
+        if not(isinstance(selected_classes, np.ndarray)):
+            selected_classes = np.array(selected_classes)
+        check_if_label_vector_is_valid(selected_classes)
+        
+        distinct_selected_classes = np.unique(selected_classes)
+        nb_distinct_selected_classes = distinct_selected_classes.size
+        assert nb_distinct_selected_classes >= 2, "display_distribution_of_classes (utils.py) - Please select at least 2 distinct classes in the `selected_classes` kwarg !"
     
     displayed_string = "\nClass distributions :\n"
     
@@ -226,9 +256,17 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
         
         nb_labels = label_vector.size
         nb_classes = np.unique(label_vector).size
+        assert nb_classes >= 2
         
-        for digit in range(nb_classes):
-            nb_corresponding_digits = np.where(label_vector == digit)[0].size
+        if isinstance(selected_classes, str):
+            # here, `selected_classes` is equal to the string "all"
+            classes = np.arange(nb_classes)
+        else:
+            assert nb_classes == nb_distinct_selected_classes
+            classes = distinct_selected_classes
+        
+        for digit_index, digit in enumerate(classes):
+            nb_corresponding_digits = np.where(label_vector == digit_index)[0].size
             proportion = 100 * float(nb_corresponding_digits) / nb_labels
             str_proportion = f"{proportion:.{precision}f}"
             if proportion < 10:
@@ -245,35 +283,21 @@ def display_distribution_of_classes(dict_of_label_vectors, precision=2):
 # matrix (and vice-versa)
 
 
-def to_categorical(y, dtype=int, nb_classes=None):
+def to_categorical(y, dtype=int):
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
-    
-    If `nb_classes` is forced (i.e. if it isn't `None`), it means that we're
-    not sure if `y` contains all the classes or not
     """
     check_if_label_vector_is_valid(y)
     
     nb_labels = y.size
     
-    distinct_labels = np.unique(y)
-    nb_distinct_labels = distinct_labels.size
-    
-    if nb_classes is None:
-        nb_classes = nb_distinct_labels
-        
-        # checking if all the integers between 0 (inclusive) and `nb_classes - 1`
-        # (inclusive) are contained in the vector `y`
-        for class_index in range(nb_classes):
-            assert class_index in distinct_labels
-    else:
-        assert isinstance(nb_classes, int)
-        assert nb_classes >= nb_distinct_labels
-    
+    distinct_labels, distinct_labels_inverse = np.unique(y, return_inverse=True)
+    nb_classes = distinct_labels.size
     assert nb_classes >= 2
+    
     y_categorical = np.zeros((nb_labels, nb_classes), dtype=dtype)
     
-    for label_index, label in enumerate(y):
+    for label_index, label in enumerate(distinct_labels_inverse):
         # by definition
         y_categorical[label_index, label] = 1
     
@@ -401,7 +425,7 @@ def accuracy_score(y_true, y_pred, normalize=True):
     return acc_score
 
 
-def confusion_matrix(y_true, y_pred, nb_classes=None):
+def confusion_matrix(y_true, y_pred):
     """
     Returns the raw confusion matrix of `y_true` and `y_pred`. Its shape will
     be `(nb_classes, nb_classes)`, and, for all integers `i` and `j` in the
@@ -414,9 +438,6 @@ def confusion_matrix(y_true, y_pred, nb_classes=None):
     
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     
-    If `nb_classes` is forced (i.e. if it isn't `None`), it means that we're
-    not sure if `y_true` and/or `y_pred` contain all the classes or not
-    
     NB : If you decide to use the `confusion_matrix` function of the
           `sklearn.metrics` module, just be aware that the output of their
           function is the TRANSPOSED version of the "common" definition of the
@@ -427,16 +448,9 @@ def confusion_matrix(y_true, y_pred, nb_classes=None):
     check_if_label_vector_is_valid(y_pred)
     assert y_true.size == y_pred.size
     
-    distinct_labels = list(set(np.unique(y_true)).union(set(np.unique(y_pred))))
-    nb_distinct_labels = len(distinct_labels)
-    
-    if nb_classes is None:
-        nb_classes = nb_distinct_labels
-    else:
-        assert isinstance(nb_classes, int)
-        assert nb_classes >= nb_distinct_labels
-    
+    nb_classes = np.unique(y_true).size
     assert nb_classes >= 2
+    
     conf_matrix = np.zeros((nb_classes, nb_classes), dtype=int)
     
     for predicted_class, actual_class in zip(y_pred, y_true):
@@ -448,6 +462,7 @@ def confusion_matrix(y_true, y_pred, nb_classes=None):
 
 def print_confusion_matrix(
         conf_matrix,
+        selected_classes="all",
         normalize="rows",
         precision=1,
         initial_spacing=1,
@@ -457,7 +472,14 @@ def print_confusion_matrix(
     """
     Prints the confusion matrix in a more user-friendly way
     
-    Here, `conf_matrix` is a non-normalized confusion matrix
+    Here, `conf_matrix` is a non-normalized confusion matrix (i.e. a raw,
+    integer-valued confusion matrix)
+    
+    The kwarg `selected_classes` can either be :
+        - the string "all" (if you want to work with all the digits ranging
+          from 0 to 9)
+        - a list/tuple/1D-array containing the specific digits you want to work
+          with (e.g. [2, 4, 7])
     """
     # checking the validity of the `normalize` kwarg
     assert isinstance(normalize, str)
@@ -479,17 +501,41 @@ def print_confusion_matrix(
     
     # ---------------------------------------------------------------------- #
     
-    # converting the confusion matrix into its associated dataframe
+    # Only keeping the selected classes in the confusion matrix (if specified)
     
     nb_classes = conf_matrix.shape[0]
-    class_names = [str(digit) for digit in range(nb_classes)]
+    assert nb_classes >= 2
+    
+    if isinstance(selected_classes, str):
+        selected_classes = selected_classes.lower()
+        if selected_classes != "all":
+            raise ValueError(f"print_confusion_matrix (utils.py) - Invalid value for the kwarg `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
+        
+        class_names = [str(digit) for digit in range(nb_classes)]
+    else:
+        if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
+            raise TypeError(f"print_confusion_matrix (utils.py) - The `selected_classes` kwarg isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
+        
+        if not(isinstance(selected_classes, np.ndarray)):
+            selected_classes = np.array(selected_classes)
+        check_if_label_vector_is_valid(selected_classes)
+        
+        distinct_selected_classes = np.unique(selected_classes)
+        nb_distinct_selected_classes = distinct_selected_classes.size
+        assert nb_distinct_selected_classes == nb_classes, f"print_confusion_matrix (utils.py) - The number of distinct classes in the `selected_classes` kwarg (= {nb_distinct_selected_classes}) doesn't match the shape of `conf_matrix` (= {conf_matrix.shape}) !"
+        
+        class_names = [str(digit) for digit in distinct_selected_classes]
+    
+    # ---------------------------------------------------------------------- #
+    
+    # converting the confusion matrix into its associated dataframe
     
     if normalize != "no":
         normalized_conf_matrix = np.float_(np.copy(conf_matrix))
         
         for class_index in range(nb_classes):
             if normalize == "rows":
-                # computing the PRECISION of the (predicted) class `class_index`
+                # computing the PRECISION of the (predicted) class at row index `class_index`
                 sum_of_row = np.sum(normalized_conf_matrix[class_index, :])
                 if np.allclose(sum_of_row, 0.0):
                     normalized_conf_matrix[class_index, :] = 0
@@ -497,7 +543,7 @@ def print_confusion_matrix(
                     normalized_conf_matrix[class_index, :] /= sum_of_row
             
             elif normalize == "columns":
-                # computing the RECALL of the (actual) class `class_index`
+                # computing the RECALL of the (actual) class at column index `class_index`
                 sum_of_column = np.sum(normalized_conf_matrix[:, class_index])
                 if np.allclose(sum_of_column, 0.0):
                     normalized_conf_matrix[:, class_index] = 0
@@ -507,14 +553,14 @@ def print_confusion_matrix(
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         conf_matrix_as_dataframe = pd.DataFrame(normalized_conf_matrix, index=class_names, columns=class_names)
         
-        for class_name in class_names:
+        for class_index, class_name in enumerate(class_names):
             # adding the "%" symbol to all the elements of the dataframe
             conf_matrix_as_dataframe[class_name] = conf_matrix_as_dataframe[class_name].astype(str) + " %"
             
             if not(jupyter_notebook):
                 # highlighting the diagonal values with vertical bars
-                diagonal_percentage = conf_matrix_as_dataframe[class_name][int(class_name)]
-                conf_matrix_as_dataframe[class_name][int(class_name)] = f"|| {diagonal_percentage} ||"
+                diagonal_percentage = conf_matrix_as_dataframe[class_name][class_index]
+                conf_matrix_as_dataframe[class_name][class_index] = f"|| {diagonal_percentage} ||"
     else:
         conf_matrix_as_dataframe = pd.DataFrame(conf_matrix, index=class_names, columns=class_names)
     

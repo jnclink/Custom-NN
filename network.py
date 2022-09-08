@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Main network class
+Script defining the main network class
 """
 
 import os
@@ -653,6 +653,7 @@ class Network:
             y_test_flat = categorical_to_vector(y_test)
         
         nb_classes = np.unique(y_test_flat).size
+        assert nb_classes >= 2
         
         assert isinstance(top_N_accuracy, int)
         assert (top_N_accuracy >= 1) and (top_N_accuracy <= nb_classes)
@@ -696,12 +697,24 @@ class Network:
         return acc_score, top_N_acc_score, conf_matrix
     
     
-    def display_some_predictions(self, X_test, y_test, seed=None):
+    def display_some_predictions(
+            self,
+            X_test,
+            y_test,
+            selected_classes="all",
+            seed=None
+        ):
         """
         Displays predictions of random test samples
         
         Here, `y_test` can either be a 1D vector of INTEGER labels or its
         one-hot encoded equivalent (in that case it will be a 2D matrix)
+        
+        The kwarg `selected_classes` can either be :
+            - the string "all" (if you want to work with all the digits ranging
+              from 0 to 9)
+            - a list/tuple/1D-array containing the specific digits you want to
+              work with (e.g. [2, 4, 7])
         """
         
         if self.history is None:
@@ -728,10 +741,37 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
+        # Getting the list of the actual classes (from the `selected_classes` kwarg)
+        
+        nb_classes = np.unique(y_test_flat).size
+        assert nb_classes >= 2
+        
+        if isinstance(selected_classes, str):
+            selected_classes = selected_classes.lower()
+            if selected_classes != "all":
+                raise ValueError(f"Network.display_some_predictions - Invalid value for the kwarg `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
+            
+            classes = np.arange(nb_classes)
+        else:
+            if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
+                raise TypeError(f"Network.display_some_predictions - The `selected_classes` kwarg isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
+            
+            if not(isinstance(selected_classes, np.ndarray)):
+                selected_classes = np.array(selected_classes)
+            check_if_label_vector_is_valid(selected_classes)
+            
+            distinct_selected_classes = np.unique(selected_classes)
+            assert distinct_selected_classes.size >= 2, "Network.display_some_predictions - Please select at least 2 distinct classes in the `selected_classes` kwarg !"
+            assert distinct_selected_classes.size == nb_classes
+            
+            classes = distinct_selected_classes
+        
+        # ------------------------------------------------------------------ #
+        
         # doing the predictions of the random test samples
         
         np.random.seed(seed)
-        random_test_indices = np.random.choice(np.arange(nb_test_samples), size=(nb_predictions, ))
+        random_test_indices = np.random.choice(np.arange(nb_test_samples), size=(nb_predictions, ), replace=False)
         np.random.seed(None) # resetting the seed
         
         random_test_samples = X_test[random_test_indices, :]
@@ -756,13 +796,16 @@ class Network:
         plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples (and their confidence level)", fontsize=15)
         
         for image_index in range(nb_predictions):
-            predicted_digit_value = predicted_digit_values[image_index, 0]
-            confidence_level_first_choice = 100 * logits[image_index, predicted_digit_value]
+            predicted_digit_value_index = predicted_digit_values[image_index, 0]
+            predicted_digit_value = classes[predicted_digit_value_index]
+            confidence_level_first_choice = 100 * logits[image_index, predicted_digit_value_index]
             
-            second_choice_predicted_digit = predicted_digit_values[image_index, 1]
-            confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_digit]
+            second_choice_predicted_digit_index = predicted_digit_values[image_index, 1]
+            second_choice_predicted_digit = classes[second_choice_predicted_digit_index]
+            confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_digit_index]
             
-            actual_digit_value = y_test_flat[random_test_indices[image_index]]
+            actual_digit_value_index = y_test_flat[random_test_indices[image_index]]
+            actual_digit_value = classes[actual_digit_value_index]
             
             random_test_image_2D = random_test_samples[image_index, :].reshape(default_image_size)
             
