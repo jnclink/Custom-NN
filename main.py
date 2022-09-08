@@ -198,7 +198,8 @@ def main():
         
         if seed is not None:
             # updating the seed such that the "randomness" in the added
-            # Dense/Dropout layers is different each time
+            # Dense/Dropout layers is different each time (in case 2
+            # consecutive values of `nb_neurons` are the same)
             seed += 1
     
     # ---------------------------------------------------------------------- #
@@ -277,8 +278,9 @@ def main():
     # actually `top_N_accuracy`)
     top_N_accuracy = 2
     
-    # Computing the global accuracy scores and the confusion matrix
-    acc_score, top_N_acc_score, conf_matrix = network.evaluate(
+    # Computing the global accuracy scores, the testing loss and the (raw)
+    # confusion matrix of the network
+    acc_score, top_N_acc_score, test_loss, conf_matrix = network.evaluate(
         X_test,
         y_test,
         top_N_accuracy=top_N_accuracy,
@@ -286,7 +288,7 @@ def main():
     )
     
     # Displaying the precision of the network (i.e. the confusion matrix
-    # normalized over its rows)
+    # with normalized rows)
     print_confusion_matrix(
         conf_matrix,
         selected_classes=selected_classes,
@@ -297,7 +299,7 @@ def main():
     )
     
     # Displaying the recall of the network (i.e. the confusion matrix
-    # normalized over its columns)
+    # with normalized columns)
     print_confusion_matrix(
         conf_matrix,
         selected_classes=selected_classes,
@@ -307,10 +309,13 @@ def main():
         display_with_line_breaks=True
     )
     
-    # Displaying the global accuracy scores of the network
+    # Displaying the testing loss and the global accuracy scores of the network
+    precision_loss = 4 # by default
+    print(f"\nTESTING LOSS    : {test_loss:.{precision_loss}f}")
     precision_accuracy = 2 # by default
     print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_accuracy}f} %")
-    print(f"\nTOP-{top_N_accuracy} ACCURACY  : {top_N_acc_score:.{precision_accuracy}f} %\n")
+    potential_extra_space = " " * int(top_N_accuracy < 10)
+    print(f"TOP-{top_N_accuracy}{potential_extra_space} ACCURACY : {top_N_acc_score:.{precision_accuracy}f} %\n")
     
     # Just for testing purposes
     network.display_some_predictions(

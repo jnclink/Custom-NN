@@ -18,6 +18,7 @@ from utils import (
     check_dtype,
     list_to_string,
     split_data_into_batches,
+    to_categorical,
     categorical_to_vector,
     check_if_label_vector_is_valid,
     accuracy_score,
@@ -299,11 +300,11 @@ class Network:
         
         # initializing the network's history
         self.history = {
-            "epoch"        : [],
-            "loss"         : [],
-            "val_loss"     : [],
-            "accuracy"     : [],
-            "val_accuracy" : []
+            "epoch"          : [],
+            "train_loss"     : [],
+            "val_loss"       : [],
+            "train_accuracy" : [],
+            "val_accuracy"   : []
         }
         
         X_train, y_train = training_data
@@ -344,7 +345,7 @@ class Network:
         nb_train_batch_displays = 5 # number of times the batch indices are displayed (per epoch)
         train_batch_index_step = nb_train_batches // nb_train_batch_displays
         
-        nb_dashes_in_transition = 93 + 2 * nb_digits_epoch_index # empirical value
+        nb_dashes_in_transition = 105 + 2 * nb_digits_epoch_index # empirical value
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
         
         initial_spacing = " " * 5 # to center the prints
@@ -382,8 +383,8 @@ class Network:
             # for display purposes only
             formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
             
-            loss     = cast(0, utils.DEFAULT_DATATYPE)
-            accuracy = 0.0
+            train_loss     = cast(0, utils.DEFAULT_DATATYPE)
+            train_accuracy = 0.0
             
             for train_batch_index in range(nb_train_batches):
                 X_train_batch = train_batches["data"][train_batch_index]
@@ -394,9 +395,9 @@ class Network:
                 for layer in self.layers:
                     train_output = layer.forward_propagation(train_output, training=True)
                 
-                # computing the loss and accuracy (for display purposes only)
-                loss += np.sum(self.loss(y_train_batch, train_output))
-                accuracy += accuracy_score(
+                # computing the training loss and accuracy (for display purposes only)
+                train_loss += np.sum(self.loss(y_train_batch, train_output))
+                train_accuracy += accuracy_score(
                     categorical_to_vector(y_train_batch),
                     categorical_to_vector(train_output),
                     normalize=False
@@ -416,9 +417,9 @@ class Network:
                     train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  batch {formatted_batch_index}/{nb_train_batches}\r"
                     print(train_batch_progress_row, end="")
             
-            loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
-            check_dtype(loss, utils.DEFAULT_DATATYPE)
-            accuracy /= nb_train_samples
+            train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
+            check_dtype(train_loss, utils.DEFAULT_DATATYPE)
+            train_accuracy /= nb_train_samples
             
             # -------------------------------------------------------------- #
             
@@ -453,9 +454,9 @@ class Network:
             # updating the network's history
             
             self.history["epoch"].append(epoch_index + 1)
-            self.history["loss"].append(loss)
+            self.history["train_loss"].append(train_loss)
             self.history["val_loss"].append(val_loss)
-            self.history["accuracy"].append(accuracy)
+            self.history["train_accuracy"].append(train_accuracy)
             self.history["val_accuracy"].append(val_accuracy)
             
             # -------------------------------------------------------------- #
@@ -464,7 +465,7 @@ class Network:
             print(blank_row_with_carriage_return, end="")
             
             precision_epoch_history = 4
-            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  loss={loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  accuracy={accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
+            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             print(epoch_history)
         
         # ================================================================== #
@@ -496,11 +497,11 @@ class Network:
             print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you haven't trained it yet !")
             return
         
-        epochs         = self.history["epoch"]
-        losses         = self.history["loss"]
-        val_losses     = self.history["val_loss"]
-        accuracies     = self.history["accuracy"]
-        val_accuracies = self.history["val_accuracy"]
+        epochs           = self.history["epoch"]
+        train_losses     = self.history["train_loss"]
+        val_losses       = self.history["val_loss"]
+        train_accuracies = self.history["train_accuracy"]
+        val_accuracies   = self.history["val_accuracy"]
         
         nb_epochs = len(epochs)
         if nb_epochs == 1:
@@ -519,18 +520,18 @@ class Network:
         plt.suptitle(f"\nHistory of the network's training phase (on {nb_epochs} epochs)", fontsize=15)
         
         # losses
-        ax[0].plot(epochs, losses, color=color_of_train_data, label="loss")
+        ax[0].plot(epochs, train_losses, color=color_of_train_data, label="train_loss")
         ax[0].plot(epochs, val_losses, color=color_of_val_data, label="val_loss")
         ax[0].set_xlabel("epoch")
         ax[0].set_ylabel("loss")
         ax[0].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the epochs axis)
-        max_loss_value = max(np.max(losses), np.max(val_losses))
+        max_loss_value = max(np.max(train_losses), np.max(val_losses))
         ax[0].set_ylim([0, 1.05 * max_loss_value])
         ax[0].legend()
         ax[0].set_title("Losses for the \"train\" and \"val\" datasets")
         
         # accuracies
-        ax[1].plot(epochs, accuracies, color=color_of_train_data, label="accuracy")
+        ax[1].plot(epochs, train_accuracies, color=color_of_train_data, label="train_accuracy")
         ax[1].plot(epochs, val_accuracies, color=color_of_val_data, label="val_accuracy")
         ax[1].set_xlabel("epoch")
         ax[1].set_ylabel("accuracy")
@@ -639,6 +640,8 @@ class Network:
         defined as the proportion of the classes in `y_true` that lie within
         the `N` most probable classes of each prediction of `y_pred` (here, `N`
         is actually the `top_N_accuracy` kwarg)
+        
+        The testing loss is also returned
         """
         
         if self.history is None:
@@ -647,10 +650,14 @@ class Network:
         if len(y_test.shape) == 1:
             check_if_label_vector_is_valid(y_test)
             y_test_flat = y_test.copy()
+            y_test_categorical = to_categorical(y_test_flat, dtype=utils.DEFAULT_DATATYPE)
         else:
             # here, `y_test` is a one-hot encoded matrix
             assert len(y_test.shape) == 2
-            y_test_flat = categorical_to_vector(y_test)
+            y_test_categorical = y_test.copy()
+            y_test_flat = categorical_to_vector(y_test_categorical)
+        
+        nb_test_samples = y_test_flat.size
         
         nb_classes = np.unique(y_test_flat).size
         assert nb_classes >= 2
@@ -658,13 +665,27 @@ class Network:
         assert isinstance(top_N_accuracy, int)
         assert (top_N_accuracy >= 1) and (top_N_accuracy <= nb_classes)
         
+        # ------------------------------------------------------------------ #
+        
         # getting the raw prediction of the network (i.e. the logits)
         y_pred = self.predict(
             X_test,
             test_batch_size=test_batch_size
         )
+        assert len(y_pred.shape) == 2
         
         y_pred_flat = categorical_to_vector(y_pred)
+        
+        # ------------------------------------------------------------------ #
+        
+        # computing the testing loss
+        
+        test_loss = cast(0, utils.DEFAULT_DATATYPE)
+        test_loss += np.sum(self.loss(y_test_categorical, y_pred))
+        test_loss /= cast(nb_test_samples, utils.DEFAULT_DATATYPE)
+        check_dtype(test_loss, utils.DEFAULT_DATATYPE)
+        
+        # ------------------------------------------------------------------ #
         
         acc_score = 100 * accuracy_score(y_test_flat, y_pred_flat)
         conf_matrix = confusion_matrix(y_test_flat, y_pred_flat)
@@ -694,7 +715,7 @@ class Network:
         
         assert top_N_acc_score >= acc_score
         
-        return acc_score, top_N_acc_score, conf_matrix
+        return acc_score, top_N_acc_score, test_loss, conf_matrix
     
     
     def display_some_predictions(

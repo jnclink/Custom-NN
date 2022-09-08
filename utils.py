@@ -546,9 +546,9 @@ def print_confusion_matrix(
                 # computing the RECALL of the (actual) class at column index `class_index`
                 sum_of_column = np.sum(normalized_conf_matrix[:, class_index])
                 if np.allclose(sum_of_column, 0.0):
-                    normalized_conf_matrix[:, class_index] = 0
-                else:
-                    normalized_conf_matrix[:, class_index] /= sum_of_column
+                    associated_class = class_names[class_index]
+                    raise Exception(f"print_confusion_matrix (utils.py) - The true class \"{associated_class}\" (class_index={class_index}) isn't represented in the confusion matrix !")
+                normalized_conf_matrix[:, class_index] /= sum_of_column
         
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         conf_matrix_as_dataframe = pd.DataFrame(normalized_conf_matrix, index=class_names, columns=class_names)
@@ -562,6 +562,8 @@ def print_confusion_matrix(
                 diagonal_percentage = conf_matrix_as_dataframe[class_name][class_index]
                 conf_matrix_as_dataframe[class_name][class_index] = f"|| {diagonal_percentage} ||"
     else:
+        # here, the `normalize` kwarg is equal to "no", therefore the raw
+        # confusion matrix will be printed
         conf_matrix_as_dataframe = pd.DataFrame(conf_matrix, index=class_names, columns=class_names)
     
     # by definition

@@ -33,7 +33,7 @@ Language used : **Python**
 - Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous Dense layer to add a new one ! Also, for the Activation layers, you can now simply input the name of the loss function (which is a string) instead of inputting the functions `activation` and `activation_prime` !
 - The network's detailed summary can now be visualized after the network is built
 - The detailed history of the network's training phase is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot if requested (the plot will be saved in the `saved_plots` folder by default)
-- The final results are more detailed (they include the global accuracy score, the global "top-N accuracy score" and the confusion matrix)
+- The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
 - For testing purposes, you can also plot some predictions of the network (after it's trained) !
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script
 - Globally speaking, the main script is written such that you can tweak a <ins>**maximum**</ins> amount of parameters related to the MLP you want to build !
