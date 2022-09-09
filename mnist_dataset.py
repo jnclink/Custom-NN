@@ -38,6 +38,7 @@ def load_raw_MNIST_dataset(verbose=False):
     """
     This function is basically a wrapper of the `mnist.load_data` function
     """
+    assert isinstance(verbose, bool)
     
     t_beginning_loading = time()
     
@@ -86,6 +87,42 @@ def load_raw_MNIST_dataset(verbose=False):
 ##############################################################################
 
 
+def _validate_raw_MNIST_data(
+        raw_X_train,
+        raw_y_train,
+        raw_X_test,
+        raw_y_test
+    ):
+    """
+    Checks if the specified raw MNIST data is valid or not. By design, the
+    arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
+    meant to be the outputs of the `load_raw_MNIST_dataset` function of this
+    script
+    """
+    assert isinstance(raw_X_train, np.ndarray)
+    assert raw_X_train.shape == (60000, 28, 28)
+    check_dtype(raw_X_train, np.uint8)
+    
+    assert isinstance(raw_y_train, np.ndarray)
+    assert raw_y_train.shape == (60000, )
+    check_dtype(raw_y_train, np.uint8)
+    
+    assert isinstance(raw_X_test, np.ndarray)
+    assert raw_X_test.shape == (10000, 28, 28)
+    check_dtype(raw_X_test, np.uint8)
+    
+    assert isinstance(raw_y_test, np.ndarray)
+    assert raw_y_test.shape == (10000, )
+    check_dtype(raw_y_test, np.uint8)
+    
+    expected_classes = np.arange(10)
+    assert np.allclose(np.unique(raw_y_train), expected_classes)
+    assert np.allclose(np.unique(raw_y_test),  expected_classes)
+
+
+##############################################################################
+
+
 def plot_random_images_from_raw_MNIST_dataset(
         raw_X_train,
         raw_y_train,
@@ -94,8 +131,27 @@ def plot_random_images_from_raw_MNIST_dataset(
         seed=None
     ):
     """
-    Plots a random sample of each of the 10 digits (from the raw MNIST data)
+    Plots a random sample of each of the 10 digits (from the raw MNIST data).
+    By design, the arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and
+    `raw_y_test` are meant to be the outputs of the `load_raw_MNIST_dataset`
+    function of this script
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
+    _validate_raw_MNIST_data(
+        raw_X_train,
+        raw_y_train,
+        raw_X_test,
+        raw_y_test
+    )
+    
+    assert isinstance(seed, (type(None), int))
+    if isinstance(seed, int):
+        assert seed >= 0
+    
+    # ---------------------------------------------------------------------- #
     
     nb_rows    = 2
     nb_columns = 5
@@ -156,7 +212,9 @@ def format_raw_MNIST_dataset(
     ):
     """
     Formats the raw MNIST data so that it can be directly interpreted by a
-    regular MLP neural network
+    regular MLP neural network. By design, the arguments `raw_X_train`,
+    `raw_y_train`, `raw_X_test` and `raw_y_test` are meant to be the outputs
+    of the `load_raw_MNIST_dataset` function of this script
     
     The kwarg `selected_classes` can either be :
         - the string "all" (if you want to work with all the digits ranging
@@ -164,18 +222,41 @@ def format_raw_MNIST_dataset(
         - a list/tuple/1D-array containing the specific digits you want to work
           with (e.g. [2, 4, 7])
     """
+    # ---------------------------------------------------------------------- #
     
-    nb_classes = np.unique(raw_y_train).size # = 10
-    assert nb_classes >= 2
-    assert np.unique(raw_y_test).size == nb_classes
+    # checking the validity of all the args/kwargs, except for `selected_classes`
     
-    assert nb_shuffles > 0
+    _validate_raw_MNIST_data(
+        raw_X_train,
+        raw_y_train,
+        raw_X_test,
+        raw_y_test
+    )
+    
+    # these 3 arguments will be re-checked a bit later in this function
+    assert isinstance(nb_train_samples, int)
+    assert isinstance(nb_val_samples,   int)
+    assert isinstance(nb_test_samples,  int)
+    
+    assert isinstance(nb_shuffles, int)
+    assert nb_shuffles >= 0
+    
+    assert isinstance(seed, (type(None), int))
+    if isinstance(seed, int):
+        assert seed >= 0
+    
+    assert isinstance(verbose, bool)
+    
+    # ---------------------------------------------------------------------- #
     
     t_beginning_formatting = time()
     
     # ---------------------------------------------------------------------- #
     
-    # Only keeping the selected classes in the raw MNIST data (if specified)
+    # Only keeping the selected classes in the raw MNIST data (and checking
+    # the validity of the `selected_classes` kwarg)
+    
+    nb_classes = np.unique(raw_y_train).size # = 10
     
     if isinstance(selected_classes, str):
         selected_classes = selected_classes.lower()
@@ -226,8 +307,12 @@ def format_raw_MNIST_dataset(
     
     # ---------------------------------------------------------------------- #
     
-    # Checking the validity of the arguments `nb_train_samples`, `nb_val_samples`
+    # Re-checking the validity of the arguments `nb_train_samples`, `nb_val_samples`
     # and `nb_test_samples`
+    
+    assert nb_train_samples >= nb_classes
+    assert nb_val_samples >= nb_classes
+    assert nb_test_samples >= nb_classes
     
     # NB : The validation set will be extracted from the raw training set
     total_nb_of_raw_train_samples = raw_X_train.shape[0] # = 60000 (if ALL the classes are selected)
@@ -235,10 +320,6 @@ def format_raw_MNIST_dataset(
     
     total_nb_of_raw_test_samples = raw_X_test.shape[0] # = 10000 (if ALL the classes are selected)
     assert nb_test_samples <= total_nb_of_raw_test_samples
-    
-    assert nb_train_samples >= nb_classes
-    assert nb_val_samples >= nb_classes
-    assert nb_test_samples >= nb_classes
     
     # ---------------------------------------------------------------------- #
     

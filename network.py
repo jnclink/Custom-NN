@@ -176,16 +176,41 @@ class Network:
         """
         Returns the summary of the network's architecture
         """
+        # ------------------------------------------------------------------ #
+        
+        # checking the validity of the specified arguments
+        
+        assert isinstance(initial_spacing, int)
+        assert initial_spacing >= 0
+        
+        assert isinstance(column_separator, str)
+        assert len(column_separator) >= 1
+        assert len(column_separator.strip()) >= 1
+        assert (column_separator[0] != " ") and (column_separator[-1] != " ")
+        
+        assert isinstance(row_separator, str)
+        assert len(row_separator) == 1
+        assert row_separator != " "
+        
+        assert isinstance(bounding_box, str)
+        assert len(bounding_box) == 1
+        assert bounding_box != " "
+        
+        assert isinstance(print_summary, bool)
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking if the network has got any layers or not
         
         assert len(self.layers) >= 1, "\nNetwork.summary - ERROR - You can't print the newtork's summary if it doesn't contain any layers !"
         
-        assert initial_spacing >= 0
-        assert len(column_separator) >= 1
-        assert len(row_separator) == 1
-        assert len(bounding_box) == 1
+        # ------------------------------------------------------------------ #
         
         summary_data = self._get_summary_data()
+        
         nb_aligned_rows = len(self.layers) + 1
+        for data in list(summary_data.values()):
+            assert len(data) == nb_aligned_rows
         
         layer_types      = summary_data["layer_types"]
         input_shapes     = summary_data["input_shapes"]
@@ -281,13 +306,99 @@ class Network:
         """
         Trains the network on `nb_epochs` epochs
         """
+        # ================================================================== #
+        
+        # basic checks on the specified arguments
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking `training_data`
+        
+        assert isinstance(training_data, (tuple, list))
+        assert len(training_data) == 2
+        
+        X_train, y_train = training_data
+        
+        assert isinstance(X_train, np.ndarray)
+        assert isinstance(y_train, np.ndarray)
+        
+        check_dtype(X_train, utils.DEFAULT_DATATYPE)
+        check_dtype(y_train, utils.DEFAULT_DATATYPE)
+        
+        assert len(X_train.shape) == 2
+        assert len(y_train.shape) == 2
+        
+        nb_train_samples = X_train.shape[0]
+        assert y_train.shape[0] == nb_train_samples
+        
+        nb_features_per_sample = X_train.shape[1]
+        assert nb_features_per_sample >= 2
+        input_size_of_network = self._sizes[0][0]
+        assert nb_features_per_sample == input_size_of_network
+        
+        nb_classes = y_train.shape[1]
+        assert nb_classes >= 2
+        output_size_of_network = self._sizes[-1][1]
+        assert nb_classes == output_size_of_network
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking `validation_data`
+        
+        assert isinstance(validation_data, (tuple, list))
+        assert len(validation_data) == 2
+        
+        X_val, y_val = validation_data
+        
+        assert isinstance(X_val, np.ndarray)
+        assert isinstance(y_val, np.ndarray)
+        
+        check_dtype(X_val, utils.DEFAULT_DATATYPE)
+        check_dtype(y_val, utils.DEFAULT_DATATYPE)
+        
+        assert len(X_val.shape) == 2
+        assert len(y_val.shape) == 2
+        
+        nb_val_samples = X_val.shape[0]
+        assert y_val.shape[0] == nb_val_samples
+        
+        assert X_val.shape[1] == nb_features_per_sample
+        assert y_val.shape[1] == nb_classes
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking the other args/kwargs
+        
+        assert isinstance(nb_epochs, int)
         assert nb_epochs > 0
+        
+        assert isinstance(learning_rate, float)
+        assert learning_rate > 0
+        
+        assert isinstance(train_batch_size, int)
+        assert train_batch_size > 0
+        
+        assert isinstance(nb_shuffles_before_train_batch_splits, int)
+        assert nb_shuffles_before_train_batch_splits >= 0
+        
+        assert isinstance(seed_train_batch_splits, (type(None), int))
+        if isinstance(seed_train_batch_splits, int):
+            assert seed_train_batch_splits > 0
+        
+        assert isinstance(val_batch_size, int)
+        assert val_batch_size > 0
+        
+        # ================================================================== #
+        
+        # other checks
         
         if len(self.layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
         
+        # checking if the very last layer of the network is a softmax
+        # or a sigmoid activation layer
+        last_layer = self.layers[-1]
         try:
-            last_layer = self.layers[-1]
             assert isinstance(last_layer, ActivationLayer)
             assert last_layer.activation_name in ["softmax", "sigmoid"]
         except:
@@ -295,6 +406,10 @@ class Network:
         
         if (self.loss is None) or (self.loss_prime is None):
             raise Exception("Network.fit - Please set a loss function before training the network !")
+        
+        # ================================================================== #
+        
+        # initializing the data for the training loop
         
         t_beginning_training = time()
         
@@ -307,22 +422,18 @@ class Network:
             "val_accuracy"   : []
         }
         
-        X_train, y_train = training_data
-        nb_train_samples = X_train.shape[0]
-        
         if train_batch_size > nb_train_samples:
             print(f"\nNetwork.fit - WARNING : train_batch_size > nb_train_samples ({train_batch_size} > {nb_train_samples}), therefore `train_batch_size` was set to `nb_train_samples` (i.e. {nb_train_samples})")
             train_batch_size = nb_train_samples
         
         nb_train_batches = (nb_train_samples + train_batch_size - 1) // train_batch_size
         
-        X_val, y_val = validation_data
-        nb_val_samples = X_val.shape[0]
+        val_batch_size = min(val_batch_size, nb_val_samples)
         
         val_batches = split_data_into_batches(
             X_val,
             y_val,
-            batch_size=min(val_batch_size, nb_val_samples),
+            batch_size=val_batch_size,
             normalize_batches=self.__normalize_input_data,
             nb_shuffles=0
         )
@@ -334,7 +445,8 @@ class Network:
         
         # ================================================================== #
         
-        # for display purposes only
+        # initializing some variables (and a sub-function) that'll be
+        # used for display purposes only
         
         nb_digits_epoch_index = len(str(nb_epochs))
         epoch_index_format = f"0{nb_digits_epoch_index}d"
@@ -342,16 +454,25 @@ class Network:
         nb_digits_train_batch_index = len(str(nb_train_batches))
         train_batch_index_format = f"0{nb_digits_train_batch_index}d"
         
-        nb_train_batch_displays = 5 # number of times the batch indices are displayed (per epoch)
-        train_batch_index_step = nb_train_batches // nb_train_batch_displays
+        # number of times the batch indices are updated (per epoch)
+        nb_train_batch_updates = 5
+        
+        train_batch_index_update_step = nb_train_batches // nb_train_batch_updates
         
         nb_dashes_in_transition = 105 + 2 * nb_digits_epoch_index # empirical value
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
         
-        initial_spacing = " " * 5 # to center the prints
+        # to center the prints
+        initial_spacing = " " * 5
         
-        # used to clear the currently printed line
-        blank_row_with_carriage_return = " " * 150 + "\r"
+        def clear_currently_printed_row(max_size_of_row=150):
+            """
+            Sub-function. Clears the currently printed row, and sets
+            the pointer of the `print` function at the very beginning
+            of that same row
+            """
+            blank_row_with_carriage_return = " " * max_size_of_row + "\r"
+            print(blank_row_with_carriage_return, end="")
         
         # ================================================================== #
         
@@ -408,11 +529,10 @@ class Network:
                 for layer in reversed_layers:
                     output_gradient = layer.backward_propagation(output_gradient, learning_rate)
                 
-                if ((train_batch_index + 1) in [1, nb_train_batches]) or ((train_batch_index + 1) % train_batch_index_step == 0):
+                if ((train_batch_index + 1) in [1, nb_train_batches]) or ((train_batch_index + 1) % train_batch_index_update_step == 0):
                     formatted_batch_index = format(train_batch_index + 1, train_batch_index_format)
                     
-                    # clearing the currently printed row
-                    print(blank_row_with_carriage_return, end="")
+                    clear_currently_printed_row()
                     
                     train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  batch {formatted_batch_index}/{nb_train_batches}\r"
                     print(train_batch_progress_row, end="")
@@ -451,7 +571,8 @@ class Network:
             
             # -------------------------------------------------------------- #
             
-            # updating the network's history
+            # updating the network's history with the data of the
+            # current epoch
             
             self.history["epoch"].append(epoch_index + 1)
             self.history["train_loss"].append(train_loss)
@@ -461,14 +582,15 @@ class Network:
             
             # -------------------------------------------------------------- #
             
-            # clearing the currently printed row
-            print(blank_row_with_carriage_return, end="")
+            clear_currently_printed_row()
             
             precision_epoch_history = 4
             epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             print(epoch_history)
         
         # ================================================================== #
+        
+        # termination of the training and validation phases
         
         t_end_training = time()
         duration_training = t_end_training - t_beginning_training
@@ -492,10 +614,26 @@ class Network:
         Plots the evolution of the losses and the accuracies of the network
         during the (last) training phase
         """
+        # ------------------------------------------------------------------ #
+        
+        # checking the validity of the specified arguments
+        
+        assert isinstance(save_plot_to_disk, bool)
+        
+        assert isinstance(saved_image_name, str)
+        assert len(saved_image_name) > 0
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking if the network has already been trained or not
         
         if self.history is None:
             print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you haven't trained it yet !")
             return
+        
+        # ------------------------------------------------------------------ #
+        
+        # initialization
         
         epochs           = self.history["epoch"]
         train_losses     = self.history["train_loss"]
@@ -547,8 +685,6 @@ class Network:
         # saving the plot (if requested)
         
         if save_plot_to_disk:
-            t_beginning_image_saving = time()
-            
             # creating the folder containing the saved plot (if it doesn't exist)
             DEFAULT_SAVED_IMAGES_FOLDER_NAME = "saved_plots"
             if not(os.path.exists(DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
@@ -564,6 +700,8 @@ class Network:
                 saved_image_full_name
             )
             
+            t_beginning_image_saving = time()
+            
             # actually saving the plot
             plt.savefig(saved_image_path, dpi=300, format="png")
             
@@ -577,16 +715,81 @@ class Network:
         plt.show()
     
     
+    def _validate_testing_data(self, X_test, y_test=None):
+        """
+        Checks if the specified testing data is valid or not
+        
+        If `y_test` is not equal to `None`, then `y_test_flat` and
+        `y_test_categorical` are returned
+        """
+        
+        assert isinstance(X_test, np.ndarray)
+        assert len(X_test.shape) == 2
+        check_dtype(X_test, utils.DEFAULT_DATATYPE)
+        
+        nb_features_per_sample = X_test.shape[1]
+        assert nb_features_per_sample >= 2
+        input_size_of_network = self._sizes[0][0]
+        assert nb_features_per_sample == input_size_of_network
+        
+        assert isinstance(y_test, (type(None), np.ndarray))
+        
+        if y_test is not None:
+            assert isinstance(y_test, np.ndarray)
+            assert len(y_test.shape) in [1, 2]
+            check_dtype(y_test, utils.DEFAULT_DATATYPE)
+            
+            if len(y_test.shape) == 1:
+                check_if_label_vector_is_valid(y_test)
+                y_test_flat = y_test.copy()
+                y_test_categorical = to_categorical(y_test_flat, dtype=utils.DEFAULT_DATATYPE)
+            else:
+                # here, `y_test` is a one-hot encoded matrix
+                assert len(y_test.shape) == 2
+                y_test_categorical = y_test.copy()
+                y_test_flat = categorical_to_vector(y_test_categorical)
+            
+            check_dtype(y_test_categorical, utils.DEFAULT_DATATYPE)
+            
+            nb_test_samples = X_test.shape[0]
+            assert y_test_flat.size == nb_test_samples
+            assert y_test_categorical.shape[0] == nb_test_samples
+            
+            nb_classes = np.unique(y_test_flat).size
+            assert nb_classes >= 2
+            assert y_test_categorical.shape[1] == nb_classes
+            output_size_of_network = self._sizes[-1][1]
+            assert nb_classes == output_size_of_network
+            
+            return y_test_flat, y_test_categorical
+    
+    
     def predict(self, X_test, test_batch_size=32, return_logits=True):
         """
         Returns the network's raw prediction (i.e. the logits) for a given
         test input
         """
+        # ------------------------------------------------------------------ #
+        
+        # checking the validity of the specified arguments
+        
+        self._validate_testing_data(X_test)
+        nb_test_samples = X_test.shape[0]
+        
+        assert isinstance(test_batch_size, int)
+        assert test_batch_size > 0
+        test_batch_size = min(test_batch_size, nb_test_samples)
+        
+        assert isinstance(return_logits, bool)
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking if the network has already been trained or not
         
         if self.history is None:
             raise Exception("Network.predict - You haven't trained the network yet !")
         
-        nb_test_samples = X_test.shape[0]
+        # ------------------------------------------------------------------ #
         
         # only used to split the testing data into batches
         dummy_y_test = np.zeros((nb_test_samples, ), dtype=int)
@@ -594,7 +797,7 @@ class Network:
         test_batches = split_data_into_batches(
             X_test,
             dummy_y_test,
-            batch_size=min(test_batch_size, nb_test_samples),
+            batch_size=test_batch_size,
             normalize_batches=self.__normalize_input_data,
             nb_shuffles=0
         )
@@ -614,6 +817,7 @@ class Network:
         
         # raw prediction (i.e. the logits)
         y_pred = np.array(np.vstack(tuple(test_outputs)), dtype=X_test.dtype)
+        assert len(y_pred.shape) == 2
         
         if not(return_logits):
             # in this case, the 1D vector of INTEGER labels is returned
@@ -631,7 +835,8 @@ class Network:
         ):
         """
         Computes the network's prediction of `X_test` (i.e. `y_pred`), then
-        returns the accuracy score and the confusion matrix of `y_test` and `y_pred`
+        returns the accuracy score and the raw confusion matrix of `y_test`
+        and `y_pred`
         
         Here, `y_test` can either be a 1D vector of INTEGER labels or its
         one-hot encoded equivalent (in that case it will be a 2D matrix)
@@ -643,27 +848,24 @@ class Network:
         
         The testing loss is also returned
         """
+        # ------------------------------------------------------------------ #
         
-        if self.history is None:
-            raise Exception("Network.evaluate - You haven't trained the network yet !")
+        # checking the validity of the specified arguments
         
-        if len(y_test.shape) == 1:
-            check_if_label_vector_is_valid(y_test)
-            y_test_flat = y_test.copy()
-            y_test_categorical = to_categorical(y_test_flat, dtype=utils.DEFAULT_DATATYPE)
-        else:
-            # here, `y_test` is a one-hot encoded matrix
-            assert len(y_test.shape) == 2
-            y_test_categorical = y_test.copy()
-            y_test_flat = categorical_to_vector(y_test_categorical)
+        y_test_flat, y_test_categorical = self._validate_testing_data(
+            X_test,
+            y_test
+        )
         
-        nb_test_samples = y_test_flat.size
-        
+        nb_test_samples = X_test.shape[0]
         nb_classes = np.unique(y_test_flat).size
-        assert nb_classes >= 2
         
         assert isinstance(top_N_accuracy, int)
         assert (top_N_accuracy >= 1) and (top_N_accuracy <= nb_classes)
+        
+        assert isinstance(test_batch_size, int)
+        assert test_batch_size > 0
+        test_batch_size = min(test_batch_size, nb_test_samples)
         
         # ------------------------------------------------------------------ #
         
@@ -672,7 +874,6 @@ class Network:
             X_test,
             test_batch_size=test_batch_size
         )
-        assert len(y_pred.shape) == 2
         
         y_pred_flat = categorical_to_vector(y_pred)
         
@@ -681,11 +882,20 @@ class Network:
         # computing the testing loss
         
         test_loss = cast(0, utils.DEFAULT_DATATYPE)
-        test_loss += np.sum(self.loss(y_test_categorical, y_pred))
+        
+        for first_index_of_test_batch in range(0, nb_test_samples, test_batch_size):
+            last_index_of_test_batch = first_index_of_test_batch + test_batch_size
+            y_test_batch = y_test_categorical[first_index_of_test_batch : last_index_of_test_batch, :]
+            y_pred_batch = y_pred[first_index_of_test_batch : last_index_of_test_batch, :]
+            
+            test_loss += np.sum(self.loss(y_test_batch, y_pred_batch))
+        
         test_loss /= cast(nb_test_samples, utils.DEFAULT_DATATYPE)
         check_dtype(test_loss, utils.DEFAULT_DATATYPE)
         
         # ------------------------------------------------------------------ #
+        
+        # computing the accuracy scores and the raw confusion matrix
         
         acc_score = 100 * accuracy_score(y_test_flat, y_pred_flat)
         conf_matrix = confusion_matrix(y_test_flat, y_pred_flat)
@@ -732,37 +942,28 @@ class Network:
         one-hot encoded equivalent (in that case it will be a 2D matrix)
         
         The kwarg `selected_classes` can either be :
-            - the string "all" (if you want to work with all the digits ranging
+            - the string "all" (if you're working with all the digits ranging
               from 0 to 9)
-            - a list/tuple/1D-array containing the specific digits you want to
-              work with (e.g. [2, 4, 7])
+            - a list/tuple/1D-array containing the specific digits you're
+              working with (e.g. [2, 4, 7])
         """
+        # ------------------------------------------------------------------ #
         
-        if self.history is None:
-            raise Exception("Network.display_some_predictions - You haven't trained the network yet !")
+        # checking the validity of `X_test`, `y_test` and `seed`
         
-        nb_rows    = 2
-        nb_columns = 5
+        y_test_flat, _ = self._validate_testing_data(
+            X_test,
+            y_test
+        )
         
-        nb_predictions = nb_rows * nb_columns
-        nb_test_samples = X_test.shape[0]
-        nb_pixels_per_image = X_test.shape[1]
-        
-        # here we're assuming that the images are square-shaped
-        sidelength_of_each_image = int(round(np.sqrt(nb_pixels_per_image)))
-        default_image_size = (sidelength_of_each_image, sidelength_of_each_image)
-        
-        if len(y_test.shape) == 1:
-            check_if_label_vector_is_valid(y_test)
-            y_test_flat = y_test.copy()
-        else:
-            # here, `y_test` is a one-hot encoded matrix
-            assert len(y_test.shape) == 2
-            y_test_flat = categorical_to_vector(y_test)
+        assert isinstance(seed, (type(None), int))
+        if isinstance(seed, int):
+            assert seed > 0
         
         # ------------------------------------------------------------------ #
         
-        # Getting the list of the actual classes (from the `selected_classes` kwarg)
+        # getting the list of the selected classes (and checking the validity
+        # of the `selected_classes` kwarg)
         
         nb_classes = np.unique(y_test_flat).size
         assert nb_classes >= 2
@@ -789,7 +990,20 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
+        # checking if the network has already been trained or not
+        
+        if self.history is None:
+            raise Exception("Network.display_some_predictions - You haven't trained the network yet !")
+        
+        # ------------------------------------------------------------------ #
+        
         # doing the predictions of the random test samples
+        
+        nb_rows    = 2
+        nb_columns = 5
+        
+        nb_predictions = nb_rows * nb_columns
+        nb_test_samples = X_test.shape[0]
         
         np.random.seed(seed)
         random_test_indices = np.random.choice(np.arange(nb_test_samples), size=(nb_predictions, ), replace=False)
@@ -808,6 +1022,12 @@ class Network:
         # the logits (in case we're using a final activation function that isn't
         # softmax, like sigmoid for instance)
         logits /= np.sum(logits, axis=1, keepdims=True)
+        
+        # here we're assuming that the images are square-shaped
+        nb_pixels_per_image = X_test.shape[1]
+        sidelength_of_each_image = int(round(np.sqrt(nb_pixels_per_image)))
+        assert sidelength_of_each_image**2 == nb_pixels_per_image
+        default_image_shape = (sidelength_of_each_image, sidelength_of_each_image)
         
         # ------------------------------------------------------------------ #
         
@@ -828,11 +1048,11 @@ class Network:
             actual_digit_value_index = y_test_flat[random_test_indices[image_index]]
             actual_digit_value = classes[actual_digit_value_index]
             
-            random_test_image_2D = random_test_samples[image_index, :].reshape(default_image_size)
+            random_test_image = random_test_samples[image_index, :].reshape(default_image_shape)
             
             row_index = image_index // nb_columns
             column_index = image_index % nb_columns
-            ax[row_index, column_index].imshow(random_test_image_2D, cmap="gray")
+            ax[row_index, column_index].imshow(random_test_image, cmap="gray")
             
             subplot_title = f"1st prediction : {predicted_digit_value} ({confidence_level_first_choice:.{confidence_level_precision}f}%)"
             subplot_title += f"\n2nd prediction : {second_choice_predicted_digit} ({confidence_level_second_choice:.{confidence_level_precision}f}%)"

@@ -179,6 +179,8 @@ def get_range_of_array(array, precision=3):
     Returns the range of an array (as a string)
     """
     assert isinstance(array, np.ndarray)
+    
+    assert isinstance(precision, int)
     assert precision >= 0
     
     min_element_of_array = np.min(array)
@@ -222,13 +224,16 @@ def display_class_distributions(
     are the names of the corresponding label vectors (as strings)
     
     The kwarg `selected_classes` can either be :
-        - the string "all" (if you want to work with all the digits ranging
+        - the string "all" (if you're working with all the digits ranging
           from 0 to 9)
-        - a list/tuple/1D-array containing the specific digits you want to work
-          with (e.g. [2, 4, 7])
+        - a list/tuple/1D-array containing the specific digits you're
+          working with (e.g. [2, 4, 7])
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
     assert isinstance(dict_of_label_vectors, dict)
-    assert precision >= 0
     
     if isinstance(selected_classes, str):
         selected_classes = selected_classes.lower()
@@ -246,6 +251,11 @@ def display_class_distributions(
         nb_distinct_selected_classes = distinct_selected_classes.size
         assert nb_distinct_selected_classes >= 2, "display_distribution_of_classes (utils.py) - Please select at least 2 distinct classes in the `selected_classes` kwarg !"
     
+    assert isinstance(precision, int)
+    assert precision >= 0
+    
+    # ---------------------------------------------------------------------- #
+    
     displayed_string = "\nClass distributions :\n"
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
@@ -254,7 +264,6 @@ def display_class_distributions(
         
         displayed_string += f"\n{label_vector_name} :"
         
-        nb_labels = label_vector.size
         nb_classes = np.unique(label_vector).size
         assert nb_classes >= 2
         
@@ -264,6 +273,8 @@ def display_class_distributions(
         else:
             assert nb_classes == nb_distinct_selected_classes
             classes = distinct_selected_classes
+        
+        nb_labels = label_vector.size
         
         for digit_index, digit in enumerate(classes):
             nb_corresponding_digits = np.where(label_vector == digit_index)[0].size
@@ -335,18 +346,44 @@ def split_data_into_batches(
     Here, `labels` can either be a 1D vector of INTEGER labels or its one-hot
     encoded equivalent (in that case, `labels` will be a 2D matrix)
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
+    assert isinstance(data, np.ndarray)
+    assert len(data.shape) == 2
+    nb_samples, nb_features_per_sample = data.shape
+    assert nb_features_per_sample >= 2
+    
+    assert isinstance(labels, np.ndarray)
+    assert len(labels.shape) in [1, 2]
+    if len(labels.shape) == 1:
+        check_if_label_vector_is_valid(labels)
+    elif len(labels.shape) == 2:
+        nb_classes = labels.shape[1]
+        assert nb_classes >= 2
+    assert labels.shape[0] == nb_samples
+    
+    assert isinstance(batch_size, int)
+    assert (batch_size >= 1) and (batch_size <= nb_samples)
+    
+    assert isinstance(normalize_batches, bool)
+    
+    assert isinstance(nb_shuffles, int)
+    assert nb_shuffles >= 0
+    
+    assert isinstance(seed, (type(None), int))
+    if isinstance(seed, int):
+        assert seed >= 0
+    
+    # ---------------------------------------------------------------------- #
+    
+    # initialization
     
     batches = {
         "data"   : [],
         "labels" : []
     }
-    
-    if len(labels.shape) == 1:
-        check_if_label_vector_is_valid(labels)
-    
-    nb_samples = data.shape[0]
-    assert labels.shape[0] == nb_samples
-    assert batch_size <= nb_samples
     
     batch_indices = np.arange(nb_samples)
     
@@ -360,28 +397,36 @@ def split_data_into_batches(
         # here we're assuming that each sample does NOT have a standard
         # deviation equal to zero (i.e. we're assuming that there are at
         # least 2 different pixel values in each sample)
-        normalized_data = (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
+        used_data = (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
+    else:
+        used_data = data
     
-    for batch_index in range(0, nb_samples, batch_size):
-        indices_of_current_batch =  batch_indices[batch_index : batch_index + batch_size]
+    # ---------------------------------------------------------------------- #
+    
+    # actually splitting the data and labels into batches
+    
+    for first_index_of_batch in range(0, nb_samples, batch_size):
+        last_index_of_batch = first_index_of_batch + batch_size
+        indices_of_current_batch = batch_indices[first_index_of_batch : last_index_of_batch]
         
         # checking if the batch size is correct
         if indices_of_current_batch.size != batch_size:
             # if the batch size isn't equal to `batch_size`, then it means
             # that we are generating the very last batch (it also implies that
             # `batch_size` doesn't divide `nb_samples`)
-            assert batch_index == nb_samples - nb_samples % batch_size
+            assert first_index_of_batch == nb_samples - nb_samples % batch_size
             assert indices_of_current_batch.size > 0
             assert indices_of_current_batch.size == nb_samples % batch_size
         
-        if normalize_batches:
-            data_current_batch = normalized_data[indices_of_current_batch, :]
-        else:
-            data_current_batch = data[indices_of_current_batch, :]
+        data_current_batch = used_data[indices_of_current_batch, :]
         labels_current_batch = labels[indices_of_current_batch]
         
         batches["data"].append(data_current_batch)
         batches["labels"].append(labels_current_batch)
+    
+    # ---------------------------------------------------------------------- #
+    
+    # checking if the resulting batches are valid or not
     
     assert np.vstack(tuple(batches["data"])).shape == data.shape
     
@@ -397,6 +442,8 @@ def split_data_into_batches(
     expected_nb_batches = (nb_samples + batch_size - 1) // batch_size
     assert len(batches["data"]) == expected_nb_batches
     assert len(batches["labels"]) == expected_nb_batches
+    
+    # ---------------------------------------------------------------------- #
     
     return batches
 
@@ -476,35 +523,45 @@ def print_confusion_matrix(
     integer-valued confusion matrix)
     
     The kwarg `selected_classes` can either be :
-        - the string "all" (if you want to work with all the digits ranging
+        - the string "all" (if you're working with all the digits ranging
           from 0 to 9)
-        - a list/tuple/1D-array containing the specific digits you want to work
-          with (e.g. [2, 4, 7])
+        - a list/tuple/1D-array containing the specific digits you're
+          working with (e.g. [2, 4, 7])
     """
-    # checking the validity of the `normalize` kwarg
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of all the args/kwargs, except for `selected_classes`
+    
+    assert isinstance(conf_matrix, np.ndarray)
+    assert issubclass(conf_matrix.dtype.type, np.integer)
+    assert len(conf_matrix.shape) == 2
+    nb_classes = conf_matrix.shape[0]
+    assert nb_classes >= 2
+    assert conf_matrix.shape[1] == nb_classes
+    
     assert isinstance(normalize, str)
     normalize = normalize.lower()
     possible_values_for_normalize_kwarg = ["rows", "columns", "no"]
     if normalize not in possible_values_for_normalize_kwarg:
         raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
     
+    assert isinstance(precision, int)
     assert precision >= 0
+    
+    assert isinstance(jupyter_notebook, bool)
     if not(jupyter_notebook):
+        # the `initial_spacing` kwarg will not be used if `jupyter_notebook`
+        # is set to `True`
+        assert isinstance(initial_spacing, int)
         assert initial_spacing >= 0
     
-    pd.options.mode.chained_assignment = None
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.width", None)
-    pd.set_option("display.max_colwidth", None)
-    pd.set_option("expand_frame_repr", display_with_line_breaks)
+    assert isinstance(display_with_line_breaks, bool)
     
     # ---------------------------------------------------------------------- #
     
-    # Only keeping the selected classes in the confusion matrix (if specified)
-    
-    nb_classes = conf_matrix.shape[0]
-    assert nb_classes >= 2
+    # getting the actual class names associated with each row/column of the
+    # confusion matrix (and checking the validity of the `selected_classes`
+    # kwarg)
     
     if isinstance(selected_classes, str):
         selected_classes = selected_classes.lower()
@@ -525,6 +582,17 @@ def print_confusion_matrix(
         assert nb_distinct_selected_classes == nb_classes, f"print_confusion_matrix (utils.py) - The number of distinct classes in the `selected_classes` kwarg (= {nb_distinct_selected_classes}) doesn't match the shape of `conf_matrix` (= {conf_matrix.shape}) !"
         
         class_names = [str(digit) for digit in distinct_selected_classes]
+    
+    # ---------------------------------------------------------------------- #
+    
+    # setting some options of the Pandas module (for convenience purposes)
+    
+    pd.options.mode.chained_assignment = None
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.width", None)
+    pd.set_option("display.max_colwidth", None)
+    pd.set_option("expand_frame_repr", display_with_line_breaks)
     
     # ---------------------------------------------------------------------- #
     
@@ -578,6 +646,11 @@ def print_confusion_matrix(
     
     if jupyter_notebook:
         def highlight_diagonal(dataframe, background_color="green"):
+            """
+            Sub-function. Returns a dataframe mask with the CSS
+            attribute "background-color" in its diagonal elements,
+            and empty strings everywhere else
+            """
             attribute = f"background-color: {background_color};"
             dataframe_mask = np.full(dataframe.shape, "", dtype="<U24")
             np.fill_diagonal(dataframe_mask, attribute)
@@ -612,6 +685,8 @@ def count_nb_decimals_places(x, max_precision=6):
     Returns the number of decimal places of the scalar `x`
     """
     assert np.isscalar(x)
+    
+    assert isinstance(max_precision, int)
     assert max_precision >= 0
     
     # converting `x` into a positive number, since it doesn't affect the number

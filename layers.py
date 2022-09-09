@@ -64,7 +64,8 @@ class InputLayer(Layer):
     of the network
     """
     def __init__(self, input_size):
-        assert input_size > 1
+        assert isinstance(input_size, int)
+        assert input_size >= 2
         self.input_size = input_size
         self.nb_trainable_params = 0
     
@@ -108,8 +109,13 @@ class DenseLayer(Layer):
     Dense (i.e. fully connected) layer
     """
     def __init__(self, nb_neurons, seed=None):
-        assert nb_neurons > 1
+        assert isinstance(nb_neurons, int)
+        assert nb_neurons >= 2
         self.output_size = nb_neurons
+        
+        assert isinstance(seed, (type(None), int))
+        if isinstance(seed, int):
+            assert seed >= 0
         self.seed = seed
     
     def __str__(self):
@@ -121,7 +127,8 @@ class DenseLayer(Layer):
         the latter. This layer is built when it is added to the network (with
         the `Network.add` method of the "network.py" script)
         """
-        assert input_size > 1
+        assert isinstance(input_size, int)
+        assert input_size >= 2
         self.input_size = input_size
         
         # ------------------------------------------------------------------ #
@@ -227,6 +234,7 @@ class ActivationLayer(Layer):
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
             leaky_ReLU_coeff = kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
+            assert isinstance(leaky_ReLU_coeff, (float, utils.DEFAULT_DATATYPE))
             assert (leaky_ReLU_coeff > 0) and (leaky_ReLU_coeff < 1)
             
             # NB : Here we don't need to cast `leaky_ReLU_coeff` to `utils.DEFAULT_DATATYPE`,
@@ -427,9 +435,13 @@ class DropoutLayer(Layer):
     Dropout regularization layer
     """
     def __init__(self, dropout_rate, seed=None):
+        assert isinstance(dropout_rate, (float, utils.DEFAULT_DATATYPE))
         assert (dropout_rate > 0) and (dropout_rate < 1)
         self.dropout_rate = dropout_rate
         
+        assert isinstance(seed, (type(None), int))
+        if isinstance(seed, int):
+            assert seed >= 0
         self.seed = seed
         
         # all the deactivated values will be set to this value (by default)
@@ -459,12 +471,16 @@ class DropoutLayer(Layer):
         batch_size, output_size = shape
         
         dropout_matrix = self.scaling_factor * np.ones(shape, dtype=dtype)
-        nb_of_values_to_drop_per_input_sample = max(int(self.dropout_rate * output_size), 1)
+        nb_of_values_to_drop_per_input_sample = int(round(self.dropout_rate * output_size))
         choices_for_dropped_indices = np.arange(output_size)
         
         np.random.seed(self.seed)
         for batch_sample_index in range(batch_size):
-            indices_of_randomly_dropped_values = np.random.choice(choices_for_dropped_indices, size=(nb_of_values_to_drop_per_input_sample, ), replace=False)
+            indices_of_randomly_dropped_values = np.random.choice(
+                choices_for_dropped_indices,
+                size=(nb_of_values_to_drop_per_input_sample, ),
+                replace=False
+            )
             dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
         np.random.seed(None) # resetting the seed
         
