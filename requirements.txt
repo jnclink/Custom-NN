@@ -6,7 +6,3 @@ matplotlib
 # only used for the `sklearn.model_selection.train_test_split` method
 # --> cf. the "mnist_dataset.py" script
 sklearn
-
-# only used for the `tensorflow.keras.datasets.mnist.load_data` method
-# --> cf. the "mnist_dataset.py" script
-tensorflow

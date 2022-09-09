@@ -6,6 +6,7 @@ Script defining the main network class
 
 import os
 from time import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,9 +19,10 @@ from utils import (
     check_dtype,
     list_to_string,
     split_data_into_batches,
-    to_categorical,
+    vector_to_categorical,
     categorical_to_vector,
-    check_if_label_vector_is_valid,
+    _validate_label_vector,
+    _validate_selected_classes,
     accuracy_score,
     confusion_matrix
 )
@@ -66,15 +68,17 @@ class Network:
         self.layers = []
         
         # list containing the input/output sizes of all the layers of the
-        # network (it's a list of tuples of integers)
-        self._sizes = []
+        # network (it's a list of tuples of 2 integers)
+        self._io_sizes = []
         
         self.loss_name = None
         self.loss = None
         self.loss_prime = None
         
         self.history = None
+        self._is_trained = False
         
+        assert isinstance(normalize_input_data, bool)
         self.__normalize_input_data = normalize_input_data
     
     
@@ -107,7 +111,7 @@ class Network:
             output_size = input_size
         else:
             assert len(self.layers) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
-            input_size  = self._sizes[-1][1] # output size of the previous layer
+            input_size  = self._io_sizes[-1][1] # output size of the previous layer
             
             if isinstance(layer, DenseLayer):
                 output_size = layer.output_size
@@ -116,7 +120,7 @@ class Network:
                 output_size = input_size
         
         self.layers.append(layer)
-        self._sizes.append((input_size, output_size))
+        self._io_sizes.append((input_size, output_size))
     
     
     def _get_total_nb_of_trainable_params(self):
@@ -147,7 +151,7 @@ class Network:
         for layer_index, layer in enumerate(self.layers):
             layer_type = str(layer).replace("Layer", "")
             
-            input_size, output_size = self._sizes[layer_index]
+            input_size, output_size = self._io_sizes[layer_index]
             input_shape  = str((None, input_size))
             output_shape = str((None, output_size))
             
@@ -210,6 +214,7 @@ class Network:
         
         nb_aligned_rows = len(self.layers) + 1
         for data in list(summary_data.values()):
+            assert isinstance(data, list)
             assert len(data) == nb_aligned_rows
         
         layer_types      = summary_data["layer_types"]
@@ -292,19 +297,76 @@ class Network:
         self.loss, self.loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
     
     
+    def _validate_data(self, X, y=None):
+        """
+        Checks if the specified (training, validation or testing) data is
+        valid or not
+        
+        If `y` is not equal to `None`, `y` can either be a 1D vector of INTEGER
+        labels or its one-hot encoded equivalent (in that case it will be a 2D
+        matrix). Also, if `y` is not equal to `None`, both `y_categorical` and
+        `y_flat` are returned
+        """
+        # ------------------------------------------------------------------ #
+        
+        # checking `X`
+        
+        assert isinstance(X, np.ndarray)
+        assert len(X.shape) == 2
+        check_dtype(X, utils.DEFAULT_DATATYPE)
+        
+        nb_features_per_sample = X.shape[1] # = nb_pixels_per_image = 28 * 28 = 784
+        assert nb_features_per_sample >= 2
+        input_size_of_network = self._io_sizes[0][0]
+        assert nb_features_per_sample == input_size_of_network
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking `y`
+        
+        assert isinstance(y, (type(None), np.ndarray))
+        
+        if y is not None:
+            assert len(y.shape) in [1, 2]
+            if len(y.shape) == 1:
+                _validate_label_vector(y)
+                y_flat = y.copy()
+                y_categorical = vector_to_categorical(y_flat, utils.DEFAULT_DATATYPE)
+            elif len(y.shape) == 2:
+                y_categorical = y.copy()
+                y_flat = categorical_to_vector(y_categorical)
+            
+            check_dtype(y_categorical, utils.DEFAULT_DATATYPE)
+            
+            nb_samples = X.shape[0]
+            assert y_categorical.shape[0] == nb_samples
+            assert y_flat.size == nb_samples
+            
+            nb_classes = y_categorical.shape[1]
+            assert nb_classes >= 2
+            assert np.unique(y_flat).size == nb_classes
+            output_size_of_network = self._io_sizes[-1][1]
+            assert nb_classes == output_size_of_network
+            
+            return y_categorical, y_flat
+    
+    
     def fit(
             self,
-            training_data,
-            validation_data,
+            X_train,
+            y_train,
             nb_epochs,
-            learning_rate,
             train_batch_size,
-            nb_shuffles_before_train_batch_splits=10,
+            learning_rate,
+            nb_shuffles_before_each_train_batch_split=10,
             seed_train_batch_splits=None,
+            validation_data=None,
             val_batch_size=32
         ):
         """
         Trains the network on `nb_epochs` epochs
+        
+        By design, the network cannot be trained more than once
         """
         # ================================================================== #
         
@@ -312,85 +374,57 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        # checking `training_data`
+        # checking all the args/kwargs (except for `validation_data` and
+        # `val_batch_size`)
         
-        assert isinstance(training_data, (tuple, list))
-        assert len(training_data) == 2
-        
-        X_train, y_train = training_data
-        
-        assert isinstance(X_train, np.ndarray)
-        assert isinstance(y_train, np.ndarray)
-        
-        check_dtype(X_train, utils.DEFAULT_DATATYPE)
-        check_dtype(y_train, utils.DEFAULT_DATATYPE)
-        
-        assert len(X_train.shape) == 2
-        assert len(y_train.shape) == 2
-        
+        y_train, _ = self._validate_data(X_train, y=y_train)
         nb_train_samples = X_train.shape[0]
-        assert y_train.shape[0] == nb_train_samples
-        
-        nb_features_per_sample = X_train.shape[1]
-        assert nb_features_per_sample >= 2
-        input_size_of_network = self._sizes[0][0]
-        assert nb_features_per_sample == input_size_of_network
-        
-        nb_classes = y_train.shape[1]
-        assert nb_classes >= 2
-        output_size_of_network = self._sizes[-1][1]
-        assert nb_classes == output_size_of_network
-        
-        # ------------------------------------------------------------------ #
-        
-        # checking `validation_data`
-        
-        assert isinstance(validation_data, (tuple, list))
-        assert len(validation_data) == 2
-        
-        X_val, y_val = validation_data
-        
-        assert isinstance(X_val, np.ndarray)
-        assert isinstance(y_val, np.ndarray)
-        
-        check_dtype(X_val, utils.DEFAULT_DATATYPE)
-        check_dtype(y_val, utils.DEFAULT_DATATYPE)
-        
-        assert len(X_val.shape) == 2
-        assert len(y_val.shape) == 2
-        
-        nb_val_samples = X_val.shape[0]
-        assert y_val.shape[0] == nb_val_samples
-        
-        assert X_val.shape[1] == nb_features_per_sample
-        assert y_val.shape[1] == nb_classes
-        
-        # ------------------------------------------------------------------ #
-        
-        # checking the other args/kwargs
         
         assert isinstance(nb_epochs, int)
         assert nb_epochs > 0
         
-        assert isinstance(learning_rate, float)
-        assert learning_rate > 0
-        
         assert isinstance(train_batch_size, int)
         assert train_batch_size > 0
         
-        assert isinstance(nb_shuffles_before_train_batch_splits, int)
-        assert nb_shuffles_before_train_batch_splits >= 0
+        assert isinstance(learning_rate, float)
+        assert learning_rate > 0
         
-        assert isinstance(seed_train_batch_splits, (type(None), int))
-        if isinstance(seed_train_batch_splits, int):
-            assert seed_train_batch_splits > 0
+        assert isinstance(nb_shuffles_before_each_train_batch_split, int)
+        assert nb_shuffles_before_each_train_batch_split >= 0
         
-        assert isinstance(val_batch_size, int)
-        assert val_batch_size > 0
+        if nb_shuffles_before_each_train_batch_split > 0:
+            assert isinstance(seed_train_batch_splits, (type(None), int))
+            if isinstance(seed_train_batch_splits, int):
+                assert seed_train_batch_splits >= 0
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking the `validation_data` and `val_batch_size` kwargs
+        
+        assert isinstance(validation_data, (type(None), tuple, list))
+        
+        if validation_data is not None:
+            assert len(validation_data) == 2
+            X_val, y_val = validation_data
+            
+            y_val, _ = self._validate_data(X_val, y=y_val)
+            nb_val_samples = X_val.shape[0]
+            
+            # the `val_batch_size` kwarg will not be used if `validation_data`
+            # is set to `None`
+            assert isinstance(val_batch_size, int)
+            assert val_batch_size > 0
+            
+            _has_validation_data = True
+        else:
+            _has_validation_data = False
         
         # ================================================================== #
         
         # other checks
+        
+        if self._is_trained:
+            raise Exception("Network.fit - The network has already been trained once !")
         
         if len(self.layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
@@ -409,18 +443,21 @@ class Network:
         
         # ================================================================== #
         
-        # initializing the data for the training loop
-        
         t_beginning_training = time()
+        
+        # ================================================================== #
+        
+        # initializing the data for the training loop
         
         # initializing the network's history
         self.history = {
             "epoch"          : [],
             "train_loss"     : [],
-            "val_loss"       : [],
-            "train_accuracy" : [],
-            "val_accuracy"   : []
+            "train_accuracy" : []
         }
+        if _has_validation_data:
+            self.history["val_loss"]     = []
+            self.history["val_accuracy"] = []
         
         if train_batch_size > nb_train_samples:
             print(f"\nNetwork.fit - WARNING : train_batch_size > nb_train_samples ({train_batch_size} > {nb_train_samples}), therefore `train_batch_size` was set to `nb_train_samples` (i.e. {nb_train_samples})")
@@ -428,20 +465,20 @@ class Network:
         
         nb_train_batches = (nb_train_samples + train_batch_size - 1) // train_batch_size
         
-        val_batch_size = min(val_batch_size, nb_val_samples)
-        
-        val_batches = split_data_into_batches(
-            X_val,
-            y_val,
-            batch_size=val_batch_size,
-            normalize_batches=self.__normalize_input_data,
-            nb_shuffles=0
-        )
-        nb_val_batches = len(val_batches["data"])
+        if _has_validation_data:
+            val_batch_size = min(val_batch_size, nb_val_samples)
+            
+            val_batches = split_data_into_batches(
+                X_val,
+                val_batch_size,
+                labels=y_val,
+                normalize_batches=self.__normalize_input_data,
+                nb_shuffles=0
+            )
+            nb_val_batches = len(val_batches["data"])
         
         # for the backward propagation
         reversed_layers = self.layers[::-1]
-        learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         # ================================================================== #
         
@@ -454,12 +491,18 @@ class Network:
         nb_digits_train_batch_index = len(str(nb_train_batches))
         train_batch_index_format = f"0{nb_digits_train_batch_index}d"
         
-        # number of times the batch indices are updated (per epoch)
-        nb_train_batch_updates = 5
+        # number of times the training batch indices are updated (per epoch)
+        nb_train_batch_index_updates = 5
         
-        train_batch_index_update_step = nb_train_batches // nb_train_batch_updates
+        train_batch_index_update_step = nb_train_batches // nb_train_batch_index_updates
         
-        nb_dashes_in_transition = 105 + 2 * nb_digits_epoch_index # empirical value
+        # `nb_dashes_in_transition` is an empirical value
+        if _has_validation_data:
+            nb_dashes_in_transition = 105
+        else:
+            nb_dashes_in_transition = 61
+        nb_dashes_in_transition += 2 * nb_digits_epoch_index
+        
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
         
         # to center the prints
@@ -471,6 +514,8 @@ class Network:
             the pointer of the `print` function at the very beginning
             of that same row
             """
+            assert isinstance(max_size_of_row, int)
+            assert max_size_of_row > 0
             blank_row_with_carriage_return = " " * max_size_of_row + "\r"
             print(blank_row_with_carriage_return, end="")
         
@@ -488,10 +533,10 @@ class Network:
         for epoch_index in range(nb_epochs):
             train_batches = split_data_into_batches(
                 X_train,
-                y_train,
                 train_batch_size,
+                labels=y_train,
                 normalize_batches=self.__normalize_input_data,
-                nb_shuffles=nb_shuffles_before_train_batch_splits,
+                nb_shuffles=nb_shuffles_before_each_train_batch_split,
                 seed=seed
             )
             assert len(train_batches["data"]) == nb_train_batches
@@ -505,7 +550,7 @@ class Network:
             formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
             
             train_loss     = cast(0, utils.DEFAULT_DATATYPE)
-            train_accuracy = 0.0
+            train_accuracy = 0
             
             for train_batch_index in range(nb_train_batches):
                 X_train_batch = train_batches["data"][train_batch_index]
@@ -539,35 +584,36 @@ class Network:
             
             train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
             check_dtype(train_loss, utils.DEFAULT_DATATYPE)
-            train_accuracy /= nb_train_samples
+            train_accuracy = float(train_accuracy) / nb_train_samples
             
             # -------------------------------------------------------------- #
             
             # validation step for the current epoch
             
-            val_loss     = cast(0, utils.DEFAULT_DATATYPE)
-            val_accuracy = 0.0
-            
-            for val_batch_index in range(nb_val_batches):
-                X_val_batch = val_batches["data"][val_batch_index]
-                y_val_batch = val_batches["labels"][val_batch_index]
+            if _has_validation_data:
+                val_loss     = cast(0, utils.DEFAULT_DATATYPE)
+                val_accuracy = 0
                 
-                # forward propagation
-                val_output = X_val_batch
-                for layer in self.layers:
-                    val_output = layer.forward_propagation(val_output, training=False)
+                for val_batch_index in range(nb_val_batches):
+                    X_val_batch = val_batches["data"][val_batch_index]
+                    y_val_batch = val_batches["labels"][val_batch_index]
+                    
+                    # forward propagation
+                    val_output = X_val_batch
+                    for layer in self.layers:
+                        val_output = layer.forward_propagation(val_output, training=False)
+                    
+                    # computing the validation loss and accuracy (for display purposes only)
+                    val_loss += np.sum(self.loss(y_val_batch, val_output))
+                    val_accuracy += accuracy_score(
+                        categorical_to_vector(y_val_batch),
+                        categorical_to_vector(val_output),
+                        normalize=False
+                    )
                 
-                # computing the validation loss and accuracy (for display purposes only)
-                val_loss += np.sum(self.loss(y_val_batch, val_output))
-                val_accuracy += accuracy_score(
-                    categorical_to_vector(y_val_batch),
-                    categorical_to_vector(val_output),
-                    normalize=False
-                )
-            
-            val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
-            check_dtype(val_loss, utils.DEFAULT_DATATYPE)
-            val_accuracy /= nb_val_samples
+                val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
+                check_dtype(val_loss, utils.DEFAULT_DATATYPE)
+                val_accuracy = float(val_accuracy) / nb_val_samples
             
             # -------------------------------------------------------------- #
             
@@ -576,16 +622,22 @@ class Network:
             
             self.history["epoch"].append(epoch_index + 1)
             self.history["train_loss"].append(train_loss)
-            self.history["val_loss"].append(val_loss)
             self.history["train_accuracy"].append(train_accuracy)
-            self.history["val_accuracy"].append(val_accuracy)
+            
+            if _has_validation_data:
+                self.history["val_loss"].append(val_loss)
+                self.history["val_accuracy"].append(val_accuracy)
             
             # -------------------------------------------------------------- #
             
             clear_currently_printed_row()
             
             precision_epoch_history = 4
-            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
+            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  "
+            if _has_validation_data:
+                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
+            else:
+                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}"
             print(epoch_history)
         
         # ================================================================== #
@@ -596,13 +648,27 @@ class Network:
         duration_training = t_end_training - t_beginning_training
         
         average_epoch_duration = duration_training / nb_epochs
-        average_batch_duration = average_epoch_duration / (nb_train_batches + nb_val_batches)
+        if _has_validation_data:
+            average_batch_duration = average_epoch_duration / (nb_train_batches + nb_val_batches)
+        else:
+            average_batch_duration = average_epoch_duration / nb_train_batches
         average_batch_duration_in_milliseconds = 1000 * average_batch_duration
         
-        conclusion = f"\n{initial_spacing}Training complete ! Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
+        conclusion = f"\n{initial_spacing}Training complete !\n\n{initial_spacing}Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
         print(conclusion)
         
         print(transition)
+        
+        self._is_trained = True
+    
+    
+    def _check_if_trained(self):
+        """
+        Checks if the network has already been trained or not (using the
+        `fit` method)
+        """
+        if not(self._is_trained):
+            raise Exception("The network hasn't been trained yet !")
     
     
     def plot_history(
@@ -620,26 +686,35 @@ class Network:
         
         assert isinstance(save_plot_to_disk, bool)
         
-        assert isinstance(saved_image_name, str)
-        assert len(saved_image_name) > 0
+        if save_plot_to_disk:
+            # the `saved_image_name` kwarg will not be used if
+            # `save_plot_to_disk` is set to `False`
+            assert isinstance(saved_image_name, str)
+            assert len(saved_image_name) > 0
         
         # ------------------------------------------------------------------ #
         
         # checking if the network has already been trained or not
         
-        if self.history is None:
-            print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you haven't trained it yet !")
-            return
+        self._check_if_trained()
         
         # ------------------------------------------------------------------ #
         
         # initialization
         
+        history_keys = list(self.history.keys())
+        if ("val_loss" in history_keys) and ("val_accuracy" in history_keys):
+            _has_validation_data = True
+        else:
+            _has_validation_data = False
+        
         epochs           = self.history["epoch"]
         train_losses     = self.history["train_loss"]
-        val_losses       = self.history["val_loss"]
         train_accuracies = self.history["train_accuracy"]
-        val_accuracies   = self.history["val_accuracy"]
+        
+        if _has_validation_data:
+            val_losses     = self.history["val_loss"]
+            val_accuracies = self.history["val_accuracy"]
         
         nb_epochs = len(epochs)
         if nb_epochs == 1:
@@ -648,7 +723,8 @@ class Network:
         
         # for example
         color_of_train_data = "dodgerblue"
-        color_of_val_data   = "orange"
+        if _has_validation_data:
+            color_of_val_data = "orange"
         
         # ------------------------------------------------------------------ #
         
@@ -659,24 +735,35 @@ class Network:
         
         # losses
         ax[0].plot(epochs, train_losses, color=color_of_train_data, label="train_loss")
-        ax[0].plot(epochs, val_losses, color=color_of_val_data, label="val_loss")
+        if _has_validation_data:
+            ax[0].plot(epochs, val_losses, color=color_of_val_data, label="val_loss")
         ax[0].set_xlabel("epoch")
         ax[0].set_ylabel("loss")
         ax[0].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the epochs axis)
-        max_loss_value = max(np.max(train_losses), np.max(val_losses))
+        if _has_validation_data:
+            max_loss_value = max(np.max(train_losses), np.max(val_losses))
+        else:
+            max_loss_value = np.max(train_losses)
         ax[0].set_ylim([0, 1.05 * max_loss_value])
-        ax[0].legend()
-        ax[0].set_title("Losses for the \"train\" and \"val\" datasets")
+        if _has_validation_data:
+            ax[0].legend()
+            ax[0].set_title("Losses for the \"train\" and \"val\" datasets")
+        else:
+            ax[0].set_title("Losses for the \"train\" dataset")
         
         # accuracies
         ax[1].plot(epochs, train_accuracies, color=color_of_train_data, label="train_accuracy")
-        ax[1].plot(epochs, val_accuracies, color=color_of_val_data, label="val_accuracy")
+        if _has_validation_data:
+            ax[1].plot(epochs, val_accuracies, color=color_of_val_data, label="val_accuracy")
         ax[1].set_xlabel("epoch")
         ax[1].set_ylabel("accuracy")
         ax[1].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the epochs axis)
         ax[1].set_ylim([0, 1])
-        ax[1].legend()
-        ax[1].set_title("Accuracies for the \"train\" and \"val\" datasets")
+        if _has_validation_data:
+            ax[1].legend()
+            ax[1].set_title("Accuracies for the \"train\" and \"val\" datasets")
+        else:
+            ax[1].set_title("Accuracies for the \"train\" dataset")
         
         plt.subplots_adjust(top=0.85)
         
@@ -695,73 +782,30 @@ class Network:
             else:
                 saved_image_full_name = saved_image_name
             
+            # getting the absolute path of the saved plot
             saved_image_path = os.path.join(
+                os.getcwd(),
                 DEFAULT_SAVED_IMAGES_FOLDER_NAME,
                 saved_image_full_name
             )
             
             t_beginning_image_saving = time()
             
-            # actually saving the plot
-            plt.savefig(saved_image_path, dpi=300, format="png")
+            # actually saving the plot to your disk
+            plt.savefig(
+                saved_image_path,
+                dpi=300,
+                format="png"
+            )
             
             t_end_image_saving = time()
             duration_image_saving = t_end_image_saving - t_beginning_image_saving
-            print(f"\nThe plot \"{saved_image_path}\" was successfully saved. Done in {duration_image_saving:.3f} seconds")
+            print(f"\nThe plot was successfully saved to the location \"{saved_image_path}\". Done in {duration_image_saving:.3f} seconds")
         
         # ------------------------------------------------------------------ #
         
         # actually displaying the plot
         plt.show()
-    
-    
-    def _validate_testing_data(self, X_test, y_test=None):
-        """
-        Checks if the specified testing data is valid or not
-        
-        If `y_test` is not equal to `None`, then `y_test_flat` and
-        `y_test_categorical` are returned
-        """
-        
-        assert isinstance(X_test, np.ndarray)
-        assert len(X_test.shape) == 2
-        check_dtype(X_test, utils.DEFAULT_DATATYPE)
-        
-        nb_features_per_sample = X_test.shape[1]
-        assert nb_features_per_sample >= 2
-        input_size_of_network = self._sizes[0][0]
-        assert nb_features_per_sample == input_size_of_network
-        
-        assert isinstance(y_test, (type(None), np.ndarray))
-        
-        if y_test is not None:
-            assert isinstance(y_test, np.ndarray)
-            assert len(y_test.shape) in [1, 2]
-            check_dtype(y_test, utils.DEFAULT_DATATYPE)
-            
-            if len(y_test.shape) == 1:
-                check_if_label_vector_is_valid(y_test)
-                y_test_flat = y_test.copy()
-                y_test_categorical = to_categorical(y_test_flat, dtype=utils.DEFAULT_DATATYPE)
-            else:
-                # here, `y_test` is a one-hot encoded matrix
-                assert len(y_test.shape) == 2
-                y_test_categorical = y_test.copy()
-                y_test_flat = categorical_to_vector(y_test_categorical)
-            
-            check_dtype(y_test_categorical, utils.DEFAULT_DATATYPE)
-            
-            nb_test_samples = X_test.shape[0]
-            assert y_test_flat.size == nb_test_samples
-            assert y_test_categorical.shape[0] == nb_test_samples
-            
-            nb_classes = np.unique(y_test_flat).size
-            assert nb_classes >= 2
-            assert y_test_categorical.shape[1] == nb_classes
-            output_size_of_network = self._sizes[-1][1]
-            assert nb_classes == output_size_of_network
-            
-            return y_test_flat, y_test_categorical
     
     
     def predict(self, X_test, test_batch_size=32, return_logits=True):
@@ -773,7 +817,7 @@ class Network:
         
         # checking the validity of the specified arguments
         
-        self._validate_testing_data(X_test)
+        self._validate_data(X_test)
         nb_test_samples = X_test.shape[0]
         
         assert isinstance(test_batch_size, int)
@@ -786,18 +830,14 @@ class Network:
         
         # checking if the network has already been trained or not
         
-        if self.history is None:
-            raise Exception("Network.predict - You haven't trained the network yet !")
+        self._check_if_trained()
         
         # ------------------------------------------------------------------ #
         
-        # only used to split the testing data into batches
-        dummy_y_test = np.zeros((nb_test_samples, ), dtype=int)
-        
         test_batches = split_data_into_batches(
             X_test,
-            dummy_y_test,
-            batch_size=test_batch_size,
+            test_batch_size,
+            labels=None,
             normalize_batches=self.__normalize_input_data,
             nb_shuffles=0
         )
@@ -852,10 +892,7 @@ class Network:
         
         # checking the validity of the specified arguments
         
-        y_test_flat, y_test_categorical = self._validate_testing_data(
-            X_test,
-            y_test
-        )
+        y_test_categorical, y_test_flat = self._validate_data(X_test, y=y_test)
         
         nb_test_samples = X_test.shape[0]
         nb_classes = np.unique(y_test_flat).size
@@ -869,6 +906,12 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
+        # checking if the network has already been trained or not
+        
+        self._check_if_trained()
+        
+        # ------------------------------------------------------------------ #
+        
         # getting the raw prediction of the network (i.e. the logits)
         y_pred = self.predict(
             X_test,
@@ -879,25 +922,33 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        # computing the testing loss
+        # computing the testing loss and accuracy
         
-        test_loss = cast(0, utils.DEFAULT_DATATYPE)
+        test_loss     = cast(0, utils.DEFAULT_DATATYPE)
+        test_accuracy = 0
         
         for first_index_of_test_batch in range(0, nb_test_samples, test_batch_size):
             last_index_of_test_batch = first_index_of_test_batch + test_batch_size
+            
             y_test_batch = y_test_categorical[first_index_of_test_batch : last_index_of_test_batch, :]
             y_pred_batch = y_pred[first_index_of_test_batch : last_index_of_test_batch, :]
             
             test_loss += np.sum(self.loss(y_test_batch, y_pred_batch))
+            test_accuracy += accuracy_score(
+                y_test_flat[first_index_of_test_batch : last_index_of_test_batch],
+                y_pred_flat[first_index_of_test_batch : last_index_of_test_batch],
+                normalize=False
+            )
         
         test_loss /= cast(nb_test_samples, utils.DEFAULT_DATATYPE)
         check_dtype(test_loss, utils.DEFAULT_DATATYPE)
+        test_accuracy = float(test_accuracy) / nb_test_samples
         
         # ------------------------------------------------------------------ #
         
         # computing the accuracy scores and the raw confusion matrix
         
-        acc_score = 100 * accuracy_score(y_test_flat, y_pred_flat)
+        acc_score = 100 * test_accuracy
         conf_matrix = confusion_matrix(y_test_flat, y_pred_flat)
         
         # checking that the accuracy score computed from the confusion matrix
@@ -949,51 +1000,27 @@ class Network:
         """
         # ------------------------------------------------------------------ #
         
-        # checking the validity of `X_test`, `y_test` and `seed`
+        # checking the validity of the specified arguments
         
-        y_test_flat, _ = self._validate_testing_data(
-            X_test,
-            y_test
-        )
+        _, y_test_flat = self._validate_data(X_test, y=y_test)
+        
+        selected_classes = _validate_selected_classes(selected_classes)
+        if isinstance(selected_classes, str):
+            # here, `selected_classes` is equal to the string "all"
+            nb_classes = np.unique(y_test_flat).size
+            classes = np.arange(nb_classes)
+        else:
+            classes = selected_classes
         
         assert isinstance(seed, (type(None), int))
         if isinstance(seed, int):
-            assert seed > 0
-        
-        # ------------------------------------------------------------------ #
-        
-        # getting the list of the selected classes (and checking the validity
-        # of the `selected_classes` kwarg)
-        
-        nb_classes = np.unique(y_test_flat).size
-        assert nb_classes >= 2
-        
-        if isinstance(selected_classes, str):
-            selected_classes = selected_classes.lower()
-            if selected_classes != "all":
-                raise ValueError(f"Network.display_some_predictions - Invalid value for the kwarg `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
-            
-            classes = np.arange(nb_classes)
-        else:
-            if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
-                raise TypeError(f"Network.display_some_predictions - The `selected_classes` kwarg isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
-            
-            if not(isinstance(selected_classes, np.ndarray)):
-                selected_classes = np.array(selected_classes)
-            check_if_label_vector_is_valid(selected_classes)
-            
-            distinct_selected_classes = np.unique(selected_classes)
-            assert distinct_selected_classes.size >= 2, "Network.display_some_predictions - Please select at least 2 distinct classes in the `selected_classes` kwarg !"
-            assert distinct_selected_classes.size == nb_classes
-            
-            classes = distinct_selected_classes
+            assert seed >= 0
         
         # ------------------------------------------------------------------ #
         
         # checking if the network has already been trained or not
         
-        if self.history is None:
-            raise Exception("Network.display_some_predictions - You haven't trained the network yet !")
+        self._check_if_trained()
         
         # ------------------------------------------------------------------ #
         

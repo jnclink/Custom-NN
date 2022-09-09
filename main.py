@@ -10,10 +10,12 @@ from utils import (
 )
 
 from mnist_dataset import (
-    load_raw_MNIST_dataset,
+    load_raw_MNIST_dataset_from_disk,
     plot_random_images_from_raw_MNIST_dataset,
     format_raw_MNIST_dataset
 )
+
+from network import Network
 
 from layers import (
     InputLayer,
@@ -22,8 +24,6 @@ from layers import (
     BatchNormLayer,
     DropoutLayer
 )
-
-from network import Network
 
 
 ##############################################################################
@@ -69,7 +69,7 @@ def main():
     nb_val_samples   = 1000
     nb_test_samples  = 1000
     
-    raw_X_train, raw_y_train, raw_X_test, raw_y_test = load_raw_MNIST_dataset(
+    raw_X_train, raw_y_train, raw_X_test, raw_y_test = load_raw_MNIST_dataset_from_disk(
         verbose=False
     )
     
@@ -250,17 +250,15 @@ def main():
     
     # Training phase
     
-    training_data = (X_train, y_train)
-    validation_data = (X_val, y_val)
-    
     network.fit(
-        training_data,
-        validation_data,
+        X_train,
+        y_train,
         nb_epochs,
-        learning_rate,
         train_batch_size,
-        nb_shuffles_before_train_batch_splits=10,
+        learning_rate,
+        nb_shuffles_before_each_train_batch_split=10,
         seed_train_batch_splits=seed_network,
+        validation_data=(X_val, y_val),
         val_batch_size=32
     )
     

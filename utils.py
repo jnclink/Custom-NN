@@ -20,13 +20,25 @@ DEFAULT_DATATYPE = "float32"
 DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
 
 
-def is_an_available_global_datatype(datatype):
+def _validate_numpy_datatype(datatype):
     """
-    Checks if the specified datatype can be the "global datatype" of the
-    network (or not). For now, the only available datatypes are float32 and float64
+    Checks if the specified datatype is a valid NumPy datatype or not
     """
     if isinstance(datatype, str):
         datatype = datatype.lower().replace(" ", "")
+    try:
+        _ = np.dtype(datatype)
+    except:
+        raise ValueError(f"_validate_numpy_datatype (utils.py) - Invalid NumPy datatype : \"{str(datatype)}\"")
+
+
+def _validate_global_datatype(datatype):
+    """
+    Checks if the specified datatype can be the "global datatype" of the
+    network (or not). For now, the only available datatypes are float32
+    and float64
+    """
+    _validate_numpy_datatype(datatype)
     
     AVAILABLE_DATATYPES = (
         "float32",
@@ -43,8 +55,9 @@ def is_an_available_global_datatype(datatype):
         raise ValueError(f"is_an_available_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
 
 
-# checking the hard-coded value of `DEFAULT_DATATYPE` (just in case there's a typo)
-is_an_available_global_datatype(DEFAULT_DATATYPE)
+# checking the hard-coded value of `DEFAULT_DATATYPE` (in fact, the `np.finfo`
+# method already does that !)
+_validate_global_datatype(DEFAULT_DATATYPE)
 
 
 def set_global_datatype(datatype):
@@ -67,7 +80,7 @@ def set_global_datatype(datatype):
         set_global_datatype(np.float_)
     
     # checking the specified datatype first
-    is_an_available_global_datatype(datatype)
+    _validate_global_datatype(datatype)
     
     global DEFAULT_DATATYPE, DTYPE_RESOLUTION
     DEFAULT_DATATYPE = datatype
@@ -86,10 +99,12 @@ def check_dtype(x, dtype):
     a scalar or a vector/matrix. By design, in most cases, `dtype` will be
     equal to `utils.DEFAULT_DATATYPE`
     """
+    _validate_numpy_datatype(dtype)
     if np.isscalar(x):
         assert type(x) == np.dtype(dtype).type
     else:
         # here, `x` is a vector/matrix
+        assert isinstance(x, np.ndarray)
         assert x.dtype == dtype
 
 
@@ -99,10 +114,12 @@ def cast(x, dtype):
     scalar or a vector/matrix. By design, in most cases, `dtype` will be
     equal to `utils.DEFAULT_DATATYPE`
     """
+    _validate_numpy_datatype(dtype)
     if np.isscalar(x):
         cast_x = np.dtype(dtype).type(x)
     else:
         # here, `x` is a vector/matrix
+        assert isinstance(x, np.ndarray)
         cast_x = x.astype(dtype)
     
     check_dtype(cast_x, dtype)
@@ -112,21 +129,28 @@ def cast(x, dtype):
 ##############################################################################
 
 
-# Generally useful functions
+# Generally useful function
 
 
 def list_to_string(L):
     """
-    Converts the specified non-empty list (or tuple or 1D numpy array) into a string
+    Converts the specified non-empty list (or tuple or 1D numpy array) into
+    a string
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of `L`
+    
     if not(isinstance(L, (list, tuple, np.ndarray))):
         raise TypeError(f"list_to_string (utils.py) - The input `L` isn't a list (or a tuple or a 1D numpy array), it's a \"{L.__class__.__name__}\" !")
     
     if isinstance(L, np.ndarray):
-        assert len(L.shape) == 1, "The input `L` has to be 1-dimensional !"
+        assert len(L.shape) == 1, "list_to_string (utils.py) - The input `L` has to be 1-dimensional !"
     
     nb_elements = len(L)
-    assert nb_elements > 0, "The input `L` is empty !"
+    assert nb_elements > 0, "list_to_string (utils.py) - The input `L` is empty !"
+    
+    # ---------------------------------------------------------------------- #
     
     str_L = ""
     
@@ -149,14 +173,106 @@ def list_to_string(L):
     return str_L
 
 
-def check_if_label_vector_is_valid(y):
+##############################################################################
+
+
+# Other functions used to validate objects
+
+
+def _validate_label_vector(y, max_class=9):
     """
     Checks the validity of the label vector `y`
     """
+    assert isinstance(max_class, int)
+    assert max_class >= 1
+    
     assert isinstance(y, np.ndarray)
     assert len(y.shape) == 1
     assert issubclass(y.dtype.type, np.integer)
+    
     assert np.min(y) >= 0
+    assert np.max(y) <= max_class
+
+
+def _validate_selected_classes(selected_classes):
+    """
+    Checks the validity of the `selected_classes` argument, and returns the
+    potentially corrected version of `selected_classes`
+    
+    Here, `selected_classes` can either be :
+        - the string "all" (if you're working with all the digits ranging
+          from 0 to 9)
+        - a list/tuple/1D-array containing the specific digits you're
+          working with (e.g. [2, 4, 7])
+    """
+    if isinstance(selected_classes, str):
+        selected_classes = selected_classes.lower()
+        if selected_classes != "all":
+            raise ValueError(f"_validate_selected_classes (utils.py) - Invalid value for the argument `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
+    else:
+        if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
+            raise TypeError(f"_validate_selected_classes (utils.py) - The `selected_classes` argument isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
+        
+        if not(isinstance(selected_classes, np.ndarray)):
+            selected_classes = np.array(selected_classes)
+        _validate_label_vector(selected_classes)
+        
+        distinct_selected_classes = np.unique(selected_classes)
+        assert distinct_selected_classes.size >= 2, "_validate_selected_classes (utils.py) - Please select at least 2 distinct classes in the `selected_classes` argument !"
+        
+        selected_classes = distinct_selected_classes
+    
+    return selected_classes
+
+
+def _validate_loss_inputs(y_true, y_pred):
+    """
+    Checks if `y_true` and `y_pred` are valid or not (as inputs of a
+    loss function)
+    """
+    assert isinstance(y_true, np.ndarray) and isinstance(y_pred, np.ndarray)
+    assert y_true.shape == y_pred.shape
+    assert len(y_true.shape) in [1, 2]
+    
+    global DEFAULT_DATATYPE
+    check_dtype(y_true, DEFAULT_DATATYPE)
+    check_dtype(y_pred, DEFAULT_DATATYPE)
+
+
+def _validate_activation_input(x, can_be_scalar=True):
+    """
+    Checks the validity of `x`
+    
+    If `can_be_scalar` is set to `True`, `x` can either be a scalar, a 1D
+    vector or a 2D matrix (usually the latter). Otherwise, `x` can either be
+    a 1D vector or a 2D matrix
+    """
+    assert isinstance(can_be_scalar, bool)
+    
+    if can_be_scalar:
+        assert np.isscalar(x) or isinstance(x, np.ndarray)
+    else:
+        assert isinstance(x, np.ndarray)
+    
+    if isinstance(x, np.ndarray):
+        assert len(x.shape) in [1, 2]
+    
+    global DEFAULT_DATATYPE
+    check_dtype(x, DEFAULT_DATATYPE)
+
+
+def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff):
+    """
+    Checks if `leaky_ReLU_coeff` is valid or not
+    """
+    assert isinstance(leaky_ReLU_coeff, float)
+    
+    global DEFAULT_DATATYPE
+    leaky_ReLU_coeff = cast(leaky_ReLU_coeff, DEFAULT_DATATYPE)
+    
+    assert (leaky_ReLU_coeff > 0) and (leaky_ReLU_coeff < 1)
+    
+    return leaky_ReLU_coeff
 
 
 ##############################################################################
@@ -235,21 +351,7 @@ def display_class_distributions(
     
     assert isinstance(dict_of_label_vectors, dict)
     
-    if isinstance(selected_classes, str):
-        selected_classes = selected_classes.lower()
-        if selected_classes != "all":
-            raise ValueError(f"display_distribution_of_classes (utils.py) - Invalid value for the kwarg `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
-    else:
-        if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
-            raise TypeError(f"display_distribution_of_classes (utils.py) - The `selected_classes` kwarg isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
-        
-        if not(isinstance(selected_classes, np.ndarray)):
-            selected_classes = np.array(selected_classes)
-        check_if_label_vector_is_valid(selected_classes)
-        
-        distinct_selected_classes = np.unique(selected_classes)
-        nb_distinct_selected_classes = distinct_selected_classes.size
-        assert nb_distinct_selected_classes >= 2, "display_distribution_of_classes (utils.py) - Please select at least 2 distinct classes in the `selected_classes` kwarg !"
+    selected_classes = _validate_selected_classes(selected_classes)
     
     assert isinstance(precision, int)
     assert precision >= 0
@@ -259,8 +361,9 @@ def display_class_distributions(
     displayed_string = "\nClass distributions :\n"
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
+        # checking the validity of the individual components of `dict_of_label_vectors`
         assert isinstance(label_vector_name, str)
-        check_if_label_vector_is_valid(label_vector)
+        _validate_label_vector(label_vector)
         
         displayed_string += f"\n{label_vector_name} :"
         
@@ -271,8 +374,8 @@ def display_class_distributions(
             # here, `selected_classes` is equal to the string "all"
             classes = np.arange(nb_classes)
         else:
-            assert nb_classes == nb_distinct_selected_classes
-            classes = distinct_selected_classes
+            assert nb_classes == selected_classes.size
+            classes = selected_classes
         
         nb_labels = label_vector.size
         
@@ -294,11 +397,12 @@ def display_class_distributions(
 # matrix (and vice-versa)
 
 
-def to_categorical(y, dtype=int):
+def vector_to_categorical(y, dtype=int):
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
     """
-    check_if_label_vector_is_valid(y)
+    _validate_label_vector(y)
+    _validate_numpy_datatype(dtype)
     
     nb_labels = y.size
     
@@ -315,13 +419,22 @@ def to_categorical(y, dtype=int):
     return y_categorical
 
 
-def categorical_to_vector(y):
+def categorical_to_vector(y_categorical):
     """
     Converts a 2D categorical matrix (one-hot encoded matrix or logits) into
     its associated 1D vector of INTEGER labels
     """
-    assert len(y.shape) == 2
-    return np.argmax(y, axis=1)
+    # checking the validity of `y_categorical`
+    assert isinstance(y_categorical, np.ndarray)
+    assert len(y_categorical.shape) == 2
+    global DEFAULT_DATATYPE
+    check_dtype(y_categorical, DEFAULT_DATATYPE)
+    
+    # by definition
+    y = np.argmax(y_categorical, axis=1)
+    
+    _validate_label_vector(y)
+    return y
 
 
 ##############################################################################
@@ -332,8 +445,8 @@ def categorical_to_vector(y):
 
 def split_data_into_batches(
         data,
-        labels,
         batch_size,
+        labels=None,
         normalize_batches=True,
         nb_shuffles=10,
         seed=None
@@ -343,55 +456,63 @@ def split_data_into_batches(
     (if `batch_size` doesn't divide the number of samples, then the very last
     batch will simply have `nb_samples % batch_size` samples)
     
-    Here, `labels` can either be a 1D vector of INTEGER labels or its one-hot
-    encoded equivalent (in that case, `labels` will be a 2D matrix)
+    Here, if `labels` is not equal to `None`, it can either be a 1D vector of
+    INTEGER labels or its one-hot encoded equivalent (in that case, `labels`
+    will be a 2D matrix)
     """
     # ---------------------------------------------------------------------- #
     
     # checking the validity of the specified arguments
     
+    # checking the validity of the argument `data`
     assert isinstance(data, np.ndarray)
     assert len(data.shape) == 2
     nb_samples, nb_features_per_sample = data.shape
     assert nb_features_per_sample >= 2
     
-    assert isinstance(labels, np.ndarray)
-    assert len(labels.shape) in [1, 2]
-    if len(labels.shape) == 1:
-        check_if_label_vector_is_valid(labels)
-    elif len(labels.shape) == 2:
-        nb_classes = labels.shape[1]
-        assert nb_classes >= 2
-    assert labels.shape[0] == nb_samples
-    
     assert isinstance(batch_size, int)
     assert (batch_size >= 1) and (batch_size <= nb_samples)
+    
+    # checking the validity of the `labels` kwarg
+    assert isinstance(labels, (type(None), np.ndarray))
+    if labels is not None:
+        assert len(labels.shape) in [1, 2]
+        if len(labels.shape) == 1:
+            _validate_label_vector(labels)
+        elif len(labels.shape) == 2:
+            nb_classes = labels.shape[1]
+            assert nb_classes >= 2
+        assert labels.shape[0] == nb_samples
     
     assert isinstance(normalize_batches, bool)
     
     assert isinstance(nb_shuffles, int)
     assert nb_shuffles >= 0
     
-    assert isinstance(seed, (type(None), int))
-    if isinstance(seed, int):
-        assert seed >= 0
+    if nb_shuffles > 0:
+        assert isinstance(seed, (type(None), int))
+        if isinstance(seed, int):
+            assert seed >= 0
     
     # ---------------------------------------------------------------------- #
     
     # initialization
     
     batches = {
-        "data"   : [],
-        "labels" : []
+        "data" : []
     }
+    
+    if labels is not None:
+        batches["labels"] = []
     
     batch_indices = np.arange(nb_samples)
     
-    # shuffling the batch indices
-    np.random.seed(seed)
-    for shuffle_index in range(nb_shuffles):
-        np.random.shuffle(batch_indices)
-    np.random.seed(None) # resetting the seed
+    if nb_shuffles > 0:
+        # shuffling the batch indices
+        np.random.seed(seed)
+        for shuffle_index in range(nb_shuffles):
+            np.random.shuffle(batch_indices)
+        np.random.seed(None) # resetting the seed
     
     if normalize_batches:
         # here we're assuming that each sample does NOT have a standard
@@ -399,7 +520,7 @@ def split_data_into_batches(
         # least 2 different pixel values in each sample)
         used_data = (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
     else:
-        used_data = data
+        used_data = data.copy()
     
     # ---------------------------------------------------------------------- #
     
@@ -407,6 +528,7 @@ def split_data_into_batches(
     
     for first_index_of_batch in range(0, nb_samples, batch_size):
         last_index_of_batch = first_index_of_batch + batch_size
+        
         indices_of_current_batch = batch_indices[first_index_of_batch : last_index_of_batch]
         
         # checking if the batch size is correct
@@ -419,10 +541,11 @@ def split_data_into_batches(
             assert indices_of_current_batch.size == nb_samples % batch_size
         
         data_current_batch = used_data[indices_of_current_batch, :]
-        labels_current_batch = labels[indices_of_current_batch]
-        
         batches["data"].append(data_current_batch)
-        batches["labels"].append(labels_current_batch)
+        
+        if labels is not None:
+            labels_current_batch = labels[indices_of_current_batch]
+            batches["labels"].append(labels_current_batch)
     
     # ---------------------------------------------------------------------- #
     
@@ -430,18 +553,20 @@ def split_data_into_batches(
     
     assert np.vstack(tuple(batches["data"])).shape == data.shape
     
-    if len(labels.shape) == 1:
-        # in this case, the labels are a 1D vector of INTEGER values
-        stacking_function = np.hstack
-    else:
-        # in this case, the labels are one-hot encoded (2D matrix)
-        assert len(labels.shape) == 2
-        stacking_function = np.vstack
-    assert stacking_function(tuple(batches["labels"])).shape == labels.shape
+    if labels is not None:
+        if len(labels.shape) == 1:
+            # in this case, the labels are a 1D vector of INTEGER values
+            stacking_function = np.hstack
+        else:
+            # in this case, the labels are one-hot encoded (2D matrix)
+            assert len(labels.shape) == 2
+            stacking_function = np.vstack
+        assert stacking_function(tuple(batches["labels"])).shape == labels.shape
     
     expected_nb_batches = (nb_samples + batch_size - 1) // batch_size
     assert len(batches["data"]) == expected_nb_batches
-    assert len(batches["labels"]) == expected_nb_batches
+    if labels is not None:
+        assert len(batches["labels"]) == expected_nb_batches
     
     # ---------------------------------------------------------------------- #
     
@@ -461,9 +586,12 @@ def accuracy_score(y_true, y_pred, normalize=True):
     
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     """
-    check_if_label_vector_is_valid(y_true)
-    check_if_label_vector_is_valid(y_pred)
+    # checking the validity of `y_true` and `y_pred`
+    _validate_label_vector(y_true)
+    _validate_label_vector(y_pred)
     assert y_true.size == y_pred.size
+    
+    assert isinstance(normalize, bool)
     
     acc_score = np.where(y_true == y_pred)[0].size
     if normalize:
@@ -485,14 +613,16 @@ def confusion_matrix(y_true, y_pred):
     
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     
-    NB : If you decide to use the `confusion_matrix` function of the
-          `sklearn.metrics` module, just be aware that the output of their
-          function is the TRANSPOSED version of the "common" definition of the
-          confusion matrix (i.e. the transposed version of the output of this
-          function)
+    Sidenote
+    --------
+    If you decide to use the `confusion_matrix` function of the `sklearn.metrics`
+    module, just be aware that the output of their function is the TRANSPOSED
+    version of the "common" definition of the confusion matrix (i.e. the
+    transposed version of the output of this function)
     """
-    check_if_label_vector_is_valid(y_true)
-    check_if_label_vector_is_valid(y_pred)
+    # checking the validity of `y_true` and `y_pred`
+    _validate_label_vector(y_true)
+    _validate_label_vector(y_pred)
     assert y_true.size == y_pred.size
     
     nb_classes = np.unique(y_true).size
@@ -501,7 +631,8 @@ def confusion_matrix(y_true, y_pred):
     conf_matrix = np.zeros((nb_classes, nb_classes), dtype=int)
     
     for predicted_class, actual_class in zip(y_pred, y_true):
-        # by definition (rows=predicted_classes and columns=actual_classes)
+        # by definition (the rows are the predicted classes and the columns
+        # are the true classes)
         conf_matrix[predicted_class, actual_class] += 1
     
     return conf_matrix
@@ -530,7 +661,7 @@ def print_confusion_matrix(
     """
     # ---------------------------------------------------------------------- #
     
-    # checking the validity of all the args/kwargs, except for `selected_classes`
+    # checking the validity of the specified arguments
     
     assert isinstance(conf_matrix, np.ndarray)
     assert issubclass(conf_matrix.dtype.type, np.integer)
@@ -538,6 +669,13 @@ def print_confusion_matrix(
     nb_classes = conf_matrix.shape[0]
     assert nb_classes >= 2
     assert conf_matrix.shape[1] == nb_classes
+    
+    selected_classes = _validate_selected_classes(selected_classes)
+    if isinstance(selected_classes, str):
+        # here, `selected_classes` is equal to the string "all"
+        class_names = [str(digit) for digit in range(nb_classes)]
+    else:
+        class_names = [str(digit) for digit in selected_classes]
     
     assert isinstance(normalize, str)
     normalize = normalize.lower()
@@ -559,35 +697,10 @@ def print_confusion_matrix(
     
     # ---------------------------------------------------------------------- #
     
-    # getting the actual class names associated with each row/column of the
-    # confusion matrix (and checking the validity of the `selected_classes`
-    # kwarg)
-    
-    if isinstance(selected_classes, str):
-        selected_classes = selected_classes.lower()
-        if selected_classes != "all":
-            raise ValueError(f"print_confusion_matrix (utils.py) - Invalid value for the kwarg `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
-        
-        class_names = [str(digit) for digit in range(nb_classes)]
-    else:
-        if not(isinstance(selected_classes, (list, tuple, np.ndarray))):
-            raise TypeError(f"print_confusion_matrix (utils.py) - The `selected_classes` kwarg isn't a string, list, tuple or a 1D numpy array, it's a \"{selected_classes.__class__.__name__}\" !")
-        
-        if not(isinstance(selected_classes, np.ndarray)):
-            selected_classes = np.array(selected_classes)
-        check_if_label_vector_is_valid(selected_classes)
-        
-        distinct_selected_classes = np.unique(selected_classes)
-        nb_distinct_selected_classes = distinct_selected_classes.size
-        assert nb_distinct_selected_classes == nb_classes, f"print_confusion_matrix (utils.py) - The number of distinct classes in the `selected_classes` kwarg (= {nb_distinct_selected_classes}) doesn't match the shape of `conf_matrix` (= {conf_matrix.shape}) !"
-        
-        class_names = [str(digit) for digit in distinct_selected_classes]
-    
-    # ---------------------------------------------------------------------- #
-    
     # setting some options of the Pandas module (for convenience purposes)
     
     pd.options.mode.chained_assignment = None
+    
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
     pd.set_option("display.width", None)
@@ -651,11 +764,16 @@ def print_confusion_matrix(
             attribute "background-color" in its diagonal elements,
             and empty strings everywhere else
             """
-            attribute = f"background-color: {background_color};"
-            dataframe_mask = np.full(dataframe.shape, "", dtype="<U24")
-            np.fill_diagonal(dataframe_mask, attribute)
-            dataframe_mask = pd.DataFrame(dataframe_mask, index=dataframe.index, columns=dataframe.columns)
-            return dataframe_mask
+            assert isinstance(dataframe, pd.DataFrame)
+            assert isinstance(background_color, str)
+            assert len(background_color) > 0
+            background_color = background_color.lower()
+            
+            CSS_attribute = f"background-color: {background_color};"
+            mask = np.full(dataframe.shape, "", dtype="<U24")
+            np.fill_diagonal(mask, CSS_attribute)
+            mask_as_dataframe = pd.DataFrame(mask, index=dataframe.index, columns=dataframe.columns)
+            return mask_as_dataframe
         
         # `conf_matrix_styler` is a Pandas Styler object (`pandas.io.formats.style.Styler`)
         conf_matrix_styler = conf_matrix_as_dataframe.style.apply(
@@ -702,5 +820,5 @@ def count_nb_decimals_places(x, max_precision=6):
     else:
         # here, `x` is a non-integer float in the range ]1, infinity[, therefore
         # `x - int(x)` will be a float in the range ]0, 1[
-        return count_nb_decimals_places(x - int(x))
+        return len(str(x - int(x))) - 2
 

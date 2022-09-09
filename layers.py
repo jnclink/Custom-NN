@@ -4,13 +4,16 @@
 Script defining the main layer classes
 """
 
-import numpy as np
 from abc import ABC, abstractmethod
+
+import numpy as np
 
 import utils
 from utils import (
     cast,
     check_dtype,
+    _validate_numpy_datatype,
+    _validate_leaky_ReLU_coeff,
     list_to_string,
     count_nb_decimals_places
 )
@@ -46,6 +49,16 @@ class Layer(ABC):
         """
         pass
     
+    def _validate_forward_propagation_inputs(self, input_data, training):
+        """
+        Checks if `input_data` and `training` are valid or not
+        """
+        assert isinstance(input_data, np.ndarray)
+        assert len(input_data.shape) == 2
+        check_dtype(input_data, utils.DEFAULT_DATATYPE)
+        
+        assert isinstance(training, bool)
+    
     @abstractmethod
     def backward_propagation(self, output_gradient, learning_rate):
         """
@@ -53,6 +66,21 @@ class Layer(ABC):
         if there are any (using gradient descent)
         """
         pass
+    
+    def _validate_backward_propagation_inputs(self, output_gradient, learning_rate):
+        """
+        Checks if `output_gradient` and `learning_rate` are valid or not
+        """
+        assert isinstance(output_gradient, np.ndarray)
+        assert len(output_gradient.shape) == 2
+        check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+        
+        assert isinstance(learning_rate, float)
+        learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
+        
+        assert (learning_rate > 0) and (learning_rate < 1)
+        
+        return learning_rate
 
 
 ##############################################################################
@@ -78,7 +106,7 @@ class InputLayer(Layer):
         
         Simply returns the input
         """
-        check_dtype(input_data, utils.DEFAULT_DATATYPE)
+        self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
         self.output = self.input
@@ -93,7 +121,7 @@ class InputLayer(Layer):
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+        self._validate_backward_propagation_inputs(output_gradient, learning_rate)
         
         input_gradient = output_gradient
         
@@ -158,7 +186,7 @@ class DenseLayer(Layer):
         Applies the weights and biases to the input, and returns the
         corresponding output
         """
-        check_dtype(input_data, utils.DEFAULT_DATATYPE)
+        self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
         self.output = self.input @ self.weights + self.biases
@@ -173,7 +201,10 @@ class DenseLayer(Layer):
         Computes dE/dW and dE/dB for a given output_gradient=dE/dY, updates
         the weights and biases, and returns the input_gradient=dE/dX
         """
-        check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+        learning_rate = self._validate_backward_propagation_inputs(
+            output_gradient,
+            learning_rate
+        )
         
         input_gradient = output_gradient @ self.weights.T # = dE/dX
         check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
@@ -187,11 +218,6 @@ class DenseLayer(Layer):
         
         check_dtype(weights_gradient, utils.DEFAULT_DATATYPE)
         check_dtype(biases_gradient,  utils.DEFAULT_DATATYPE)
-        
-        try:
-            check_dtype(learning_rate, utils.DEFAULT_DATATYPE)
-        except:
-            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         # updating the trainable parameters (using gradient descent)
         self.weights -= learning_rate * weights_gradient
@@ -234,13 +260,8 @@ class ActivationLayer(Layer):
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
             leaky_ReLU_coeff = kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
-            assert isinstance(leaky_ReLU_coeff, (float, utils.DEFAULT_DATATYPE))
-            assert (leaky_ReLU_coeff > 0) and (leaky_ReLU_coeff < 1)
             
-            # NB : Here we don't need to cast `leaky_ReLU_coeff` to `utils.DEFAULT_DATATYPE`,
-            #      since it's already done in the 2 corresponding activation
-            #      functions (`leaky_ReLU` and `leaky_ReLU_prime`, defined in
-            #      the script "activations.py")
+            _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
             
             self.activation_kwargs = {
                 "leaky_ReLU_coeff" : leaky_ReLU_coeff
@@ -271,7 +292,7 @@ class ActivationLayer(Layer):
         
         Returns the activated input
         """
-        check_dtype(input_data, utils.DEFAULT_DATATYPE)
+        self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
         self.output = self.activation(self.input, **self.activation_kwargs)
@@ -286,7 +307,7 @@ class ActivationLayer(Layer):
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+        self._validate_backward_propagation_inputs(output_gradient, learning_rate)
         
         activation_prime_of_input = self.activation_prime(self.input, **self.activation_kwargs)
         
@@ -354,7 +375,7 @@ class BatchNormLayer(Layer):
         Returns the normalized (and rescaled) input along the 1st axis, i.e.
         along the batches/rows
         """
-        check_dtype(input_data, utils.DEFAULT_DATATYPE)
+        self._validate_forward_propagation_inputs(input_data, training)
         self.input = input_data
         
         if training:
@@ -393,7 +414,10 @@ class BatchNormLayer(Layer):
         Computes dE/d_gamma and dE/d_beta for a given output_gradient=dE/dY,
         updates gamma and beta, and returns the input_gradient=dE/dX
         """
-        check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+        learning_rate = self._validate_backward_propagation_inputs(
+            output_gradient,
+            learning_rate
+        )
         
         output_gradient_mean = output_gradient.mean(axis=1, keepdims=True)
         centered_output_gradient = output_gradient - output_gradient_mean
@@ -411,11 +435,6 @@ class BatchNormLayer(Layer):
         
         check_dtype(gamma_gradient, utils.DEFAULT_DATATYPE)
         check_dtype(beta_gradient,  utils.DEFAULT_DATATYPE)
-        
-        try:
-            check_dtype(learning_rate, utils.DEFAULT_DATATYPE)
-        except:
-            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         # updating the trainable parameters (using gradient descent)
         self.gamma -= learning_rate * gamma_gradient
@@ -435,7 +454,7 @@ class DropoutLayer(Layer):
     Dropout regularization layer
     """
     def __init__(self, dropout_rate, seed=None):
-        assert isinstance(dropout_rate, (float, utils.DEFAULT_DATATYPE))
+        assert isinstance(dropout_rate, float)
         assert (dropout_rate > 0) and (dropout_rate < 1)
         self.dropout_rate = dropout_rate
         
@@ -465,8 +484,10 @@ class DropoutLayer(Layer):
         to be deactivated (i.e. set to zero). All the non-deactivated values
         will be set to `self.scaling_factor` (i.e. 1 / (1 - self.dropout_rate))
         """
+        assert isinstance(shape, tuple)
         assert len(shape) == 2
-        assert dtype == np.dtype(utils.DEFAULT_DATATYPE)
+        
+        _validate_numpy_datatype(dtype)
         
         batch_size, output_size = shape
         
@@ -492,7 +513,7 @@ class DropoutLayer(Layer):
         
         Returns the input with randomly deactivated values
         """
-        check_dtype(input_data, utils.DEFAULT_DATATYPE)
+        self._validate_forward_propagation_inputs(input_data, training)
         self.input = input_data
         
         if training:
@@ -519,7 +540,7 @@ class DropoutLayer(Layer):
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+        self._validate_backward_propagation_inputs(output_gradient, learning_rate)
         
         input_gradient = output_gradient * self.dropout_matrix
         

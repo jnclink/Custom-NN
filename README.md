@@ -42,6 +42,8 @@ Language used : **Python**
 
 ## Requirements
 
+<ins>Python version</ins> : has to be greater than or equal to **`3`**
+
 Run : `pip install -r requirements.txt`
 
 

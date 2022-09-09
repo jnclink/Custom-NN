@@ -9,7 +9,9 @@ import numpy as np
 import utils
 from utils import (
     cast,
-    check_dtype
+    check_dtype,
+    _validate_activation_input,
+    _validate_leaky_ReLU_coeff
 )
 
 
@@ -25,7 +27,7 @@ def ReLU(x):
     
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
     
     ReLU_output = np.maximum(x, 0)
     
@@ -39,7 +41,7 @@ def ReLU_prime(x):
     
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
     
     if np.isscalar(x):
         if x >= 0:
@@ -69,8 +71,8 @@ def leaky_ReLU(x, leaky_ReLU_coeff=0.01):
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     Usually, `leaky_ReLU_coeff` is a small positive constant
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
-    leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
+    leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
     
     leaky_ReLU_output = np.maximum(x, leaky_ReLU_coeff * x)
     
@@ -85,8 +87,8 @@ def leaky_ReLU_prime(x, leaky_ReLU_coeff=0.01):
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     Usually, `leaky_ReLU_coeff` is a small positive constant
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
-    leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
+    leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
     
     if np.isscalar(x):
         if x >= 0:
@@ -116,7 +118,7 @@ def tanh(x):
     
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
     
     tanh_output = np.tanh(x)
     
@@ -130,7 +132,7 @@ def tanh_prime(x):
     
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
     
     one = cast(1, utils.DEFAULT_DATATYPE)
     tanh_prime_output = one - np.tanh(x)**2
@@ -145,15 +147,15 @@ def tanh_prime(x):
 # Defining the softmax activation function and its derivative
 
 
-def softmax(x):
+def softmax(x, check_for_illegal_output_values=True):
     """
     Softmax activation function
     
     `x` is a 1D vector or a 2D matrix (usually the latter)
     By definition, here `x` CANNOT be a scalar
     """
-    assert isinstance(x, np.ndarray)
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x, can_be_scalar=False)
+    assert isinstance(check_for_illegal_output_values, bool)
     
     if len(x.shape) == 1:
         # NB : The softmax function is translationally invariant, i.e., for any
@@ -164,13 +166,17 @@ def softmax(x):
         #      will never raise overflow errors !
         exps = np.exp(x - np.max(x))
         softmax_output = exps / np.sum(exps)
-    else:
-        assert len(x.shape) == 2
+    elif len(x.shape) == 2:
         batch_size = x.shape[0]
         softmax_output = np.zeros(x.shape, dtype=x.dtype)
         for batch_sample_index in range(batch_size):
-            softmax_output[batch_sample_index, :] = softmax(x[batch_sample_index, :])
-        
+            x_sample = x[batch_sample_index, :]
+            softmax_output[batch_sample_index, :] = softmax(
+                x_sample,
+                check_for_illegal_output_values=False
+            )
+    
+    if check_for_illegal_output_values:
         # replacing the softmax output values that are *very close* to zero
         # with the smallest possible positive value of the current global datatype
         resolution = utils.DTYPE_RESOLUTION
@@ -191,19 +197,18 @@ def softmax_prime(x):
     `x` is a 1D vector or a 2D matrix (usually the latter)
     By definition, here `x` CANNOT be a scalar
     """
-    assert isinstance(x, np.ndarray)
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x, can_be_scalar=False)
     
     if len(x.shape) == 1:
         softmax_output = softmax(x).reshape((1, x.shape[0]))
         softmax_prime_output = np.diagflat(softmax_output) - softmax_output.T @ softmax_output
         return softmax_prime_output
-    else:
-        assert len(x.shape) == 2
-        batch_size  = x.shape[0]
+    elif len(x.shape) == 2:
+        batch_size = x.shape[0]
         softmax_prime_output = np.zeros((batch_size, x.shape[1], x.shape[1]), dtype=x.dtype)
         for batch_sample_index in range(batch_size):
-            softmax_prime_output[batch_sample_index] = softmax_prime(x[batch_sample_index, :])
+            x_sample = x[batch_sample_index, :]
+            softmax_prime_output[batch_sample_index] = softmax_prime(x_sample)
     
     check_dtype(softmax_prime_output, utils.DEFAULT_DATATYPE)
     return softmax_prime_output
@@ -215,25 +220,29 @@ def softmax_prime(x):
 # Defining the sigmoid activation function and its derivative
 
 
-def sigmoid(x):
+def sigmoid(x, check_for_illegal_output_values=True):
     """
     Sigmoid activation function
     
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
+    assert isinstance(check_for_illegal_output_values, bool)
     
     if np.isscalar(x) or (len(x.shape) == 1):
         one = cast(1, utils.DEFAULT_DATATYPE)
         sigmoid_output = one / (one + np.exp(-x))
-    else:
-        # here, `x` is a 2D matrix
-        assert len(x.shape) == 2
+    elif len(x.shape) == 2:
         sigmoid_output = np.zeros(x.shape, dtype=x.dtype)
         batch_size = x.shape[0]
         for batch_sample_index in range(batch_size):
-            sigmoid_output[batch_sample_index, :] = sigmoid(x[batch_sample_index, :])
-        
+            x_sample = x[batch_sample_index, :]
+            sigmoid_output[batch_sample_index, :] = sigmoid(
+                x_sample,
+                check_for_illegal_output_values=False
+            )
+    
+    if check_for_illegal_output_values:
         # replacing the sigmoid output values that are *very close* to zero
         # with the smallest possible positive value of the current global datatype
         resolution = utils.DTYPE_RESOLUTION
@@ -253,19 +262,18 @@ def sigmoid_prime(x):
     
     `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
     """
-    check_dtype(x, utils.DEFAULT_DATATYPE)
+    _validate_activation_input(x)
     
     if np.isscalar(x) or (len(x.shape) == 1):
         sigmoid_output = sigmoid(x)
         one = cast(1, utils.DEFAULT_DATATYPE)
         sigmoid_prime_output = sigmoid_output * (one - sigmoid_output)
-    else:
-        # here, `x` is a 2D matrix
-        assert len(x.shape) == 2
+    elif len(x.shape) == 2:
         sigmoid_prime_output = np.zeros(x.shape, dtype=x.dtype)
         batch_size = x.shape[0]
         for batch_sample_index in range(batch_size):
-            sigmoid_prime_output[batch_sample_index, :] = sigmoid_prime(x[batch_sample_index, :])
+            x_sample = x[batch_sample_index, :]
+            sigmoid_prime_output[batch_sample_index, :] = sigmoid_prime(x_sample)
     
     check_dtype(sigmoid_prime_output, utils.DEFAULT_DATATYPE)
     return sigmoid_prime_output
