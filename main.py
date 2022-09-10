@@ -66,7 +66,7 @@ def main():
     #     - 60000 samples in the raw "train" data (if ALL the classes are selected)
     #     - 10000 samples in the raw "test" data (if ALL the classes are selected)
     nb_train_samples = 10000
-    nb_val_samples   = 1000
+    nb_val_samples   = 1000 # can be set to zero if needed
     nb_test_samples  = 1000
     
     raw_X_train, raw_y_train, raw_X_test, raw_y_test = load_raw_MNIST_dataset_from_disk(
@@ -83,6 +83,8 @@ def main():
             seed=None
         )
     
+    # NB : If you set `nb_val_samples` to zero, `X_val` and `y_val` will both
+    #      be equal to `None`
     X_train, y_train, X_val, y_val, X_test, y_test = format_raw_MNIST_dataset(
         raw_X_train,
         raw_y_train,
@@ -250,6 +252,19 @@ def main():
     
     # Training phase
     
+    # NB : Here, inputting validation data is optional. If you don't want to
+    #      use validation data, please (at least) set the `validation_data`
+    #      kwarg to `None` (or don't specify it at all). If you set `nb_val_samples`
+    #      to zero, the validation kwargs will automatically be discarded
+    
+    if nb_val_samples > 0:
+        validation_kwargs = {
+            "validation_data" : (X_val, y_val),
+            "val_batch_size"  : 32
+        }
+    else:
+        validation_kwargs = {}
+    
     network.fit(
         X_train,
         y_train,
@@ -258,8 +273,7 @@ def main():
         learning_rate,
         nb_shuffles_before_each_train_batch_split=10,
         seed_train_batch_splits=seed_network,
-        validation_data=(X_val, y_val),
-        val_batch_size=32
+        **validation_kwargs
     )
     
     # ====================================================================== #
@@ -283,6 +297,14 @@ def main():
         y_test,
         top_N_accuracy=top_N_accuracy,
         test_batch_size=32
+    )
+    
+    # Displaying the raw confusion matrix of the network
+    print_confusion_matrix(
+        conf_matrix,
+        selected_classes=selected_classes,
+        normalize="no", # = "rows", "columns" or "no"
+        initial_spacing=1
     )
     
     # Displaying the precision of the network (i.e. the confusion matrix

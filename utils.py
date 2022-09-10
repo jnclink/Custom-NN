@@ -4,8 +4,15 @@
 Script defining miscellaneous useful functions
 """
 
+import os
+from time import time
+from urllib.request import urlretrieve
+
 import numpy as np
 import pandas as pd
+
+from matplotlib import cm # colormaps
+from matplotlib.colors import rgb2hex, Colormap
 
 
 ##############################################################################
@@ -14,10 +21,12 @@ import pandas as pd
 # Defining the datatype of ALL the data that will flow through the network
 # (i.e. we're defining the "global datatype")
 
-
 # global variables (these are the 2 only global variables of the entire project)
 DEFAULT_DATATYPE = "float32"
 DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
+
+
+##############################################################################
 
 
 def _validate_numpy_datatype(datatype):
@@ -30,6 +39,7 @@ def _validate_numpy_datatype(datatype):
         _ = np.dtype(datatype)
     except:
         raise ValueError(f"_validate_numpy_datatype (utils.py) - Invalid NumPy datatype : \"{str(datatype)}\"")
+    return datatype
 
 
 def _validate_global_datatype(datatype):
@@ -38,7 +48,7 @@ def _validate_global_datatype(datatype):
     network (or not). For now, the only available datatypes are float32
     and float64
     """
-    _validate_numpy_datatype(datatype)
+    datatype = _validate_numpy_datatype(datatype)
     
     AVAILABLE_DATATYPES = (
         "float32",
@@ -52,11 +62,11 @@ def _validate_global_datatype(datatype):
             str_datatype = datatype.__name__
         else:
             str_datatype = str(datatype)
-        raise ValueError(f"is_an_available_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
+        raise ValueError(f"_validate_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
 
 
-# checking the hard-coded value of `DEFAULT_DATATYPE` (in fact, the `np.finfo`
-# method already does that !)
+# checking the hard-coded value of `DEFAULT_DATATYPE` (in fact, this is already
+# done by the `np.finfo` method when defining the global variable `DTYPE_RESOLUTION` !)
 _validate_global_datatype(DEFAULT_DATATYPE)
 
 
@@ -99,12 +109,13 @@ def check_dtype(x, dtype):
     a scalar or a vector/matrix. By design, in most cases, `dtype` will be
     equal to `utils.DEFAULT_DATATYPE`
     """
-    _validate_numpy_datatype(dtype)
+    assert np.isscalar(x) or isinstance(x, np.ndarray)
+    dtype = _validate_numpy_datatype(dtype)
+    
     if np.isscalar(x):
         assert type(x) == np.dtype(dtype).type
     else:
         # here, `x` is a vector/matrix
-        assert isinstance(x, np.ndarray)
         assert x.dtype == dtype
 
 
@@ -114,12 +125,13 @@ def cast(x, dtype):
     scalar or a vector/matrix. By design, in most cases, `dtype` will be
     equal to `utils.DEFAULT_DATATYPE`
     """
-    _validate_numpy_datatype(dtype)
+    assert np.isscalar(x) or isinstance(x, np.ndarray)
+    dtype = _validate_numpy_datatype(dtype)
+    
     if np.isscalar(x):
         cast_x = np.dtype(dtype).type(x)
     else:
         # here, `x` is a vector/matrix
-        assert isinstance(x, np.ndarray)
         cast_x = x.astype(dtype)
     
     check_dtype(cast_x, dtype)
@@ -129,7 +141,7 @@ def cast(x, dtype):
 ##############################################################################
 
 
-# Generally useful function
+# Generally useful functions
 
 
 def list_to_string(L):
@@ -139,7 +151,7 @@ def list_to_string(L):
     """
     # ---------------------------------------------------------------------- #
     
-    # checking the validity of `L`
+    # checking the validity of the input `L`
     
     if not(isinstance(L, (list, tuple, np.ndarray))):
         raise TypeError(f"list_to_string (utils.py) - The input `L` isn't a list (or a tuple or a 1D numpy array), it's a \"{L.__class__.__name__}\" !")
@@ -173,18 +185,134 @@ def list_to_string(L):
     return str_L
 
 
+def count_nb_decimals_places(x, max_precision=6):
+    """
+    Returns the number of decimal places of the scalar `x`
+    """
+    assert np.isscalar(x)
+    
+    assert isinstance(max_precision, int)
+    assert max_precision >= 0
+    
+    # converting `x` into a positive number, since it doesn't affect the number
+    # of decimal places
+    x = round(float(abs(x)), max_precision)
+    
+    if x == int(x):
+        # here, `x` is a positive integer
+        return 0
+    elif x < 1:
+        # here, `x` is a float in the range ]0, 1[
+        return len(str(x)) - 2
+    else:
+        # here, `x` is a non-integer float in the range ]1, infinity[, therefore
+        # `x - int(x)` will be a float in the range ]0, 1[
+        return len(str(x - int(x))) - 2
+
+
+def clear_currently_printed_row(max_size_of_row=150):
+    """
+    Clears the currently printed row, and sets the pointer of the `print`
+    function at the very beginning of that same row
+    """
+    assert isinstance(max_size_of_row, int)
+    assert max_size_of_row >= 0
+    
+    blank_row = " " * max_size_of_row
+    print(blank_row, end="\r")
+
+
+def progress_bar(
+        current_index,
+        total_nb_elements,
+        progress_bar_size=15
+    ):
+    """
+    Returns a progress bar (as a string) corresponding to the progress of
+    `current_index` relative to `total_nb_elements`. The value of the kwarg
+    `progress_bar_size` indicates how long the content of the progress bar is
+    
+    For example, `progress_bar(70, 100, progress_bar_size=10)` will return
+    the following string : "[======>...]"
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the specified arguments
+    
+    assert isinstance(current_index, int)
+    assert current_index >= 1
+    
+    assert isinstance(total_nb_elements, int)
+    assert total_nb_elements >= max(1, current_index)
+    
+    assert isinstance(progress_bar_size, int)
+    assert progress_bar_size >= 2
+    
+    # ---------------------------------------------------------------------- #
+    
+    if current_index == total_nb_elements:
+        str_progress_bar = "[" + "=" * progress_bar_size + "]"
+    else:
+        progress_ratio = float(current_index) / total_nb_elements
+        nb_equal_signs = max(1, int(round(progress_ratio * progress_bar_size))) - 1
+        
+        nb_dots = progress_bar_size - nb_equal_signs - 1
+        
+        str_progress_bar = "[" + "=" * nb_equal_signs + ">" + "." * nb_dots + "]"
+    
+    assert len(str_progress_bar) == progress_bar_size + 2
+    
+    return str_progress_bar
+
+
 ##############################################################################
 
 
-# Other functions used to validate objects
+# Other functions used to validate values/objects/arguments
 
 
-def _validate_label_vector(y, max_class=9):
+def _validate_raw_MNIST_dataset(
+        raw_X_train,
+        raw_y_train,
+        raw_X_test,
+        raw_y_test
+    ):
+    """
+    Checks if the specified raw MNIST data is valid or not. By design, the
+    arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
+    meant to be the outputs of the `load_raw_MNIST_dataset_from_disk` function
+    of the "mnist_dataset.py" script
+    """
+    assert isinstance(raw_X_train, np.ndarray)
+    assert raw_X_train.shape == (60000, 28, 28)
+    check_dtype(raw_X_train, np.uint8)
+    
+    assert isinstance(raw_y_train, np.ndarray)
+    assert raw_y_train.shape == (60000, )
+    check_dtype(raw_y_train, np.uint8)
+    
+    assert isinstance(raw_X_test, np.ndarray)
+    assert raw_X_test.shape == (10000, 28, 28)
+    check_dtype(raw_X_test, np.uint8)
+    
+    assert isinstance(raw_y_test, np.ndarray)
+    assert raw_y_test.shape == (10000, )
+    check_dtype(raw_y_test, np.uint8)
+    
+    NB_CLASSES = 10
+    expected_classes = np.arange(NB_CLASSES)
+    assert np.allclose(np.unique(raw_y_train), expected_classes)
+    assert np.allclose(np.unique(raw_y_test),  expected_classes)
+
+
+def _validate_label_vector(y, max_class=9, is_whole_label_vector=True):
     """
     Checks the validity of the label vector `y`
     """
     assert isinstance(max_class, int)
     assert max_class >= 1
+    
+    assert isinstance(is_whole_label_vector, bool)
     
     assert isinstance(y, np.ndarray)
     assert len(y.shape) == 1
@@ -192,6 +320,10 @@ def _validate_label_vector(y, max_class=9):
     
     assert np.min(y) >= 0
     assert np.max(y) <= max_class
+    
+    if is_whole_label_vector:
+        nb_classes = np.unique(y).size
+        assert nb_classes >= 2
 
 
 def _validate_selected_classes(selected_classes):
@@ -241,7 +373,7 @@ def _validate_loss_inputs(y_true, y_pred):
 
 def _validate_activation_input(x, can_be_scalar=True):
     """
-    Checks the validity of `x`
+    Checks the validity of `x` (as an input of an activation function)
     
     If `can_be_scalar` is set to `True`, `x` can either be a scalar, a 1D
     vector or a 2D matrix (usually the latter). Otherwise, `x` can either be
@@ -279,6 +411,170 @@ def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff):
 
 
 # Functions related to the `mnist_dataset.py` script
+
+
+def _download_progress_bar(
+        block_index,
+        block_size_in_bytes,
+        total_size_of_data_in_bytes
+    ):
+    """
+    Prints the progress bar concerning the download of the raw MNIST data
+    
+    The signature of this function is imposed by the `urlretrieve` method
+    of the `urllib.request` module (cf. the `reporthook` kwarg of the
+    `urlretrieve` method)
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the specified arguments
+    
+    assert isinstance(block_index, int)
+    assert block_index >= 0
+    
+    if block_index == 0:
+        # when `block_index` is equal to zero, it's to signal that the
+        # downloading process has just begun, but no data has actually
+        # been retrieved yet
+        return
+    
+    assert isinstance(block_size_in_bytes, int)
+    assert block_size_in_bytes > 0
+    
+    assert isinstance(total_size_of_data_in_bytes, int)
+    assert total_size_of_data_in_bytes > 0
+    
+    # this formula assumes that all the blocks are the same size (except for
+    # maybe the very last one, if `block_size_in_bytes` doesn't divide
+    # `total_size_of_data_in_bytes`), which is the case in practice
+    total_nb_blocks = (total_size_of_data_in_bytes + block_size_in_bytes - 1) // block_size_in_bytes
+    
+    assert block_index <= total_nb_blocks
+    
+    # ---------------------------------------------------------------------- #
+    
+    # defining the number of times the progress bar will be updated during
+    # the entire download
+    nb_progress_bar_updates = 10
+    
+    block_index_update_step = total_nb_blocks // nb_progress_bar_updates
+    
+    if (block_index % block_index_update_step == 0) or (block_index in [1, total_nb_blocks]):
+        size_of_already_downloaded_data_in_bytes = block_index * block_size_in_bytes
+        
+        if block_index == total_nb_blocks:
+            assert size_of_already_downloaded_data_in_bytes >= total_size_of_data_in_bytes
+            size_of_already_downloaded_data_in_bytes = total_size_of_data_in_bytes
+        
+        current_progress_bar = progress_bar(
+            size_of_already_downloaded_data_in_bytes,
+            total_size_of_data_in_bytes,
+            progress_bar_size=50 # by default
+        )
+        
+        # by definition of a megabyte
+        nb_bytes_in_one_megabyte = 1024**2
+        
+        # converting the sizes from bytes to megabytes (for display purposes only)
+        size_of_already_downloaded_data_in_megabytes = float(size_of_already_downloaded_data_in_bytes) / nb_bytes_in_one_megabyte
+        total_size_of_data_in_megabytes = float(total_size_of_data_in_bytes) / nb_bytes_in_one_megabyte
+        
+        # by default
+        precision_sizes = 2
+        
+        str_size_of_already_downloaded_data_in_megabytes = f"{size_of_already_downloaded_data_in_megabytes:.{precision_sizes}f}"
+        if size_of_already_downloaded_data_in_megabytes < 10:
+            str_size_of_already_downloaded_data_in_megabytes = "0" + str_size_of_already_downloaded_data_in_megabytes
+        str_total_size_of_data_in_megabytes = f"{total_size_of_data_in_megabytes:.{precision_sizes}f}"
+        
+        current_progress_bar += f" Downloaded {str_size_of_already_downloaded_data_in_megabytes}/{str_total_size_of_data_in_megabytes} MB"
+        
+        clear_currently_printed_row()
+        print(current_progress_bar, end="\r")
+
+
+def _download_raw_MNIST_dataset():
+    r"""
+    Automatically downloads the raw MNIST data (as a single file), and saves
+    it to the following location on your disk :
+        - on Windows : "C:\Users\YourUsername\.Custom-MLP\datasets\MNIST\raw_MNIST_data.npz"
+        - on Linux   : "/home/YourUsername/.Custom-MLP/datasets/MNIST/raw_MNIST_data.npz"
+    
+    Naturally, if this is the very first time you call this function, you'll
+    need to have an internet connection !
+    
+    The downloaded file has a size of about 11 MB, and is retrieved from the
+    following URL :
+    https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
+    
+    If the data has already been downloaded, it's simply retrieved from your disk
+    
+    Also, the absolute path of the downloaded data is returned
+    
+    Sidenote
+    --------
+    This function is basically equivalent to the `tensorflow.keras.datasets.mnist.load_data`
+    method. The only real difference is that the downloaded data has a different
+    location on your disk. The reason as for why the previous `mnist.load_data`
+    method isn't used is simply because we do NOT want to import TensorFlow !
+    Indeed, in my opinion, it would be kind of awkward to import TensorFlow in
+    a project aiming to implement a Deep Learning model *from scratch* !
+    Note that, if you use the `mnist.load_data` method of the TensorFlow module,
+    the raw MNIST data will be saved at the following location on your disk :
+        - on Windows : "C:\Users\YourUsername\.keras\datasets\mnist.npz"
+        - on Linux   : "/home/YourUsername/.keras/datasets/mnist.npz"
+    """
+    
+    # creating the folder that will contain the raw MNIST data (if it doesn't
+    # already exist)
+    default_data_directory = os.path.join(
+        os.path.expanduser("~"),
+        ".Custom-MLP",
+        "datasets",
+        "MNIST"
+    )
+    os.makedirs(default_data_directory, exist_ok=True)
+    
+    # here, `default_data_filename` has to be a "*.npz" filename
+    default_data_filename = "raw_MNIST_data.npz"
+    assert default_data_filename[-4 : ] == ".npz"
+    
+    # defining the absolute path of the downloaded file
+    default_path_of_downloaded_data = os.path.join(
+        default_data_directory,
+        default_data_filename
+    )
+    
+    # if the data already exists on your disk, there is no need to re-download it
+    download_is_required = not(os.path.exists(default_path_of_downloaded_data))
+    
+    if download_is_required:
+        try:
+            data_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
+            
+            print(f"\nDownloading the raw MNIST data from the URL \"{data_URL}\". This might take a couple of seconds ...\n")
+            t_beginning_downloading = time()
+            
+            # actually downloading the raw MNIST data from `data_URL`, and
+            # saving it to the location `default_path_of_downloaded_data`
+            urlretrieve(
+                url=data_URL,
+                filename=default_path_of_downloaded_data,
+                reporthook=_download_progress_bar
+            )
+            
+            assert os.path.exists(default_path_of_downloaded_data)
+            
+            t_end_downloading = time()
+            duration_downloading = t_end_downloading - t_beginning_downloading
+            print(f"\n\nSuccessfully downloaded the raw MNIST data to the location \"{default_path_of_downloaded_data}\". Done in {duration_downloading:.3f} seconds")
+        except (Exception, KeyboardInterrupt):
+            print("\n")
+            if os.path.exists(default_path_of_downloaded_data):
+                os.remove(default_path_of_downloaded_data)
+            raise
+    
+    return default_path_of_downloaded_data
 
 
 def get_dtype_of_array(array):
@@ -402,7 +698,7 @@ def vector_to_categorical(y, dtype=int):
     Performs one-hot encoding on a 1D vector of INTEGER labels
     """
     _validate_label_vector(y)
-    _validate_numpy_datatype(dtype)
+    dtype = _validate_numpy_datatype(dtype)
     
     nb_labels = y.size
     
@@ -433,7 +729,7 @@ def categorical_to_vector(y_categorical):
     # by definition
     y = np.argmax(y_categorical, axis=1)
     
-    _validate_label_vector(y)
+    _validate_label_vector(y, is_whole_label_vector=False)
     return y
 
 
@@ -587,8 +883,8 @@ def accuracy_score(y_true, y_pred, normalize=True):
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     """
     # checking the validity of `y_true` and `y_pred`
-    _validate_label_vector(y_true)
-    _validate_label_vector(y_pred)
+    _validate_label_vector(y_true, is_whole_label_vector=False)
+    _validate_label_vector(y_pred, is_whole_label_vector=False)
     assert y_true.size == y_pred.size
     
     assert isinstance(normalize, bool)
@@ -638,6 +934,79 @@ def confusion_matrix(y_true, y_pred):
     return conf_matrix
 
 
+##############################################################################
+
+
+# Functions related to the display of the confusion matrix
+
+
+def highlight_diagonal(dataframe, background_color):
+    """
+    Function that is only used by the `print_confusion_matrix` function
+    (of this script). Returns a dataframe mask with the CSS property
+    "background-color" in all of its diagonal elements, and an empty string
+    everywhere else
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
+    assert isinstance(dataframe, pd.DataFrame)
+    assert len(dataframe.shape) == 2
+    
+    assert isinstance(background_color, str)
+    assert len(background_color) > 0
+    assert " " not in background_color
+    background_color = background_color.lower()
+    
+    # ---------------------------------------------------------------------- #
+    
+    diagonal_mask = np.full(dataframe.shape, "", dtype="<U24")
+    
+    CSS_property = f"background-color: {background_color}"
+    np.fill_diagonal(diagonal_mask, CSS_property)
+    
+    diagonal_mask_as_dataframe = pd.DataFrame(
+        diagonal_mask,
+        index=dataframe.index,
+        columns=dataframe.columns
+    )
+    
+    return diagonal_mask_as_dataframe
+
+
+def highlight_all_cells(value, colormap):
+    """
+    Function that is only used by the `print_confusion_matrix` function
+    (of this script). Returns a CSS property "background-color", where
+    the intensity of the associated color (relative to the specified colormap)
+    is proportional to `value`
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
+    assert isinstance(value, (str, float, np.float_))
+    if isinstance(value, str):
+        value = float(value[ : -2])
+    assert (value >= 0) and (value <= 100)
+    
+    assert issubclass(type(colormap), Colormap)
+    
+    # ---------------------------------------------------------------------- #
+    
+    # this scaling factor scales down the maximum intensity of the color
+    scaling_factor = 0.75
+    assert (scaling_factor > 0) and (scaling_factor <= 1)
+    
+    color_intensity = scaling_factor * (value / 100) # has to lie in the range [0, 1]
+    hex_color_of_cell = rgb2hex(colormap(color_intensity))
+    
+    CSS_property = f"background-color: {hex_color_of_cell}"
+    
+    return CSS_property
+
+
 def print_confusion_matrix(
         conf_matrix,
         selected_classes="all",
@@ -645,7 +1014,8 @@ def print_confusion_matrix(
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True,
-        jupyter_notebook=False
+        jupyter_notebook=False,
+        color="green"
     ):
     """
     Prints the confusion matrix in a more user-friendly way
@@ -683,17 +1053,39 @@ def print_confusion_matrix(
     if normalize not in possible_values_for_normalize_kwarg:
         raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
     
-    assert isinstance(precision, int)
-    assert precision >= 0
+    if normalize != "no":
+        assert isinstance(precision, int)
+        assert precision >= 0
     
     assert isinstance(jupyter_notebook, bool)
+    
     if not(jupyter_notebook):
         # the `initial_spacing` kwarg will not be used if `jupyter_notebook`
         # is set to `True`
         assert isinstance(initial_spacing, int)
         assert initial_spacing >= 0
-    
-    assert isinstance(display_with_line_breaks, bool)
+        
+        if normalize != "no":
+            assert isinstance(display_with_line_breaks, bool)
+            pd.set_option("expand_frame_repr", display_with_line_breaks)
+    else:
+        assert isinstance(color, str)
+        assert len(color) > 0
+        assert " " not in color
+        color = color.lower()
+        
+        # keys   : generic color names
+        # values : (associated CSS/HTML color names, associated Matplotlib colormaps)
+        COLORS_AND_COLORMAPS = {
+            "green"  : ("green",     cm.Greens),
+            "blue"   : ("blue",      cm.Blues),
+            "purple" : ("indigo",    cm.Purples),
+            "red"    : ("red",       cm.Reds),
+            "orange" : ("orangered", cm.Oranges)
+        }
+        
+        if color not in COLORS_AND_COLORMAPS:
+            raise ValueError(f"print_confusion_matrix (utils.py) - Unrecognized value for the `color` kwarg : \"{color}\" (possible color names : {list_to_string(list(COLORS_AND_COLORMAPS.keys()))})")
     
     # ---------------------------------------------------------------------- #
     
@@ -705,7 +1097,6 @@ def print_confusion_matrix(
     pd.set_option("display.max_columns", None)
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
-    pd.set_option("expand_frame_repr", display_with_line_breaks)
     
     # ---------------------------------------------------------------------- #
     
@@ -732,7 +1123,12 @@ def print_confusion_matrix(
                 normalized_conf_matrix[:, class_index] /= sum_of_column
         
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
-        conf_matrix_as_dataframe = pd.DataFrame(normalized_conf_matrix, index=class_names, columns=class_names)
+        
+        conf_matrix_as_dataframe = pd.DataFrame(
+            normalized_conf_matrix,
+            index=class_names,
+            columns=class_names
+        )
         
         for class_index, class_name in enumerate(class_names):
             # adding the "%" symbol to all the elements of the dataframe
@@ -745,7 +1141,11 @@ def print_confusion_matrix(
     else:
         # here, the `normalize` kwarg is equal to "no", therefore the raw
         # confusion matrix will be printed
-        conf_matrix_as_dataframe = pd.DataFrame(conf_matrix, index=class_names, columns=class_names)
+        conf_matrix_as_dataframe = pd.DataFrame(
+            conf_matrix,
+            index=class_names,
+            columns=class_names
+        )
     
     # by definition
     conf_matrix_as_dataframe.columns.name = "ACTUAL"
@@ -755,31 +1155,22 @@ def print_confusion_matrix(
     
     # ---------------------------------------------------------------------- #
     
-    # highlighting the diagonal in green (on Jupyter notebook only)
+    # highlighting the confusion matrix in (shades of) a specific color (on
+    # Jupyter notebook only)
     
     if jupyter_notebook:
-        def highlight_diagonal(dataframe, background_color="green"):
-            """
-            Sub-function. Returns a dataframe mask with the CSS
-            attribute "background-color" in its diagonal elements,
-            and empty strings everywhere else
-            """
-            assert isinstance(dataframe, pd.DataFrame)
-            assert isinstance(background_color, str)
-            assert len(background_color) > 0
-            background_color = background_color.lower()
-            
-            CSS_attribute = f"background-color: {background_color};"
-            mask = np.full(dataframe.shape, "", dtype="<U24")
-            np.fill_diagonal(mask, CSS_attribute)
-            mask_as_dataframe = pd.DataFrame(mask, index=dataframe.index, columns=dataframe.columns)
-            return mask_as_dataframe
+        if normalize == "no":
+            conf_matrix_styler = conf_matrix_as_dataframe.style.apply(
+                highlight_diagonal,
+                axis=None,
+                background_color=COLORS_AND_COLORMAPS[color][0]
+            )
+        else:
+            conf_matrix_styler = conf_matrix_as_dataframe.style.applymap(
+                highlight_all_cells,
+                colormap=COLORS_AND_COLORMAPS[color][1]
+            )
         
-        # `conf_matrix_styler` is a Pandas Styler object (`pandas.io.formats.style.Styler`)
-        conf_matrix_styler = conf_matrix_as_dataframe.style.apply(
-            highlight_diagonal,
-            axis=None
-        )
         return conf_matrix_styler
     
     # ---------------------------------------------------------------------- #
@@ -789,36 +1180,4 @@ def print_confusion_matrix(
     str_conf_matrix_as_dataframe = f"\n{initial_spacing}" + str(conf_matrix_as_dataframe).replace("\n", f"\n{initial_spacing}") + "\n"
     
     print(str_conf_matrix_as_dataframe)
-
-
-##############################################################################
-
-
-# Function related to the `layers.py` script (it's used by the `__str__` methods
-# of both the `ActivationLayer` and `DropoutLayer` classes)
-
-
-def count_nb_decimals_places(x, max_precision=6):
-    """
-    Returns the number of decimal places of the scalar `x`
-    """
-    assert np.isscalar(x)
-    
-    assert isinstance(max_precision, int)
-    assert max_precision >= 0
-    
-    # converting `x` into a positive number, since it doesn't affect the number
-    # of decimal places
-    x = round(float(abs(x)), max_precision)
-    
-    if x == int(x):
-        # here, `x` is a positive integer
-        return 0
-    elif x < 1:
-        # here, `x` is a float in the range ]0, 1[
-        return len(str(x)) - 2
-    else:
-        # here, `x` is a non-integer float in the range ]1, infinity[, therefore
-        # `x - int(x)` will be a float in the range ]0, 1[
-        return len(str(x - int(x))) - 2
 

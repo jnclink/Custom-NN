@@ -27,13 +27,16 @@ def CCE(y_true, y_pred, check_for_illegal_input_values=True):
     `y_true` and `y_pred` are 1D vectors or 2D matrices
     
     `y_true` has to be one-hot encoded, and all the values of `y_pred` have to
-    be in the range ]0, 1] (usually those 2 conditions are satisfied when this
-    function is called)
+    be in the range ]0, 1] (in practice, those 2 conditions are satisfied when
+    this function is called)
     """
     _validate_loss_inputs(y_true, y_pred)
     assert isinstance(check_for_illegal_input_values, bool)
     
     if check_for_illegal_input_values:
+        # the values of `y_true` have to be one-hot encoded
+        assert y_true.size == np.where(y_true == 0.0)[0].size + np.where(y_true == 1.0)[0].size
+        
         # the values of `y_pred` have to be in the range ]0, 1]
         nb_illegal_values_in_y_pred = np.where(y_pred <= 0)[0].size + np.where(y_pred > 1)[0].size
         assert nb_illegal_values_in_y_pred == 0
@@ -65,11 +68,13 @@ def CCE_prime(y_true, y_pred):
     `y_true` and `y_pred` are 1D vectors or 2D matrices
     
     `y_true` has to be one-hot encoded, and all the values of `y_pred` have to
-    be in the range ]0, 1] (usually those 2 conditions are satisfied when this
-    function is called)
+    be in the range ]0, 1] (in practice, those 2 conditions are satisfied when
+    this function is called)
     """
     _validate_loss_inputs(y_true, y_pred)
     
+    # since the "substraction" operation doesn't put any constraints on `y_true`
+    # and `y_pred`, we will not check if the latter contain any illegal values
     CCE_prime_output = y_pred - y_true
     
     check_dtype(CCE_prime_output, utils.DEFAULT_DATATYPE)

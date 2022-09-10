@@ -24,7 +24,9 @@ from utils import (
     _validate_label_vector,
     _validate_selected_classes,
     accuracy_score,
-    confusion_matrix
+    confusion_matrix,
+    clear_currently_printed_row,
+    progress_bar
 )
 
 from losses import (
@@ -190,7 +192,7 @@ class Network:
         assert isinstance(column_separator, str)
         assert len(column_separator) >= 1
         assert len(column_separator.strip()) >= 1
-        assert (column_separator[0] != " ") and (column_separator[-1] != " ")
+        column_separator = column_separator.strip()
         
         assert isinstance(row_separator, str)
         assert len(row_separator) == 1
@@ -213,7 +215,7 @@ class Network:
         summary_data = self._get_summary_data()
         
         nb_aligned_rows = len(self.layers) + 1
-        for data in list(summary_data.values()):
+        for data in summary_data.values():
             assert isinstance(data, list)
             assert len(data) == nb_aligned_rows
         
@@ -289,9 +291,8 @@ class Network:
         # checking the validity of the specified loss function name
         assert isinstance(loss_name, str)
         loss_name = loss_name.lower()
-        possible_loss_names = list(Network.AVAILABLE_LOSSES.keys())
-        if loss_name not in possible_loss_names:
-            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(possible_loss_names)})")
+        if loss_name not in Network.AVAILABLE_LOSSES:
+            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES.keys()))})")
         
         self.loss_name = loss_name
         self.loss, self.loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
@@ -431,8 +432,8 @@ class Network:
         
         # checking if the very last layer of the network is a softmax
         # or a sigmoid activation layer
-        last_layer = self.layers[-1]
         try:
+            last_layer = self.layers[-1]
             assert isinstance(last_layer, ActivationLayer)
             assert last_layer.activation_name in ["softmax", "sigmoid"]
         except:
@@ -482,8 +483,7 @@ class Network:
         
         # ================================================================== #
         
-        # initializing some variables (and a sub-function) that'll be
-        # used for display purposes only
+        # initializing some variables that'll be used for display purposes only
         
         nb_digits_epoch_index = len(str(nb_epochs))
         epoch_index_format = f"0{nb_digits_epoch_index}d"
@@ -507,17 +507,6 @@ class Network:
         
         # to center the prints
         initial_spacing = " " * 5
-        
-        def clear_currently_printed_row(max_size_of_row=150):
-            """
-            Sub-function. Clears the currently printed row, and sets
-            the pointer of the `print` function at the very beginning
-            of that same row
-            """
-            assert isinstance(max_size_of_row, int)
-            assert max_size_of_row > 0
-            blank_row_with_carriage_return = " " * max_size_of_row + "\r"
-            print(blank_row_with_carriage_return, end="")
         
         # ================================================================== #
         
@@ -574,13 +563,19 @@ class Network:
                 for layer in reversed_layers:
                     output_gradient = layer.backward_propagation(output_gradient, learning_rate)
                 
-                if ((train_batch_index + 1) in [1, nb_train_batches]) or ((train_batch_index + 1) % train_batch_index_update_step == 0):
+                if ((train_batch_index + 1) % train_batch_index_update_step == 0) or ((train_batch_index + 1) in [1, nb_train_batches]):
                     formatted_batch_index = format(train_batch_index + 1, train_batch_index_format)
                     
-                    clear_currently_printed_row()
+                    current_progress_bar = progress_bar(
+                        train_batch_index + 1,
+                        nb_train_batches,
+                        progress_bar_size=15 # by default
+                    )
                     
-                    train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  batch {formatted_batch_index}/{nb_train_batches}\r"
-                    print(train_batch_progress_row, end="")
+                    train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  {current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
+                    
+                    clear_currently_printed_row()
+                    print(train_batch_progress_row, end="\r")
             
             train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
             check_dtype(train_loss, utils.DEFAULT_DATATYPE)
@@ -630,14 +625,14 @@ class Network:
             
             # -------------------------------------------------------------- #
             
-            clear_currently_printed_row()
-            
-            precision_epoch_history = 4
+            precision_epoch_history = 4 # by default
             epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  "
             if _has_validation_data:
                 epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             else:
                 epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}"
+            
+            clear_currently_printed_row()
             print(epoch_history)
         
         # ================================================================== #
@@ -702,8 +697,7 @@ class Network:
         
         # initialization
         
-        history_keys = list(self.history.keys())
-        if ("val_loss" in history_keys) and ("val_accuracy" in history_keys):
+        if ("val_loss" in self.history) and ("val_accuracy" in self.history):
             _has_validation_data = True
         else:
             _has_validation_data = False
@@ -739,7 +733,7 @@ class Network:
             ax[0].plot(epochs, val_losses, color=color_of_val_data, label="val_loss")
         ax[0].set_xlabel("epoch")
         ax[0].set_ylabel("loss")
-        ax[0].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the epochs axis)
+        ax[0].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the "epoch" axis)
         if _has_validation_data:
             max_loss_value = max(np.max(train_losses), np.max(val_losses))
         else:
@@ -757,7 +751,7 @@ class Network:
             ax[1].plot(epochs, val_accuracies, color=color_of_val_data, label="val_accuracy")
         ax[1].set_xlabel("epoch")
         ax[1].set_ylabel("accuracy")
-        ax[1].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the epochs axis)
+        ax[1].xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer ticks on the x-axis (i.e. the "epoch" axis)
         ax[1].set_ylim([0, 1])
         if _has_validation_data:
             ax[1].legend()
@@ -1037,7 +1031,7 @@ class Network:
         np.random.seed(None) # resetting the seed
         
         random_test_samples = X_test[random_test_indices, :]
-        logits = self.predict(random_test_samples)
+        logits = self.predict(random_test_samples) # = y_pred
         
         # getting the "top-2 integer predictions"
         predicted_digit_values = np.fliplr(np.argsort(logits, axis=1))[:, 0 : 2]

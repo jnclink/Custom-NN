@@ -239,20 +239,19 @@ class ActivationLayer(Layer):
     
     # class variable
     AVAILABLE_ACTIVATIONS = {
-        "relu"       : (ReLU, ReLU_prime),
+        "relu"       : (ReLU,       ReLU_prime),
         "leaky_relu" : (leaky_ReLU, leaky_ReLU_prime),
-        "tanh"       : (tanh, tanh_prime),
-        "softmax"    : (softmax, softmax_prime),
-        "sigmoid"    : (sigmoid, sigmoid_prime)
+        "tanh"       : (tanh,       tanh_prime),
+        "softmax"    : (softmax,    softmax_prime),
+        "sigmoid"    : (sigmoid,    sigmoid_prime)
     }
     
     def __init__(self, activation_name, **kwargs):
         # checking the validity of the specified activation name
         assert isinstance(activation_name, str)
         activation_name = activation_name.lower()
-        possible_activation_names = list(ActivationLayer.AVAILABLE_ACTIVATIONS.keys())
-        if activation_name not in possible_activation_names:
-            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\" (possible activation names : {list_to_string(possible_activation_names)})")
+        if activation_name not in ActivationLayer.AVAILABLE_ACTIVATIONS:
+            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\" (possible activation names : {list_to_string(list(ActivationLayer.AVAILABLE_ACTIVATIONS.keys()))})")
         
         self.activation_name = activation_name
         self.activation, self.activation_prime = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
@@ -487,7 +486,7 @@ class DropoutLayer(Layer):
         assert isinstance(shape, tuple)
         assert len(shape) == 2
         
-        _validate_numpy_datatype(dtype)
+        dtype = _validate_numpy_datatype(dtype)
         
         batch_size, output_size = shape
         

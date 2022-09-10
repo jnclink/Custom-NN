@@ -4,28 +4,29 @@
 Script defining the functions used to load and format the raw MNIST dataset
 """
 
-import os
 from time import time
-from urllib.request import urlretrieve
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-# only used to split the data, such that the class distribution of the split
-# data is (roughly) the same as the class distribution of the initial raw data
-# (this is done using the VERY USEFUL `stratify` kwarg of the `train_test_split`
-# function)
+# The Scikit-Learn (or "sklearn") module is only used to split the data, such
+# that the class distribution of the split data is (roughly) the same as the
+# class distribution of the initial raw data. This is done using the VERY
+# USEFUL `stratify` kwarg of the `sklearn.model_selection.train_test_split`
+# function
 from sklearn.model_selection import train_test_split
 
 import utils
 from utils import (
     cast,
     check_dtype,
+    _download_raw_MNIST_dataset,
+    _validate_raw_MNIST_dataset,
+    _validate_selected_classes,
     get_dtype_of_array,
     get_range_of_array,
     vector_to_categorical,
     categorical_to_vector,
-    _validate_selected_classes,
     list_to_string,
     display_class_distributions
 )
@@ -34,83 +35,9 @@ from utils import (
 ##############################################################################
 
 
-def _download_raw_MNIST_dataset():
-    r"""
-    Automatically downloads the raw MNIST data (as a single file), and saves
-    it to the following location on your disk :
-        - on Windows : "C:\Users\YourUsername\.Custom-MLP\datasets\MNIST\raw_MNIST_data.npz"
-        - on Linux   : "/home/YourUsername/.Custom-MLP/datasets/MNIST/raw_MNIST_data.npz"
-    
-    The downloaded file has a size of about 11 MB, and is retrieved from the
-    following URL :
-    https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
-    
-    If the data has already been downloaded, it's simply retrieved from your disk
-    
-    Also, the path of the (downloaded) data is returned
-    
-    Sidenote
-    --------
-    This function is basically equivalent to the `tensorflow.keras.datasets.mnist.load_data`
-    method. The only real difference is that the downloaded data has a different
-    location on your disk. The reason as for why the previous `mnist.load_data`
-    method isn't used is simply because we do NOT want to import TensorFlow !
-    Indeed, in my opinion, it would be kind of awkward to import TensorFlow in
-    a project aiming to implement a Deep Learning model *from scratch* !
-    """
-    
-    # creating the folder containing the raw MNIST data (if it doesn't exist)
-    default_data_directory = os.path.join(
-        os.path.expanduser("~"),
-        ".Custom-MLP",
-        "datasets",
-        "MNIST"
-    )
-    os.makedirs(default_data_directory, exist_ok=True)
-    
-    # defining the absolute path of the downloaded file
-    default_data_filename = "raw_MNIST_data.npz"
-    default_path_of_downloaded_data = os.path.join(
-        default_data_directory,
-        default_data_filename
-    )
-    
-    # if the data already exists on your disk, there is no need to re-download it
-    download_is_required = not(os.path.exists(default_path_of_downloaded_data))
-    
-    if download_is_required:
-        try:
-            data_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
-            
-            print(f"\nDownloading the raw MNIST data from \"{data_URL}\" (this might take a couple of seconds) ... ", end="")
-            t_beginning_downloading = time()
-            
-            # actually downloading the raw MNIST data from `data_URL`, and
-            # saving it to the location `default_path_of_downloaded_data`
-            urlretrieve(
-                data_URL,
-                default_path_of_downloaded_data
-            )
-            
-            t_end_downloading = time()
-            duration_downloading = t_end_downloading - t_beginning_downloading
-            print("OK")
-            print(f"\nSuccessfully downloaded the raw MNIST data to the location \"{default_path_of_downloaded_data}\". Done in {duration_downloading:.3f} seconds")
-        except (Exception, KeyboardInterrupt):
-            print("\n")
-            if os.path.exists(default_path_of_downloaded_data):
-                os.remove(default_path_of_downloaded_data)
-            raise
-    
-    return default_path_of_downloaded_data
-
-
-##############################################################################
-
-
 def load_raw_MNIST_dataset_from_disk(verbose=False):
     """
-    Loads the raw MNIST data from disk
+    Loads the raw MNIST data from the disk
     """
     assert isinstance(verbose, bool)
     
@@ -121,11 +48,19 @@ def load_raw_MNIST_dataset_from_disk(verbose=False):
     t_beginning_loading = time()
     
     # actually loading the raw MNIST data from the disk
-    with np.load(path_of_downloaded_data, allow_pickle=True) as MNIST_DATA:
-        raw_X_train = MNIST_DATA["x_train"]
-        raw_y_train = MNIST_DATA["y_train"]
-        raw_X_test  = MNIST_DATA["x_test"]
-        raw_y_test  = MNIST_DATA["y_test"]
+    with np.load(path_of_downloaded_data, allow_pickle=True) as RAW_MNIST_DATA:
+        raw_X_train = RAW_MNIST_DATA["x_train"]
+        raw_y_train = RAW_MNIST_DATA["y_train"]
+        raw_X_test  = RAW_MNIST_DATA["x_test"]
+        raw_y_test  = RAW_MNIST_DATA["y_test"]
+    
+    # just to be sure the loaded data is valid
+    _validate_raw_MNIST_dataset(
+        raw_X_train,
+        raw_y_train,
+        raw_X_test,
+        raw_y_test
+    )
     
     t_end_loading = time()
     duration_loading = t_end_loading - t_beginning_loading
@@ -161,46 +96,9 @@ def load_raw_MNIST_dataset_from_disk(verbose=False):
             precision=2
         )
     
-    print(f"\nThe raw MNIST dataset was successfully loaded from disk. Done in {duration_loading:.3f} seconds")
+    print(f"\nThe raw MNIST dataset was successfully loaded from the disk. Done in {duration_loading:.3f} seconds")
     
     return raw_X_train, raw_y_train, raw_X_test, raw_y_test
-
-
-##############################################################################
-
-
-def _validate_raw_MNIST_data(
-        raw_X_train,
-        raw_y_train,
-        raw_X_test,
-        raw_y_test
-    ):
-    """
-    Checks if the specified raw MNIST data is valid or not. By design, the
-    arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
-    meant to be the outputs of the `load_raw_MNIST_dataset_from_disk` function
-    of this script
-    """
-    assert isinstance(raw_X_train, np.ndarray)
-    assert raw_X_train.shape == (60000, 28, 28)
-    check_dtype(raw_X_train, np.uint8)
-    
-    assert isinstance(raw_y_train, np.ndarray)
-    assert raw_y_train.shape == (60000, )
-    check_dtype(raw_y_train, np.uint8)
-    
-    assert isinstance(raw_X_test, np.ndarray)
-    assert raw_X_test.shape == (10000, 28, 28)
-    check_dtype(raw_X_test, np.uint8)
-    
-    assert isinstance(raw_y_test, np.ndarray)
-    assert raw_y_test.shape == (10000, )
-    check_dtype(raw_y_test, np.uint8)
-    
-    NB_CLASSES = 10
-    expected_classes = np.arange(NB_CLASSES)
-    assert np.allclose(np.unique(raw_y_train), expected_classes)
-    assert np.allclose(np.unique(raw_y_test),  expected_classes)
 
 
 ##############################################################################
@@ -223,7 +121,7 @@ def plot_random_images_from_raw_MNIST_dataset(
     
     # checking the validity of the specified arguments
     
-    _validate_raw_MNIST_data(
+    _validate_raw_MNIST_dataset(
         raw_X_train,
         raw_y_train,
         raw_X_test,
@@ -298,6 +196,13 @@ def format_raw_MNIST_dataset(
     `raw_y_train`, `raw_X_test` and `raw_y_test` are meant to be the outputs
     of the `load_raw_MNIST_dataset_from_disk` function of this script
     
+    This function returns `X_train`, `y_train`, `X_val`, `y_val`, `X_test`
+    and `y_test`
+    
+    If you do not want to get validation data, you can simply set the argument
+    `nb_val_samples` to zero. In that case, the outputs `X_val` and `y_val`
+    will both be equal to `None`
+    
     The kwarg `selected_classes` can either be :
         - the string "all" (if you want to work with all the digits ranging
           from 0 to 9)
@@ -308,17 +213,24 @@ def format_raw_MNIST_dataset(
     
     # checking the validity of the specified arguments
     
-    _validate_raw_MNIST_data(
+    _validate_raw_MNIST_dataset(
         raw_X_train,
         raw_y_train,
         raw_X_test,
         raw_y_test
     )
     
-    # these 3 arguments will be re-checked a bit later in this function
+    # the 3 arguments `nb_train_samples`, `nb_val_samples` and `nb_test_samples`
+    # will be re-checked a bit later in this function, once we check if the
+    # `selected_classes` kwarg is equal to "all" or not (so that we can get
+    # the actual number of classes in the - selected - raw MNIST data)
     assert isinstance(nb_train_samples, int)
-    assert isinstance(nb_val_samples,   int)
-    assert isinstance(nb_test_samples,  int)
+    assert nb_train_samples > 0
+    assert isinstance(nb_val_samples, int)
+    assert nb_val_samples >= 0
+    _return_validation_data = (nb_val_samples > 0)
+    assert isinstance(nb_test_samples, int)
+    assert nb_test_samples > 0
     
     selected_classes = _validate_selected_classes(selected_classes)
     
@@ -339,9 +251,12 @@ def format_raw_MNIST_dataset(
     
     # only keeping the selected classes in the raw MNIST data
     
-    nb_classes = np.unique(raw_y_train).size # = 10
-    
-    if not(isinstance(selected_classes, str)):
+    if isinstance(selected_classes, str):
+        # here, `selected_classes` is equal to the string "all"
+        nb_classes = np.unique(raw_y_train).size # = 10
+    else:
+        nb_classes = selected_classes.size
+        
         indices_of_selected_train_classes = []
         indices_of_selected_test_classes  = []
         
@@ -364,9 +279,6 @@ def format_raw_MNIST_dataset(
         assert np.allclose(np.unique(raw_y_train), selected_classes)
         assert np.allclose(np.unique(raw_y_test),  selected_classes)
         
-        # updating the number of classes in the raw data
-        nb_classes = selected_classes.size
-        
         print(f"\nNB : With the selected classes {list_to_string(selected_classes)}, here are the new shapes of the raw \"train\" and \"test\" data (from which the formatted data will be extracted) :")
         print(f"    - X_train : {raw_X_train.shape}")
         print(f"    - y_train : {raw_y_train.shape}")
@@ -378,13 +290,18 @@ def format_raw_MNIST_dataset(
     # re-checking the validity of the arguments `nb_train_samples`, `nb_val_samples`
     # and `nb_test_samples`
     
+    # we want to have each class represented at least once in the formatted
+    # data, therefore the number of samples of the train, val and test datasets
+    # CANNOT be strictly less than `nb_classes`
     assert nb_train_samples >= nb_classes
-    assert nb_val_samples >= nb_classes
+    if _return_validation_data:
+        assert nb_val_samples >= nb_classes
     assert nb_test_samples >= nb_classes
     
     # NB : The validation set will be extracted from the raw training set
     total_nb_of_raw_train_samples = raw_X_train.shape[0] # = 60000 (if ALL the classes are selected)
-    assert nb_train_samples + nb_val_samples <= total_nb_of_raw_train_samples
+    nb_train_val_samples = nb_train_samples + nb_val_samples
+    assert nb_train_val_samples <= total_nb_of_raw_train_samples
     
     total_nb_of_raw_test_samples = raw_X_test.shape[0] # = 10000 (if ALL the classes are selected)
     assert nb_test_samples <= total_nb_of_raw_test_samples
@@ -418,12 +335,12 @@ def format_raw_MNIST_dataset(
     X_test  *= normalizing_factor
     
     # getting the formatted "train+val" dataset (from the raw "train" data)
-    if total_nb_of_raw_train_samples - (nb_train_samples + nb_val_samples) >= nb_classes:
+    if total_nb_of_raw_train_samples - nb_train_val_samples >= nb_classes:
         X_train_val, _, y_train_val, _ = train_test_split(
             X_train,
             y_train,
+            train_size=nb_train_val_samples,
             stratify=y_train, # keeping the same class distribution as `y_train`
-            train_size=nb_train_samples+nb_val_samples,
             random_state=seed
         )
     else:
@@ -431,7 +348,7 @@ def format_raw_MNIST_dataset(
         np.random.seed(seed)
         train_val_indices = np.random.choice(
             np.arange(total_nb_of_raw_train_samples),
-            size=(nb_train_samples + nb_val_samples, ),
+            size=(nb_train_val_samples, ),
             replace=False
         )
         np.random.seed(None) # resetting the seed
@@ -441,26 +358,33 @@ def format_raw_MNIST_dataset(
     
     assert np.unique(y_train_val).size == nb_classes
     
-    # getting the formatted "train" and "val" datasets (directly from the
-    # formatted "train+val" dataset)
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train_val,
-        y_train_val,
-        stratify=y_train_val, # keeping the same class distribution as `y_train_val` (which had the same class distribution as `y_train`)
-        train_size=nb_train_samples,
-        random_state=seed
-    )
+    if _return_validation_data:
+        # getting the formatted "train" and "val" datasets (directly from the
+        # formatted "train+val" dataset)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_train_val,
+            y_train_val,
+            train_size=nb_train_samples,
+            stratify=y_train_val, # keeping the same class distribution as `y_train_val` (which had the same class distribution as `y_train`)
+            random_state=seed
+        )
+    else:
+        # getting the formatted "train" dataset (which, in this case, is simply
+        # equal to the formatted "train+val" dataset)
+        X_train = X_train_val
+        y_train = y_train_val
     
     assert np.unique(y_train).size == nb_classes
-    assert np.unique(y_val).size == nb_classes
+    if _return_validation_data:
+        assert np.unique(y_val).size == nb_classes
     
     # getting the formatted "test" dataset (from the raw "test" data)
     if total_nb_of_raw_test_samples - nb_test_samples >= nb_classes:
         X_test, _, y_test, _ = train_test_split(
             X_test,
             y_test,
-            stratify=y_test, # keeping the same class distribution as `y_test`
             train_size=nb_test_samples,
+            stratify=y_test, # keeping the same class distribution as `y_test`
             random_state=seed
         )
     else:
@@ -480,7 +404,8 @@ def format_raw_MNIST_dataset(
     
     # one-hot encoding the label vectors
     y_train = vector_to_categorical(y_train, dtype=utils.DEFAULT_DATATYPE)
-    y_val   = vector_to_categorical(y_val,   dtype=utils.DEFAULT_DATATYPE)
+    if _return_validation_data:
+        y_val   = vector_to_categorical(y_val,   dtype=utils.DEFAULT_DATATYPE)
     y_test  = vector_to_categorical(y_test,  dtype=utils.DEFAULT_DATATYPE)
     
     # ---------------------------------------------------------------------- #
@@ -488,23 +413,26 @@ def format_raw_MNIST_dataset(
     # shuffling the data
     
     if nb_shuffles > 0:
-        shuffled_indices_train_data      = np.arange(nb_train_samples)
-        shuffled_indices_validation_data = np.arange(nb_val_samples)
-        shuffled_indices_test_data       = np.arange(nb_test_samples)
+        shuffled_indices_train_data = np.arange(nb_train_samples)
+        if _return_validation_data:
+            shuffled_indices_validation_data = np.arange(nb_val_samples)
+        shuffled_indices_test_data = np.arange(nb_test_samples)
         
         np.random.seed(seed)
         for shuffle_index in range(nb_shuffles):
             np.random.shuffle(shuffled_indices_train_data)
-            np.random.shuffle(shuffled_indices_validation_data)
+            if _return_validation_data:
+                np.random.shuffle(shuffled_indices_validation_data)
             np.random.shuffle(shuffled_indices_test_data)
         np.random.seed(None) # resetting the seed
         
         X_train = X_train[shuffled_indices_train_data, :]
         y_train = y_train[shuffled_indices_train_data, :]
-        X_val   = X_val[shuffled_indices_validation_data, :]
-        y_val   = y_val[shuffled_indices_validation_data, :]
-        X_test  = X_test[shuffled_indices_test_data, :]
-        y_test  = y_test[shuffled_indices_test_data, :]
+        if _return_validation_data:
+            X_val = X_val[shuffled_indices_validation_data, :]
+            y_val = y_val[shuffled_indices_validation_data, :]
+        X_test = X_test[shuffled_indices_test_data, :]
+        y_test = y_test[shuffled_indices_test_data, :]
     
     # ---------------------------------------------------------------------- #
     
@@ -512,10 +440,11 @@ def format_raw_MNIST_dataset(
     
     check_dtype(X_train, utils.DEFAULT_DATATYPE)
     check_dtype(y_train, utils.DEFAULT_DATATYPE)
-    check_dtype(X_val,   utils.DEFAULT_DATATYPE)
-    check_dtype(y_val,   utils.DEFAULT_DATATYPE)
-    check_dtype(X_test,  utils.DEFAULT_DATATYPE)
-    check_dtype(y_test,  utils.DEFAULT_DATATYPE)
+    if _return_validation_data:
+        check_dtype(X_val, utils.DEFAULT_DATATYPE)
+        check_dtype(y_val, utils.DEFAULT_DATATYPE)
+    check_dtype(X_test, utils.DEFAULT_DATATYPE)
+    check_dtype(y_test, utils.DEFAULT_DATATYPE)
     
     # ---------------------------------------------------------------------- #
     
@@ -526,16 +455,18 @@ def format_raw_MNIST_dataset(
         print("\nShapes of the formatted MNIST data :")
         print(f"    - X_train : {X_train.shape}")
         print(f"    - y_train : {y_train.shape}")
-        print(f"    - X_val   : {X_val.shape}")
-        print(f"    - y_val   : {y_val.shape}")
+        if _return_validation_data:
+            print(f"    - X_val   : {X_val.shape}")
+            print(f"    - y_val   : {y_val.shape}")
         print(f"    - X_test  : {X_test.shape}")
         print(f"    - y_test  : {y_test.shape}")
         
         print("\nTypes of the formatted MNIST data :")
         print(f"    - X_train : {get_dtype_of_array(X_train)}")
         print(f"    - y_train : {get_dtype_of_array(y_train)}")
-        print(f"    - X_val   : {get_dtype_of_array(X_val)}")
-        print(f"    - y_val   : {get_dtype_of_array(y_val)}")
+        if _return_validation_data:
+            print(f"    - X_val   : {get_dtype_of_array(X_val)}")
+            print(f"    - y_val   : {get_dtype_of_array(y_val)}")
         print(f"    - X_test  : {get_dtype_of_array(X_test)}")
         print(f"    - y_test  : {get_dtype_of_array(y_test)}")
         
@@ -543,24 +474,39 @@ def format_raw_MNIST_dataset(
         print("\nRanges of the formatted MNIST data :")
         print(f"    - X_train : {get_range_of_array(X_train, precision=precision_of_printed_info)} (mean={X_train.mean():.{precision_of_printed_info}f}, std={X_train.std():.{precision_of_printed_info}f})")
         print(f"    - y_train : {get_range_of_array(y_train, precision=precision_of_printed_info)} (one-hot encoded)")
-        print(f"    - X_val   : {get_range_of_array(X_val,   precision=precision_of_printed_info)} (mean={X_val.mean():.{precision_of_printed_info}f}, std={X_val.std():.{precision_of_printed_info}f})")
-        print(f"    - y_val   : {get_range_of_array(y_val,   precision=precision_of_printed_info)} (one-hot encoded)")
+        if _return_validation_data:
+            print(f"    - X_val   : {get_range_of_array(X_val,   precision=precision_of_printed_info)} (mean={X_val.mean():.{precision_of_printed_info}f}, std={X_val.std():.{precision_of_printed_info}f})")
+            print(f"    - y_val   : {get_range_of_array(y_val,   precision=precision_of_printed_info)} (one-hot encoded)")
         print(f"    - X_test  : {get_range_of_array(X_test,  precision=precision_of_printed_info)} (mean={X_test.mean():.{precision_of_printed_info}f}, std={X_test.std():.{precision_of_printed_info}f})")
         print(f"    - y_test  : {get_range_of_array(y_test,  precision=precision_of_printed_info)} (one-hot encoded)")
         
+        # ------------------------------------------------------------------ #
+        
         # displaying the class distribution of the final formatted data
-        dict_of_label_vectors = {
-            "y_train" : categorical_to_vector(y_train),
-            "y_val"   : categorical_to_vector(y_val),
-            "y_test"  : categorical_to_vector(y_test)
-        }
+        
+        if _return_validation_data:
+            dict_of_label_vectors = {
+                "y_train" : categorical_to_vector(y_train),
+                "y_val"   : categorical_to_vector(y_val),
+                "y_test"  : categorical_to_vector(y_test)
+            }
+        else:
+            dict_of_label_vectors = {
+                "y_train" : categorical_to_vector(y_train),
+                "y_test"  : categorical_to_vector(y_test)
+            }
+        
         display_class_distributions(
             dict_of_label_vectors,
             selected_classes=selected_classes,
             precision=2
         )
+        
+        # ------------------------------------------------------------------ #
     
     print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_formatting:.3f} seconds")
     
-    return X_train, y_train, X_val, y_val, X_test, y_test
+    if _return_validation_data:
+        return X_train, y_train, X_val, y_val, X_test, y_test
+    return X_train, y_train, None, None, X_test, y_test
 
