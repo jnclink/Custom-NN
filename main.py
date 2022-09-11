@@ -303,27 +303,27 @@ def main():
     print_confusion_matrix(
         conf_matrix,
         selected_classes=selected_classes,
-        normalize="no", # = "rows", "columns" or "no"
+        normalize="no", # = "columns", "rows" or "no"
         initial_spacing=1
     )
     
     # Displaying the precision of the network (i.e. the confusion matrix
-    # with normalized rows)
+    # with normalized columns)
     print_confusion_matrix(
         conf_matrix,
         selected_classes=selected_classes,
-        normalize="rows", # = "rows", "columns" or "no"
+        normalize="columns", # = "columns", "rows" or "no"
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True
     )
     
     # Displaying the recall of the network (i.e. the confusion matrix
-    # with normalized columns)
+    # with normalized rows)
     print_confusion_matrix(
         conf_matrix,
         selected_classes=selected_classes,
-        normalize="columns", # = "rows", "columns" or "no"
+        normalize="rows", # = "columns", "rows" or "no"
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True

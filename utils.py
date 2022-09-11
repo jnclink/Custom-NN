@@ -902,19 +902,12 @@ def confusion_matrix(y_true, y_pred):
     be `(nb_classes, nb_classes)`, and, for all integers `i` and `j` in the
     range [0, nb_classes - 1], the value of `conf_matrix[i, j]` (say, for
     instance, `N`) indicates that :
-        - Out of all the test samples that were predicted to belong to class `i`,
-          `N` of them actually belonged to class `j`
+        - Out of all the test samples that were predicted to belong to class `j`,
+          `N` of them actually belonged to class `i`
         - Or, equivalently, out of all the test samples that actually belonged
-          to class `j`, `N` of them were predicted to belong to class `i`
+          to class `i`, `N` of them were predicted to belong to class `j`
     
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
-    
-    Sidenote
-    --------
-    If you decide to use the `confusion_matrix` function of the `sklearn.metrics`
-    module, just be aware that the output of their function is the TRANSPOSED
-    version of the "common" definition of the confusion matrix (i.e. the
-    transposed version of the output of this function)
     """
     # checking the validity of `y_true` and `y_pred`
     _validate_label_vector(y_true)
@@ -926,10 +919,10 @@ def confusion_matrix(y_true, y_pred):
     
     conf_matrix = np.zeros((nb_classes, nb_classes), dtype=int)
     
-    for predicted_class, actual_class in zip(y_pred, y_true):
-        # by definition (the rows are the predicted classes and the columns
-        # are the true classes)
-        conf_matrix[predicted_class, actual_class] += 1
+    for actual_class, predicted_class in zip(y_true, y_pred):
+        # by definition (the rows are the true classes and the columns are
+        # the predicted classes)
+        conf_matrix[actual_class, predicted_class] += 1
     
     return conf_matrix
 
@@ -940,7 +933,7 @@ def confusion_matrix(y_true, y_pred):
 # Functions related to the display of the confusion matrix
 
 
-def highlight_diagonal(dataframe, background_color):
+def highlight_diagonal(dataframe, color_of_diagonal):
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script). Returns a dataframe mask with the CSS property
@@ -954,16 +947,16 @@ def highlight_diagonal(dataframe, background_color):
     assert isinstance(dataframe, pd.DataFrame)
     assert len(dataframe.shape) == 2
     
-    assert isinstance(background_color, str)
-    assert len(background_color) > 0
-    assert " " not in background_color
-    background_color = background_color.lower()
+    assert isinstance(color_of_diagonal, str)
+    assert len(color_of_diagonal) > 0
+    assert " " not in color_of_diagonal
+    color_of_diagonal = color_of_diagonal.lower()
     
     # ---------------------------------------------------------------------- #
     
     diagonal_mask = np.full(dataframe.shape, "", dtype="<U24")
     
-    CSS_property = f"background-color: {background_color}"
+    CSS_property = f"background-color: {color_of_diagonal}"
     np.fill_diagonal(diagonal_mask, CSS_property)
     
     diagonal_mask_as_dataframe = pd.DataFrame(
@@ -995,7 +988,7 @@ def highlight_all_cells(value, colormap):
     
     # ---------------------------------------------------------------------- #
     
-    # this scaling factor scales down the maximum intensity of the color
+    # this scaling factor scales down the (maximum) intensity of the color
     scaling_factor = 0.75
     assert (scaling_factor > 0) and (scaling_factor <= 1)
     
@@ -1010,7 +1003,7 @@ def highlight_all_cells(value, colormap):
 def print_confusion_matrix(
         conf_matrix,
         selected_classes="all",
-        normalize="rows",
+        normalize="columns",
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True,
@@ -1049,7 +1042,7 @@ def print_confusion_matrix(
     
     assert isinstance(normalize, str)
     normalize = normalize.lower()
-    possible_values_for_normalize_kwarg = ["rows", "columns", "no"]
+    possible_values_for_normalize_kwarg = ["columns", "rows", "no"]
     if normalize not in possible_values_for_normalize_kwarg:
         raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
     
@@ -1106,21 +1099,20 @@ def print_confusion_matrix(
         normalized_conf_matrix = np.float_(np.copy(conf_matrix))
         
         for class_index in range(nb_classes):
-            if normalize == "rows":
-                # computing the PRECISION of the (predicted) class at row index `class_index`
-                sum_of_row = np.sum(normalized_conf_matrix[class_index, :])
-                if np.allclose(sum_of_row, 0.0):
-                    normalized_conf_matrix[class_index, :] = 0
-                else:
-                    normalized_conf_matrix[class_index, :] /= sum_of_row
-            
-            elif normalize == "columns":
-                # computing the RECALL of the (actual) class at column index `class_index`
+            if normalize == "columns":
+                # computing the PRECISION of the (predicted) class at column index `class_index`
                 sum_of_column = np.sum(normalized_conf_matrix[:, class_index])
                 if np.allclose(sum_of_column, 0.0):
-                    associated_class = class_names[class_index]
-                    raise Exception(f"print_confusion_matrix (utils.py) - The true class \"{associated_class}\" (class_index={class_index}) isn't represented in the confusion matrix !")
-                normalized_conf_matrix[:, class_index] /= sum_of_column
+                    normalized_conf_matrix[:, class_index] = 0
+                else:
+                    normalized_conf_matrix[:, class_index] /= sum_of_column
+            
+            elif normalize == "rows":
+                # computing the RECALL of the (true) class at row index `class_index`
+                sum_of_row = np.sum(normalized_conf_matrix[class_index, :])
+                if np.allclose(sum_of_row, 0.0):
+                    raise Exception(f"print_confusion_matrix (utils.py) - The true class \"{class_names[class_index]}\" (class_index={class_index}) isn't represented in the confusion matrix !")
+                normalized_conf_matrix[class_index, :] /= sum_of_row
         
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         
@@ -1148,8 +1140,8 @@ def print_confusion_matrix(
         )
     
     # by definition
-    conf_matrix_as_dataframe.columns.name = "ACTUAL"
-    conf_matrix_as_dataframe.index.name   = "PREDICTED"
+    conf_matrix_as_dataframe.columns.name = "PREDICTED"
+    conf_matrix_as_dataframe.index.name   = "ACTUAL"
     
     print(f"\nCONFUSION MATRIX (normalized=\"{normalize}\") :")
     
@@ -1163,7 +1155,7 @@ def print_confusion_matrix(
             conf_matrix_styler = conf_matrix_as_dataframe.style.apply(
                 highlight_diagonal,
                 axis=None,
-                background_color=COLORS_AND_COLORMAPS[color][0]
+                color_of_diagonal=COLORS_AND_COLORMAPS[color][0]
             )
         else:
             conf_matrix_styler = conf_matrix_as_dataframe.style.applymap(
