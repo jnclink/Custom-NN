@@ -39,6 +39,9 @@ class Layer(ABC):
         self.output = None
         self.nb_trainable_params = None
     
+    def __repr__(self):
+        return str(self)
+    
     @abstractmethod
     def forward_propagation(self, input_data, training=True):
         """

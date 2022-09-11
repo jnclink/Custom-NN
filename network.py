@@ -100,6 +100,10 @@ class Network:
         )
     
     
+    def __repr__(self):
+        return str(self)
+    
+    
     def add(self, layer):
         """
         Adds a layer to the network

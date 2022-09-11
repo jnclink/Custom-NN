@@ -41,7 +41,9 @@ def load_raw_MNIST_dataset_from_disk(verbose=False):
     """
     assert isinstance(verbose, bool)
     
-    # downloading the raw MNIST data to the location `path_of_downloaded_data`
+    # ---------------------------------------------------------------------- #
+    
+    # downloading the raw MNIST data to the (default) location `path_of_downloaded_data`
     # (if it hasn't already been done)
     path_of_downloaded_data = _download_raw_MNIST_dataset()
     
@@ -54,7 +56,7 @@ def load_raw_MNIST_dataset_from_disk(verbose=False):
         raw_X_test  = RAW_MNIST_DATA["x_test"]
         raw_y_test  = RAW_MNIST_DATA["y_test"]
     
-    # just to be sure the loaded data is valid
+    # just to be *100% sure* the loaded data is valid
     _validate_raw_MNIST_dataset(
         raw_X_train,
         raw_y_train,
@@ -64,6 +66,8 @@ def load_raw_MNIST_dataset_from_disk(verbose=False):
     
     t_end_loading = time()
     duration_loading = t_end_loading - t_beginning_loading
+    
+    # ---------------------------------------------------------------------- #
     
     if verbose:
         print("\nShapes of the raw MNIST data :")

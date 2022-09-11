@@ -7,12 +7,26 @@ Script defining miscellaneous useful functions
 import os
 from time import time
 from urllib.request import urlretrieve
+from hashlib import sha256
+
+try:
+    from IPython.display import display
+except:
+    # The `IPython.display.display` method will only be called if the
+    # `print_confusion_matrix` function (of this script) is run from a
+    # Jupyter notebook, which itself requires an IPython backend. Therefore,
+    # if the import fails, then that automatically implies that the IPython
+    # backend is not available, which in turn implies that the code is not
+    # being run on a Jupyter notebook, meaning that the `IPython.display.display`
+    # method would have never been called anyway !
+    pass
 
 import numpy as np
 import pandas as pd
 
-from matplotlib import cm # colormaps
-from matplotlib.colors import rgb2hex, Colormap
+# imports related to Matplotlib colormaps
+from matplotlib import cm
+from matplotlib.colors import Colormap, rgb2hex
 
 
 ##############################################################################
@@ -243,7 +257,7 @@ def progress_bar(
     assert current_index >= 1
     
     assert isinstance(total_nb_elements, int)
-    assert total_nb_elements >= max(1, current_index)
+    assert total_nb_elements >= current_index
     
     assert isinstance(progress_bar_size, int)
     assert progress_bar_size >= 2
@@ -265,10 +279,54 @@ def progress_bar(
     return str_progress_bar
 
 
+def is_being_run_on_jupyter_notebook():
+    """
+    Returns a boolean indicating whether the code is currently being run on
+    a Jupyter notebook or not
+    """
+    try:
+        current_IPython_shell_name = get_ipython().__class__.__name__
+        return current_IPython_shell_name == "ZMQInteractiveShell"
+    except (Exception, NameError):
+        return False
+
+
 ##############################################################################
 
 
 # Other functions used to validate values/objects/arguments
+
+
+def _validate_hash_of_downloaded_raw_MNIST_dataset(path_of_downloaded_data):
+    """
+    Checks if the hash of the downloaded raw MNIST data is valid or not (mainly
+    for security purposes)
+    """
+    assert isinstance(path_of_downloaded_data, str)
+    assert len(path_of_downloaded_data) > 0
+    
+    assert os.path.exists(path_of_downloaded_data)
+    
+    # default SHA-256 hash value of the downloaded raw MNIST data
+    default_hash = "731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1"
+    
+    # ---------------------------------------------------------------------- #
+    
+    # computing the hash value of the specified data
+    
+    hasher = sha256()
+    chunk_size = 65535
+    
+    with open(path_of_downloaded_data, "rb") as DOWNLOADED_DATA:
+        for chunk in iter(lambda: DOWNLOADED_DATA.read(chunk_size), b""):
+            hasher.update(chunk)
+    
+    computed_hash = hasher.hexdigest()
+    
+    # ---------------------------------------------------------------------- #
+    
+    if computed_hash != default_hash:
+        raise Exception(f"_validate_hash_of_downloaded_raw_MNIST_dataset (utils.py) - The hash of the raw MNIST data downloaded to the location \"{path_of_downloaded_data}\" is invalid !")
 
 
 def _validate_raw_MNIST_dataset(
@@ -281,7 +339,7 @@ def _validate_raw_MNIST_dataset(
     Checks if the specified raw MNIST data is valid or not. By design, the
     arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
     meant to be the outputs of the `load_raw_MNIST_dataset_from_disk` function
-    of the "mnist_dataset.py" script
+    (of the "mnist_dataset.py" script)
     """
     assert isinstance(raw_X_train, np.ndarray)
     assert raw_X_train.shape == (60000, 28, 28)
@@ -419,11 +477,10 @@ def _download_progress_bar(
         total_size_of_data_in_bytes
     ):
     """
-    Prints the progress bar concerning the download of the raw MNIST data
+    Prints the progress bar related to the download of the raw MNIST data
     
-    The signature of this function is imposed by the `urlretrieve` method
-    of the `urllib.request` module (cf. the `reporthook` kwarg of the
-    `urlretrieve` method)
+    The signature of this function is imposed by the `reporthook` kwarg of
+    the `urllib.request.urlretrieve` method
     """
     # ---------------------------------------------------------------------- #
     
@@ -573,6 +630,10 @@ def _download_raw_MNIST_dataset():
             if os.path.exists(default_path_of_downloaded_data):
                 os.remove(default_path_of_downloaded_data)
             raise
+    
+    # checking if the hash value of the downloaded data is valid or not (for
+    # security purposes)
+    _validate_hash_of_downloaded_raw_MNIST_dataset(default_path_of_downloaded_data)
     
     return default_path_of_downloaded_data
 
@@ -930,23 +991,32 @@ def confusion_matrix(y_true, y_pred):
 ##############################################################################
 
 
-# Functions related to the display of the confusion matrix
+# Functions related to the display of the *styled* confusion matrix
 
 
-def highlight_diagonal(dataframe, color_of_diagonal):
+def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal):
     """
     Function that is only used by the `print_confusion_matrix` function
-    (of this script). Returns a dataframe mask with the CSS property
-    "background-color" in all of its diagonal elements, and an empty string
-    everywhere else
+    (of this script) if the latter is being run from a Jupyter notebook, and
+    if its returned confusion matrix is NOT NORMALIZED. Returns a dataframe
+    mask with the CSS property "background-color" in all of its diagonal
+    elements, and an empty string everywhere else
     """
     # ---------------------------------------------------------------------- #
     
     # checking the validity of the specified arguments
     
-    assert isinstance(dataframe, pd.DataFrame)
-    assert len(dataframe.shape) == 2
+    # checking `conf_matrix_as_dataframe`
+    assert isinstance(conf_matrix_as_dataframe, pd.DataFrame)
+    conf_matrix_shape = conf_matrix_as_dataframe.shape
+    assert len(conf_matrix_shape) == 2
+    nb_classes = conf_matrix_shape[0]
+    assert nb_classes >= 2
+    assert conf_matrix_shape[1] == nb_classes
+    conf_matrix_dtype = conf_matrix_as_dataframe.to_numpy().dtype.type
+    assert issubclass(conf_matrix_dtype, np.integer)
     
+    # checking `color_of_diagonal`
     assert isinstance(color_of_diagonal, str)
     assert len(color_of_diagonal) > 0
     assert " " not in color_of_diagonal
@@ -954,15 +1024,15 @@ def highlight_diagonal(dataframe, color_of_diagonal):
     
     # ---------------------------------------------------------------------- #
     
-    diagonal_mask = np.full(dataframe.shape, "", dtype="<U24")
+    diagonal_mask = np.full(conf_matrix_shape, "", dtype="<U24")
     
-    CSS_property = f"background-color: {color_of_diagonal}"
+    CSS_property = f"background-color: {color_of_diagonal};"
     np.fill_diagonal(diagonal_mask, CSS_property)
     
     diagonal_mask_as_dataframe = pd.DataFrame(
         diagonal_mask,
-        index=dataframe.index,
-        columns=dataframe.columns
+        index=conf_matrix_as_dataframe.index,
+        columns=conf_matrix_as_dataframe.columns
     )
     
     return diagonal_mask_as_dataframe
@@ -971,31 +1041,36 @@ def highlight_diagonal(dataframe, color_of_diagonal):
 def highlight_all_cells(value, colormap):
     """
     Function that is only used by the `print_confusion_matrix` function
-    (of this script). Returns a CSS property "background-color", where
-    the intensity of the associated color (relative to the specified colormap)
-    is proportional to `value`
+    (of this script) if the latter is being run from a Jupyter notebook, and
+    if its returned confusion matrix is NORMALIZED. Returns a CSS property
+    "background-color", where the intensity of the associated color (relative
+    to the specified colormap) is proportional to `value`
     """
     # ---------------------------------------------------------------------- #
     
     # checking the validity of the specified arguments
     
-    assert isinstance(value, (str, float, np.float_))
-    if isinstance(value, str):
+    assert isinstance(value, (str, np.str_, float, np.float_))
+    if isinstance(value, (str, np.str_)):
+        # getting rid of the trailing " %"
         value = float(value[ : -2])
-    assert (value >= 0) and (value <= 100)
+    assert (value >= 0) and (value <= 100) # `value` is a percentage
     
     assert issubclass(type(colormap), Colormap)
     
     # ---------------------------------------------------------------------- #
     
-    # this scaling factor scales down the (maximum) intensity of the color
+    # this scaling factor scales down the (maximum) intensity of the color,
+    # since the most intense colors of the used colormaps are quite dark
     scaling_factor = 0.75
     assert (scaling_factor > 0) and (scaling_factor <= 1)
     
-    color_intensity = scaling_factor * (value / 100) # has to lie in the range [0, 1]
-    hex_color_of_cell = rgb2hex(colormap(color_intensity))
+    relative_intensity_of_color = scaling_factor * (value / 100)
+    assert (relative_intensity_of_color >= 0) and (relative_intensity_of_color <= 1)
     
-    CSS_property = f"background-color: {hex_color_of_cell}"
+    RGBA_color_of_cell = colormap(relative_intensity_of_color)
+    hex_color_of_cell  = rgb2hex(RGBA_color_of_cell)
+    CSS_property = f"background-color: {hex_color_of_cell};"
     
     return CSS_property
 
@@ -1007,14 +1082,14 @@ def print_confusion_matrix(
         precision=1,
         initial_spacing=1,
         display_with_line_breaks=True,
-        jupyter_notebook=False,
-        color="green"
+        color="green" # on Jupyter notebook only
     ):
     """
-    Prints the confusion matrix in a more user-friendly way
+    Prints the styled confusion matrix
     
     Here, `conf_matrix` is a non-normalized confusion matrix (i.e. a raw,
-    integer-valued confusion matrix)
+    integer-valued confusion matrix). By design, `conf_matrix` is meant to
+    be the output of the `confusion_matrix` function (of this script)
     
     The kwarg `selected_classes` can either be :
         - the string "all" (if you're working with all the digits ranging
@@ -1050,11 +1125,9 @@ def print_confusion_matrix(
         assert isinstance(precision, int)
         assert precision >= 0
     
-    assert isinstance(jupyter_notebook, bool)
+    jupyter_notebook = is_being_run_on_jupyter_notebook()
     
     if not(jupyter_notebook):
-        # the `initial_spacing` kwarg will not be used if `jupyter_notebook`
-        # is set to `True`
         assert isinstance(initial_spacing, int)
         assert initial_spacing >= 0
         
@@ -1124,7 +1197,7 @@ def print_confusion_matrix(
         
         for class_index, class_name in enumerate(class_names):
             # adding the "%" symbol to all the elements of the dataframe
-            conf_matrix_as_dataframe[class_name] = conf_matrix_as_dataframe[class_name].astype(str) + " %"
+            conf_matrix_as_dataframe[class_name] = conf_matrix_as_dataframe[class_name].astype("<U24") + " %"
             
             if not(jupyter_notebook):
                 # highlighting the diagonal values with vertical bars
@@ -1143,27 +1216,37 @@ def print_confusion_matrix(
     conf_matrix_as_dataframe.columns.name = "PREDICTED"
     conf_matrix_as_dataframe.index.name   = "ACTUAL"
     
-    print(f"\nCONFUSION MATRIX (normalized=\"{normalize}\") :")
+    conf_matrix_header = f"\nCONFUSION MATRIX (normalized=\"{normalize}\") :"
+    print(conf_matrix_header)
     
     # ---------------------------------------------------------------------- #
     
-    # highlighting the confusion matrix in (shades of) a specific color (on
-    # Jupyter notebook only)
+    # styling the confusion matrix (on Jupyter notebook only)
     
     if jupyter_notebook:
         if normalize == "no":
+            # if the returned confusion matrix isn't normalized, then
+            # we'll only highlight its diagonal cells
             conf_matrix_styler = conf_matrix_as_dataframe.style.apply(
                 highlight_diagonal,
                 axis=None,
                 color_of_diagonal=COLORS_AND_COLORMAPS[color][0]
             )
         else:
+            # if the returned confusion matrix is normalized, then its cells
+            # will be highlighted in a color whose intensity is proportional
+            # to the value they hold (relative to the used colormap)
             conf_matrix_styler = conf_matrix_as_dataframe.style.applymap(
                 highlight_all_cells,
                 colormap=COLORS_AND_COLORMAPS[color][1]
             )
         
-        return conf_matrix_styler
+        # Sidenote : `conf_matrix_styler` is a Pandas Styler object (i.e.
+        #            a `pandas.io.formats.style.Styler` object), NOT a
+        #            Pandas DataFrame object
+        display(conf_matrix_styler)
+        
+        return
     
     # ---------------------------------------------------------------------- #
     
