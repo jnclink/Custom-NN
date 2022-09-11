@@ -809,9 +809,9 @@ def split_data_into_batches(
         seed=None
     ):
     """
-    Splits the input data and labels into batches with `batch_size` samples each
-    (if `batch_size` doesn't divide the number of samples, then the very last
-    batch will simply have `nb_samples % batch_size` samples)
+    Splits the input data and/or labels into batches with `batch_size` samples
+    each. If `batch_size` doesn't divide the number of samples, then the very
+    last batch will simply have `nb_samples % batch_size` samples
     
     Here, if `labels` is not equal to `None`, it can either be a 1D vector of
     INTEGER labels or its one-hot encoded equivalent (in that case, `labels`
@@ -858,7 +858,6 @@ def split_data_into_batches(
     batches = {
         "data" : []
     }
-    
     if labels is not None:
         batches["labels"] = []
     
@@ -1066,7 +1065,7 @@ def highlight_all_cells(value, colormap):
     assert (scaling_factor > 0) and (scaling_factor <= 1)
     
     relative_intensity_of_color = scaling_factor * (value / 100)
-    assert (relative_intensity_of_color >= 0) and (relative_intensity_of_color <= 1)
+    assert (relative_intensity_of_color >= 0) and (relative_intensity_of_color <= scaling_factor)
     
     RGBA_color_of_cell = colormap(relative_intensity_of_color)
     hex_color_of_cell  = rgb2hex(RGBA_color_of_cell)

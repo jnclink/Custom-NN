@@ -9,11 +9,10 @@ from time import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-# The Scikit-Learn (or "sklearn") module is only used to split the data, such
-# that the class distribution of the split data is (roughly) the same as the
-# class distribution of the initial raw data. This is done using the VERY
-# USEFUL `stratify` kwarg of the `sklearn.model_selection.train_test_split`
-# function
+# The Scikit-Learn (or "sklearn") module is ONLY used to split the data, such
+# that the class distributions of the split data is (roughly) the same as the
+# class distributions of the initial raw data. This is done using the VERY
+# HANDY `stratify` kwarg of the `train_test_split` method
 from sklearn.model_selection import train_test_split
 
 import utils
@@ -304,15 +303,14 @@ def format_raw_MNIST_dataset(
     
     # NB : The validation set will be extracted from the raw training set
     total_nb_of_raw_train_samples = raw_X_train.shape[0] # = 60000 (if ALL the classes are selected)
-    nb_train_val_samples = nb_train_samples + nb_val_samples
-    assert nb_train_val_samples <= total_nb_of_raw_train_samples
+    assert nb_train_samples + nb_val_samples <= total_nb_of_raw_train_samples
     
     total_nb_of_raw_test_samples = raw_X_test.shape[0] # = 10000 (if ALL the classes are selected)
     assert nb_test_samples <= total_nb_of_raw_test_samples
     
     # ---------------------------------------------------------------------- #
     
-    # actually formatting the data
+    # step 1/6 : copying, reshaping, casting and normalizing the data
     
     # copying the raw data
     X_train = raw_X_train.copy()
@@ -338,45 +336,47 @@ def format_raw_MNIST_dataset(
     X_train *= normalizing_factor
     X_test  *= normalizing_factor
     
-    # getting the formatted "train+val" dataset (from the raw "train" data)
-    if total_nb_of_raw_train_samples - nb_train_val_samples >= nb_classes:
-        X_train_val, _, y_train_val, _ = train_test_split(
+    # ---------------------------------------------------------------------- #
+    
+    # step 2/6 : splitting the data into train/test or train/val/test
+    #            sub-datasets, such that the resulting class distributions
+    #            are roughly the same as the initial raw data 
+    
+    if _return_validation_data:
+        # getting the formatted "train" and "val" datasets (from the raw "train" data)
+        X_train, X_val, y_train, y_val = train_test_split(
             X_train,
             y_train,
-            train_size=nb_train_val_samples,
+            train_size=nb_train_samples,
+            test_size=nb_val_samples,
             stratify=y_train, # keeping the same class distribution as `y_train`
             random_state=seed
         )
     else:
-        # in this specific case, the `train_test_split` function breaks
-        np.random.seed(seed)
-        train_val_indices = np.random.choice(
-            np.arange(total_nb_of_raw_train_samples),
-            size=(nb_train_val_samples, ),
-            replace=False
-        )
-        np.random.seed(None) # resetting the seed
+        # getting the formatted "train" dataset (from the raw "train" data)
         
-        X_train_val = X_train[train_val_indices, :].copy()
-        y_train_val = y_train[train_val_indices].copy()
-    
-    assert np.unique(y_train_val).size == nb_classes
-    
-    if _return_validation_data:
-        # getting the formatted "train" and "val" datasets (directly from the
-        # formatted "train+val" dataset)
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_train_val,
-            y_train_val,
-            train_size=nb_train_samples,
-            stratify=y_train_val, # keeping the same class distribution as `y_train_val` (which had the same class distribution as `y_train`)
-            random_state=seed
-        )
-    else:
-        # getting the formatted "train" dataset (which, in this case, is simply
-        # equal to the formatted "train+val" dataset)
-        X_train = X_train_val
-        y_train = y_train_val
+        if total_nb_of_raw_train_samples - nb_train_samples >= nb_classes:
+            X_train, _, y_train, _ = train_test_split(
+                X_train,
+                y_train,
+                train_size=nb_train_samples,
+                stratify=y_train, # keeping the same class distribution as `y_train`
+                random_state=seed
+            )
+        else:
+            # in this specific case, the `train_test_split` function breaks
+            # (with the arguments used in the previous `if` block)
+            
+            np.random.seed(seed)
+            train_indices = np.random.choice(
+                np.arange(total_nb_of_raw_train_samples),
+                size=(nb_train_samples, ),
+                replace=False
+            )
+            np.random.seed(None) # resetting the seed
+            
+            X_train = X_train[train_indices, :].copy()
+            y_train = y_train[train_indices].copy()
     
     assert np.unique(y_train).size == nb_classes
     if _return_validation_data:
@@ -393,6 +393,8 @@ def format_raw_MNIST_dataset(
         )
     else:
         # in this specific case, the `train_test_split` function breaks
+        # (with the arguments used in the previous `if` block)
+        
         np.random.seed(seed)
         test_indices = np.random.choice(
             np.arange(total_nb_of_raw_test_samples),
@@ -406,15 +408,18 @@ def format_raw_MNIST_dataset(
     
     assert np.unique(y_test).size == nb_classes
     
-    # one-hot encoding the label vectors
+    # ---------------------------------------------------------------------- #
+    
+    # step 3/6 : one-hot encoding the resulting label vectors
+    
     y_train = vector_to_categorical(y_train, dtype=utils.DEFAULT_DATATYPE)
     if _return_validation_data:
-        y_val   = vector_to_categorical(y_val,   dtype=utils.DEFAULT_DATATYPE)
-    y_test  = vector_to_categorical(y_test,  dtype=utils.DEFAULT_DATATYPE)
+        y_val = vector_to_categorical(y_val, dtype=utils.DEFAULT_DATATYPE)
+    y_test = vector_to_categorical(y_test,  dtype=utils.DEFAULT_DATATYPE)
     
     # ---------------------------------------------------------------------- #
     
-    # shuffling the data
+    # step 4/6 : shuffling the data
     
     if nb_shuffles > 0:
         shuffled_indices_train_data = np.arange(nb_train_samples)
@@ -440,7 +445,19 @@ def format_raw_MNIST_dataset(
     
     # ---------------------------------------------------------------------- #
     
-    # checking the datatype of the final formatted data
+    # step 5/6 : checking the shapes of the final formatted data
+    
+    assert X_train.shape == (nb_train_samples, nb_pixels_per_image)
+    assert y_train.shape == (nb_train_samples, nb_classes)
+    if _return_validation_data:
+        assert X_val.shape == (nb_val_samples, nb_pixels_per_image)
+        assert y_val.shape == (nb_val_samples, nb_classes)
+    assert X_test.shape == (nb_test_samples, nb_pixels_per_image)
+    assert y_test.shape == (nb_test_samples, nb_classes)
+    
+    # ---------------------------------------------------------------------- #
+    
+    # step 6/6 : checking the datatype of the final formatted data
     
     check_dtype(X_train, utils.DEFAULT_DATATYPE)
     check_dtype(y_train, utils.DEFAULT_DATATYPE)

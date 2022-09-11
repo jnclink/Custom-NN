@@ -123,12 +123,14 @@ def main():
     seed_network = 7777
     
     nb_epochs = 10
-    learning_rate = 0.15
     
     # if you lower the batch size, you might also want to lower the learning
     # rate (to prevent the network from overfitting)
     train_batch_size = 40
     
+    learning_rate = 0.15
+    
+    # in chronological order
     nb_neurons_in_hidden_dense_layers = [
         256,
         64,
@@ -150,7 +152,7 @@ def main():
     # a frequency of `dropout_rate` at each step during the training phase. This
     # layer doesn't have any trainable parameters
     use_dropout_layers = False
-    dropout_rate = 0.10
+    dropout_rate = 0.30
     
     # ====================================================================== #
     
