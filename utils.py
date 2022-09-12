@@ -9,6 +9,10 @@ from time import time
 from urllib.request import urlretrieve
 from hashlib import sha256
 
+# used to print colored text in a Python console/terminal
+from colorama import init, Fore
+init() # enables the ability to print colored text in the standard output (of Python consoles/terminals)
+
 try:
     from IPython.display import display
 except:
@@ -1067,8 +1071,7 @@ def highlight_all_cells(value, colormap):
     relative_intensity_of_color = scaling_factor * (value / 100)
     assert (relative_intensity_of_color >= 0) and (relative_intensity_of_color <= scaling_factor)
     
-    RGBA_color_of_cell = colormap(relative_intensity_of_color)
-    hex_color_of_cell  = rgb2hex(RGBA_color_of_cell)
+    hex_color_of_cell  = rgb2hex(colormap(relative_intensity_of_color))
     CSS_property = f"background-color: {hex_color_of_cell};"
     
     return CSS_property
@@ -1077,11 +1080,11 @@ def highlight_all_cells(value, colormap):
 def print_confusion_matrix(
         conf_matrix,
         selected_classes="all",
-        normalize="columns",
+        normalize="no",
         precision=1,
-        initial_spacing=1,
-        display_with_line_breaks=True,
-        color="green" # on Jupyter notebook only
+        color="green",
+        offset=1,
+        display_with_line_breaks=True
     ):
     """
     Prints the styled confusion matrix
@@ -1096,7 +1099,7 @@ def print_confusion_matrix(
         - a list/tuple/1D-array containing the specific digits you're
           working with (e.g. [2, 4, 7])
     """
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # checking the validity of the specified arguments
     
@@ -1116,7 +1119,7 @@ def print_confusion_matrix(
     
     assert isinstance(normalize, str)
     normalize = normalize.lower()
-    possible_values_for_normalize_kwarg = ["columns", "rows", "no"]
+    possible_values_for_normalize_kwarg = ["no", "columns", "rows"]
     if normalize not in possible_values_for_normalize_kwarg:
         raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
     
@@ -1124,46 +1127,47 @@ def print_confusion_matrix(
         assert isinstance(precision, int)
         assert precision >= 0
     
+    assert isinstance(color, str)
+    assert len(color) > 0
+    assert " " not in color
+    color = color.lower()
+    
+    # keys   : generic color names
+    # values : (
+    #     associated ANSI escape sequences,
+    #     associated CSS/HTML color names,
+    #     associated Matplotlib colormaps
+    # )
+    COLORS_AND_COLORMAPS = {
+        "green"  : (Fore.GREEN,   "green",     cm.Greens),
+        "blue"   : (Fore.CYAN,    "cyan",      cm.Blues),
+        "purple" : (Fore.MAGENTA, "indigo",    cm.Purples),
+        "red"    : (Fore.RED,     "red",       cm.Reds),
+        "orange" : (Fore.YELLOW,  "orangered", cm.Oranges)
+    }
+    
+    if color not in COLORS_AND_COLORMAPS:
+        raise ValueError(f"print_confusion_matrix (utils.py) - Unrecognized value for the `color` kwarg : \"{color}\" (possible color names : {list_to_string(list(COLORS_AND_COLORMAPS.keys()))})")
+    
     jupyter_notebook = is_being_run_on_jupyter_notebook()
     
     if not(jupyter_notebook):
-        assert isinstance(initial_spacing, int)
-        assert initial_spacing >= 0
+        assert isinstance(offset, int)
+        assert offset >= 0
         
-        if normalize != "no":
-            assert isinstance(display_with_line_breaks, bool)
-            pd.set_option("expand_frame_repr", display_with_line_breaks)
-    else:
-        assert isinstance(color, str)
-        assert len(color) > 0
-        assert " " not in color
-        color = color.lower()
-        
-        # keys   : generic color names
-        # values : (associated CSS/HTML color names, associated Matplotlib colormaps)
-        COLORS_AND_COLORMAPS = {
-            "green"  : ("green",     cm.Greens),
-            "blue"   : ("blue",      cm.Blues),
-            "purple" : ("indigo",    cm.Purples),
-            "red"    : ("red",       cm.Reds),
-            "orange" : ("orangered", cm.Oranges)
-        }
-        
-        if color not in COLORS_AND_COLORMAPS:
-            raise ValueError(f"print_confusion_matrix (utils.py) - Unrecognized value for the `color` kwarg : \"{color}\" (possible color names : {list_to_string(list(COLORS_AND_COLORMAPS.keys()))})")
+        assert isinstance(display_with_line_breaks, bool)
+        pd.set_option("display.expand_frame_repr", display_with_line_breaks)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
-    # setting some options of the Pandas module (for convenience purposes)
+    # setting some display options of the Pandas module (for convenience purposes)
     
-    pd.options.mode.chained_assignment = None
-    
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.width", None)
+    pd.set_option("display.max_rows",     None)
+    pd.set_option("display.max_columns",  None)
+    pd.set_option("display.width",        None)
     pd.set_option("display.max_colwidth", None)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # converting the confusion matrix into its associated dataframe
     
@@ -1197,11 +1201,6 @@ def print_confusion_matrix(
         for class_index, class_name in enumerate(class_names):
             # adding the "%" symbol to all the elements of the dataframe
             conf_matrix_as_dataframe[class_name] = conf_matrix_as_dataframe[class_name].astype("<U24") + " %"
-            
-            if not(jupyter_notebook):
-                # highlighting the diagonal values with vertical bars
-                diagonal_percentage = conf_matrix_as_dataframe[class_name][class_index]
-                conf_matrix_as_dataframe[class_name][class_index] = f"|| {diagonal_percentage} ||"
     else:
         # here, the `normalize` kwarg is equal to "no", therefore the raw
         # confusion matrix will be printed
@@ -1215,21 +1214,31 @@ def print_confusion_matrix(
     conf_matrix_as_dataframe.columns.name = "PREDICTED"
     conf_matrix_as_dataframe.index.name   = "ACTUAL"
     
-    conf_matrix_header = f"\nCONFUSION MATRIX (normalized=\"{normalize}\") :"
+    # printing the header/description of the confusion matrix
+    if normalize == "no":
+        conf_matrix_header = "\nRAW CONFUSION MATRIX"
+    elif normalize == "columns":
+        conf_matrix_header = "\nNETWORK PRECISION - NORMALIZED CONFUSION MATRIX"
+    elif normalize == "rows":
+        conf_matrix_header = "\nNETWORK RECALL - NORMALIZED CONFUSION MATRIX"
+    conf_matrix_header += f" (normalized=\"{normalize}\") :"
     print(conf_matrix_header)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # styling the confusion matrix (on Jupyter notebook only)
     
     if jupyter_notebook:
+        color_of_diagonal = COLORS_AND_COLORMAPS[color][1]
+        colormap          = COLORS_AND_COLORMAPS[color][2]
+        
         if normalize == "no":
             # if the returned confusion matrix isn't normalized, then
             # we'll only highlight its diagonal cells
             conf_matrix_styler = conf_matrix_as_dataframe.style.apply(
                 highlight_diagonal,
                 axis=None,
-                color_of_diagonal=COLORS_AND_COLORMAPS[color][0]
+                color_of_diagonal=color_of_diagonal
             )
         else:
             # if the returned confusion matrix is normalized, then its cells
@@ -1237,21 +1246,148 @@ def print_confusion_matrix(
             # to the value they hold (relative to the used colormap)
             conf_matrix_styler = conf_matrix_as_dataframe.style.applymap(
                 highlight_all_cells,
-                colormap=COLORS_AND_COLORMAPS[color][1]
+                colormap=colormap
             )
         
-        # Sidenote : `conf_matrix_styler` is a Pandas Styler object (i.e.
-        #            a `pandas.io.formats.style.Styler` object), NOT a
-        #            Pandas DataFrame object
+        # ------------------------------------------------------------------ #
+        
+        # defining the color that will highlight the hovered cells of the
+        # styled confusion matrix
+        
+        relative_color_intensity = 0.50
+        assert (relative_color_intensity > 0) and (relative_color_intensity <= 1)
+        
+        color_of_hovered_cells = rgb2hex(colormap(relative_color_intensity))
+        
+        cell_hover_CSS_property = {
+            "selector" : "td:hover",
+            "props"    : [("background-color", color_of_hovered_cells)]
+        }
+        
+        conf_matrix_styler.set_table_styles([cell_hover_CSS_property])
+        
+        # ------------------------------------------------------------------ #
+        
+        # NB : `conf_matrix_styler` is a Pandas Styler object (i.e. a
+        #       `pandas.io.formats.style.Styler` object), NOT a Pandas
+        #       DataFrame object
         display(conf_matrix_styler)
         
         return
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
-    # adding the initial spacing
-    initial_spacing = " " * initial_spacing
-    str_conf_matrix_as_dataframe = f"\n{initial_spacing}" + str(conf_matrix_as_dataframe).replace("\n", f"\n{initial_spacing}") + "\n"
+    # converting the confusion matrix (as a Pandas DataFrame) to a string,
+    # and adding the initial spacing (if not on Jupyter notebook)
     
-    print(str_conf_matrix_as_dataframe)
+    offset = " " * offset
+    str_conf_matrix_as_dataframe = f"\n{offset}" + str(conf_matrix_as_dataframe).replace("\n", f"\n{offset}") + "\n"
+    
+    # ====================================================================== #
+    
+    # Highlighting the diagonal values with a specific color (if not on
+    # Jupyter notebook). Unfortunately, this has to be done AFTER the confusion
+    # matrix (as a Pandas DataFrame) is converted to a string, so that the
+    # Pandas module can keep the columns of the DataFrame aligned. Indeed, the
+    # string representations (i.e. the `repr` values) of the ANSI escape codes
+    # of the used colors are (quite naturally) not empty strings ! Here, the
+    # text parsing is quite tedious, but it's necessary
+    
+    # the diagonal of the confusion matrix will be printed in this color
+    printed_color_of_diagonal = COLORS_AND_COLORMAPS[color][0]
+    
+    lines_of_str_conf_matrix_as_dataframe = str_conf_matrix_as_dataframe.split("\n")
+    lines_of_str_colored_conf_matrix_as_dataframe = lines_of_str_conf_matrix_as_dataframe.copy()
+    
+    max_len_of_class_names = max([len(class_name) for class_name in class_names])
+    
+    # first index (inclusive) of the area of interest of each row (i.e. the
+    # area of each row that potentially contains the actual numerical data of
+    # the confusion matrix)
+    first_index_area_of_interest = len(offset) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_len_of_class_names) + 2
+    
+    for row_index, current_row in enumerate(lines_of_str_conf_matrix_as_dataframe):
+        beginning_of_row = current_row[ : first_index_area_of_interest]
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking if the current row is a row of interest or not (if not, the
+        # current row is skipped)
+        
+        content_of_beginning_of_row = beginning_of_row.split()
+        if len(content_of_beginning_of_row) == 0:
+            continue
+        
+        assert len(content_of_beginning_of_row) == 1
+        content_of_beginning_of_row = content_of_beginning_of_row[0]
+        
+        if content_of_beginning_of_row == conf_matrix_as_dataframe.index.name:
+            continue
+        
+        if content_of_beginning_of_row == conf_matrix_as_dataframe.columns.name:
+            # updating the current column indices (for classes)
+            
+            current_class_indices_in_columns = current_row.split()[1 : ]
+            if current_class_indices_in_columns[-1] == "\\":
+                # here, the trailing "\" means that there's a line break
+                current_class_indices_in_columns = current_class_indices_in_columns[ : -1]
+            
+            # converting the column indices into integers
+            current_class_indices_in_columns = [int(str_class_index_in_columns) for str_class_index_in_columns in current_class_indices_in_columns]
+            
+            continue
+        
+        # updating the current row index (for classes)
+        assert content_of_beginning_of_row in class_names
+        current_class_index_in_rows = int(content_of_beginning_of_row)
+        
+        # ------------------------------------------------------------------ #
+        
+        # if we made it to this point, then it means that the current row
+        # is a row of interest (i.e. it holds the actual numerical data of
+        # the confusion matrix)
+        
+        area_of_interest = current_row[first_index_area_of_interest : ]
+        
+        split_area_of_interest = area_of_interest.split(" ")
+        colored_split_area_of_interest = split_area_of_interest.copy()
+        
+        # ------------------------------------------------------------------ #
+        
+        # this counter holds the number of numerical values that have been
+        # encountered in the area of interest of the current row
+        nb_seen_numerical_values_in_row = 0
+        
+        for element_index, element in enumerate(split_area_of_interest):
+            # here, `is_numerical_value` is a boolean indicating whether
+            # `element` is an integer or a float (i.e. a numerical value)
+            try:
+                _ = float(element)
+                is_numerical_value = True
+            except:
+                is_numerical_value = False
+            
+            if is_numerical_value:
+                nb_seen_numerical_values_in_row += 1
+                
+                # updating the current column index (for classes)
+                current_class_index_in_columns = current_class_indices_in_columns[nb_seen_numerical_values_in_row - 1]
+            
+            if (current_class_index_in_columns == current_class_index_in_rows) and (is_numerical_value or (element == "%")):
+                # here, `element` is on the diagonal of the confusion matrix,
+                # therefore color will be added to it !
+                colored_element = f"{printed_color_of_diagonal}{element}{Fore.RESET}"
+                colored_split_area_of_interest[element_index] = colored_element
+        
+        # replacing the area of interest with its colored counterpart
+        colored_area_of_interest = " ".join(colored_split_area_of_interest)
+        lines_of_str_colored_conf_matrix_as_dataframe[row_index] = beginning_of_row + colored_area_of_interest
+    
+    # getting the string representation of the confusion matrix (as a Pandas
+    # DataFrame) with a colored diagonal 
+    str_colored_conf_matrix_as_dataframe = "\n".join(lines_of_str_colored_conf_matrix_as_dataframe)
+    
+    # ====================================================================== #
+    
+    print(str_colored_conf_matrix_as_dataframe)
 

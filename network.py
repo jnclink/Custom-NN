@@ -92,11 +92,14 @@ class Network:
         # has to be set to `False` here, in order to return a string, and not
         # a `NoneType`)
         return self.summary(
-            initial_spacing=1,
+            print_summary=False,
             column_separator="|",
             row_separator="-",
             bounding_box="*",
-            print_summary=False
+            column_spacing=2,
+            horizontal_spacing=4,
+            vertical_spacing=1,
+            offset=1
         )
     
     
@@ -146,7 +149,10 @@ class Network:
         the columns of the summary
         """
         
-        # initializing the summary data (with the column titles)
+        # Initializing the summary data (with the column titles). Note that the
+        # order in which the data is listed (when defining this dictionary)
+        # MATTERS, since it'll be the same order as the columns of the printed
+        # summary !
         summary_data = {
             "layer_types"      : ["Layer"],
             "input_shapes"     : ["Input shape"],
@@ -177,21 +183,23 @@ class Network:
     
     def summary(
             self,
-            initial_spacing=1,
+            print_summary=True,
             column_separator="|",
             row_separator="-",
             bounding_box="*",
-            print_summary=True
+            column_spacing=2,
+            horizontal_spacing=4,
+            vertical_spacing=1,
+            offset=1
         ):
         """
         Returns the summary of the network's architecture
         """
         # ------------------------------------------------------------------ #
         
-        # checking the validity of the specified arguments
+        # checking the validity of the specified kwargs
         
-        assert isinstance(initial_spacing, int)
-        assert initial_spacing >= 0
+        assert isinstance(print_summary, bool)
         
         assert isinstance(column_separator, str)
         assert len(column_separator) >= 1
@@ -206,7 +214,17 @@ class Network:
         assert len(bounding_box) == 1
         assert bounding_box != " "
         
-        assert isinstance(print_summary, bool)
+        assert isinstance(column_spacing, int)
+        assert column_spacing >= 1
+        
+        assert isinstance(horizontal_spacing, int)
+        assert horizontal_spacing >= 1
+        
+        assert isinstance(vertical_spacing, int)
+        assert vertical_spacing >= 1
+        
+        assert isinstance(offset, int)
+        assert offset >= 0
         
         # ------------------------------------------------------------------ #
         
@@ -216,6 +234,10 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
+        # getting the raw summary data, and generating all the useful metadata
+        # related to the lengths of the string versions of the raw summary data,
+        # in order to align the columns of the network's summary
+        
         summary_data = self._get_summary_data()
         
         nb_aligned_rows = len(self.layers) + 1
@@ -223,62 +245,102 @@ class Network:
             assert isinstance(data, list)
             assert len(data) == nb_aligned_rows
         
-        layer_types      = summary_data["layer_types"]
-        input_shapes     = summary_data["input_shapes"]
-        output_shapes    = summary_data["output_shapes"]
-        trainable_params = summary_data["trainable_params"]
+        nb_aligned_columns = len(summary_data)
+        assert nb_aligned_columns >= 2
         
-        max_len_layer_types      = np.max([len(layer_type) for layer_type in layer_types])
-        max_len_input_shapes     = np.max([len(input_shape) for input_shape in input_shapes])
-        max_len_output_shapes    = np.max([len(output_shape) for output_shape in output_shapes])
-        max_len_trainable_params = np.max([len(nb_trainable_params) for nb_trainable_params in trainable_params])
+        # keys   : feature names
+        # values : maximum lengths of all the associated features
+        maximum_lengths = {}
+        for feature_name, data in summary_data.items():
+            max_length_of_feature = max([len(feature) for feature in data])
+            maximum_lengths[feature_name] = max_length_of_feature
         
-        max_len_of_all_rows = max_len_layer_types + max_len_input_shapes + max_len_output_shapes + max_len_trainable_params + 3 * (len(column_separator) + 4)
+        values_of_max_lengths = list(maximum_lengths.values())
         
-        full_row = bounding_box * (max_len_of_all_rows + 10)
-        empty_row = bounding_box + " " * (max_len_of_all_rows + 8) + bounding_box
+        horizontal_spacing = " " * horizontal_spacing
+        column_spacing     = " " * column_spacing
         
-        # the title is centered by default
+        max_len_of_all_rows = sum(values_of_max_lengths) + (nb_aligned_columns - 1) * (len(column_separator) + 2 * len(column_spacing))
+        
+        # ------------------------------------------------------------------ #
+        
+        # intermediate builds
+        
+        full_row  = bounding_box * (max_len_of_all_rows + 2 * (len(horizontal_spacing) + len(bounding_box)))
+        empty_row = bounding_box + " " * (max_len_of_all_rows + 2 * len(horizontal_spacing)) + bounding_box
+        
+        # building the row containing the title (it's centered by default)
         title = "NETWORK SUMMARY"
         nb_spaces_title_row = max_len_of_all_rows - len(title)
-        left_spacing_title = " " * (nb_spaces_title_row // 2)
+        left_spacing_title  = " " * (nb_spaces_title_row // 2)
         right_spacing_title = " " * (nb_spaces_title_row - len(left_spacing_title))
+        title_row = f"\n{bounding_box}{horizontal_spacing}{left_spacing_title}{title}{right_spacing_title}{horizontal_spacing}{bounding_box}"
         
-        str_summary = f"\n{full_row}\n{empty_row}"
-        str_summary += f"\n{bounding_box}    {left_spacing_title}{title}{right_spacing_title}    {bounding_box}"
-        str_summary += f"\n{empty_row}"
+        # building the row separating the column titles from the actual summary
+        # data (i.e. the "transition row")
+        full_transition_row = f"\n{bounding_box}{horizontal_spacing}"
+        for column_index, max_length_of_feature in enumerate(values_of_max_lengths):
+            full_transition_row += row_separator * (max_length_of_feature + len(column_spacing))
+            if (column_index >= 1) and (column_index <= nb_aligned_columns - 2):
+                full_transition_row += row_separator * len(column_spacing)
+            if column_index != nb_aligned_columns - 1:
+                full_transition_row += column_separator
+        full_transition_row += f"{horizontal_spacing}{bounding_box}"
         
-        for aligned_row_index in range(nb_aligned_rows):
-            layer_type = layer_types[aligned_row_index]
-            input_shape = input_shapes[aligned_row_index]
-            output_shape = output_shapes[aligned_row_index]
-            nb_trainable_params = trainable_params[aligned_row_index]
-            
-            layer_type_spacing       = " " * (max_len_layer_types - len(layer_type))
-            input_shape_spacing      = " " * (max_len_input_shapes - len(input_shape))
-            output_shape_spacing     = " " * (max_len_output_shapes - len(output_shape))
-            trainable_params_spacing = " " * (max_len_trainable_params - len(nb_trainable_params))
-            
-            str_row = f"\n{bounding_box}    {layer_type}{layer_type_spacing}  {column_separator}  {input_shape}{input_shape_spacing}  {column_separator}  {output_shape}{output_shape_spacing}  {column_separator}  {nb_trainable_params}{trainable_params_spacing}    {bounding_box}"
-            str_summary += str_row
-            
-            # row separating the column titles from the actual summary data
-            if aligned_row_index == 0:
-                transition = row_separator * (max_len_layer_types + 2) + column_separator + row_separator * (max_len_input_shapes + 4) + column_separator + row_separator * (max_len_output_shapes + 4) + column_separator + row_separator * (max_len_trainable_params + 2)
-                str_summary += f"\n{bounding_box}    {transition}    {bounding_box}"
-        
-        str_summary += f"\n{empty_row}"
-        
+        # building the last row (i.e. the row containing the total number of
+        # trainable parameters)
         total_nb_of_trainable_params = "{:,}".format(self._get_total_nb_of_trainable_params())
         last_printed_row = f"Total number of trainable parameters : {total_nb_of_trainable_params}"
         nb_spaces_last_printed_row = " " * (max_len_of_all_rows - len(last_printed_row))
-        str_summary += f"\n{bounding_box}    {last_printed_row}{nb_spaces_last_printed_row}    {bounding_box}"
+        last_printed_row = f"\n{bounding_box}{horizontal_spacing}{last_printed_row}{nb_spaces_last_printed_row}{horizontal_spacing}{bounding_box}"
         
-        str_summary += f"\n{empty_row}\n{full_row}"
+        # ------------------------------------------------------------------ #
         
-        # adding the initial spacing
-        initial_spacing = " " * initial_spacing
-        str_summary = str_summary.replace("\n", f"\n{initial_spacing}")
+        # actually building the string representation of the network's summary
+        
+        str_summary = f"\n{full_row}"
+        str_summary += f"\n{empty_row}" * vertical_spacing
+        str_summary += title_row
+        str_summary += f"\n{empty_row}"
+        
+        for aligned_row_index in range(nb_aligned_rows):
+            # building the current row
+            
+            current_row = f"\n{bounding_box}{horizontal_spacing}"
+            
+            for column_index, (feature_name, max_length_of_feature_name) in enumerate(maximum_lengths.items()):
+                feature = summary_data[feature_name][aligned_row_index]
+                feature_spacing = " " * (max_length_of_feature_name - len(feature))
+                
+                current_row += f"{feature}{feature_spacing}"
+                
+                if column_index != nb_aligned_columns - 1:
+                    current_row += f"{column_spacing}{column_separator}{column_spacing}"
+            
+            current_row += f"{horizontal_spacing}{bounding_box}"
+            
+            str_summary += current_row
+            
+            if aligned_row_index == 0:
+                # adding the "transition row" right after the row containing
+                # the feature types (i.e. the first "aligned row")
+                str_summary += full_transition_row
+        
+        str_summary += f"\n{empty_row}"
+        str_summary += last_printed_row
+        str_summary += f"\n{empty_row}" * vertical_spacing
+        str_summary += f"\n{full_row}"
+        
+        # ------------------------------------------------------------------ #
+        
+        # adding the offset
+        
+        offset = " " * offset
+        str_summary = str_summary.replace("\n", f"\n{offset}")
+        
+        # ------------------------------------------------------------------ #
+        
+        # actually printing/returning the summary
         
         if print_summary:
             print(str_summary)
@@ -510,7 +572,7 @@ class Network:
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
         
         # to center the prints
-        initial_spacing = " " * 5
+        offset = " " * 5
         
         # ================================================================== #
         
@@ -518,7 +580,7 @@ class Network:
         
         print(transition)
         
-        introduction = f"\n{initial_spacing}Starting the training loop ...\n"
+        introduction = f"\n{offset}Starting the training loop ...\n"
         print(introduction)
         
         seed = seed_train_batch_splits
@@ -576,7 +638,7 @@ class Network:
                         progress_bar_size=15 # by default
                     )
                     
-                    train_batch_progress_row = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  {current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
+                    train_batch_progress_row = f"{offset}epoch {formatted_epoch_index}/{nb_epochs}  -  {current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
                     
                     clear_currently_printed_row()
                     print(train_batch_progress_row, end="\r")
@@ -630,7 +692,7 @@ class Network:
             # -------------------------------------------------------------- #
             
             precision_epoch_history = 4 # by default
-            epoch_history = f"{initial_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  "
+            epoch_history = f"{offset}epoch {formatted_epoch_index}/{nb_epochs}  -  "
             if _has_validation_data:
                 epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             else:
@@ -653,7 +715,7 @@ class Network:
             average_batch_duration = average_epoch_duration / nb_train_batches
         average_batch_duration_in_milliseconds = 1000 * average_batch_duration
         
-        conclusion = f"\n{initial_spacing}Training complete !\n\n{initial_spacing}Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
+        conclusion = f"\n{offset}Training complete !\n\n{offset}Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
         print(conclusion)
         
         print(transition)

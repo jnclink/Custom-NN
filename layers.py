@@ -39,6 +39,9 @@ class Layer(ABC):
         self.output = None
         self.nb_trainable_params = None
     
+    def __str__(self):
+        return f"{self.__class__.__name__}()"
+    
     def __repr__(self):
         return str(self)
     
@@ -366,9 +369,6 @@ class BatchNormLayer(Layer):
         # by default (used for numerical stability)
         self.epsilon = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
-    
-    def __str__(self):
-        return f"{self.__class__.__name__}()"
     
     def forward_propagation(self, input_data, training=True):
         """

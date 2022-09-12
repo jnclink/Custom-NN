@@ -4,5 +4,8 @@ pandas
 matplotlib
 
 # only used for the `sklearn.model_selection.train_test_split` method
-# --> cf. the "mnist_dataset.py" script
+# (cf. the "mnist_dataset.py" script)
 sklearn
+
+# used to print colored text in Python consoles/terminals
+colorama

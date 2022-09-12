@@ -128,6 +128,7 @@ def main():
     # rate (to prevent the network from overfitting)
     train_batch_size = 40
     
+    # the learning rate has to lie in the range ]0, 1[
     learning_rate = 0.15
     
     # in chronological order
@@ -136,6 +137,23 @@ def main():
         64,
         32
     ]
+    
+    # Relevant choices here : "ReLU", "leaky_ReLU" or "tanh". The main
+    # activation name is case insensitive
+    main_activation_name = "ReLU"
+    
+    if main_activation_name.lower() == "leaky_relu":
+        # Defining the "leaky ReLU coefficient" (default value : 0.01). It has
+        # to lie in the range ]0, 1[
+        activation_kwargs = {
+            "leaky_ReLU_coeff" : 0.01
+        }
+    else:
+        activation_kwargs = {}
+    
+    # Relevant choices here : "softmax" or "sigmoid". The output activation
+    # name is case insensitive
+    output_activation_name = "softmax"
     
     # The BatchNorm layer is a regularization layer that helps prevent overfitting
     # (without necessarily improving the overall accuracy of the network). It
@@ -152,7 +170,7 @@ def main():
     # a frequency of `dropout_rate` at each step during the training phase. This
     # layer doesn't have any trainable parameters
     use_dropout_layers = False
-    dropout_rate = 0.30
+    dropout_rate = 0.30 # has to lie in the range ]0, 1[
     
     # ====================================================================== #
     
@@ -186,22 +204,14 @@ def main():
             # Adding a BatchNorm regularization layer (if requested)
             network.add(BatchNormLayer())
         
-        """
-        Possible relevant choices here (the activation name is case insensitive) :
-            network.add(ActivationLayer("ReLU"))
-            OR
-            network.add(ActivationLayer("leaky_ReLU", leaky_ReLU_coeff=0.01))
-            OR
-            network.add(ActivationLayer("tanh"))
-        """
-        network.add(ActivationLayer("ReLU"))
+        network.add(ActivationLayer(main_activation_name, **activation_kwargs))
         
         if use_dropout_layers:
             # Adding a Dropout regularization layer (if requested)
             network.add(DropoutLayer(dropout_rate, seed=seed))
         
         if seed is not None:
-            # updating the seed such that the "randomness" in the added
+            # Updating the seed such that the "randomness" in the added
             # Dense/Dropout layers is different each time (in case 2
             # consecutive values of `nb_neurons` are the same)
             seed += 1
@@ -214,14 +224,7 @@ def main():
         assert seed == seed_network + len(nb_neurons_in_hidden_dense_layers)
     
     network.add(DenseLayer(nb_classes, seed=seed))
-    
-    """
-    Possible relevant choices here (the activation name is case insensitive) :
-        network.add(ActivationLayer("softmax"))
-        OR
-        network.add(ActivationLayer("sigmoid"))
-    """
-    network.add(ActivationLayer("softmax"))
+    network.add(ActivationLayer(output_activation_name))
     
     # ---------------------------------------------------------------------- #
     
@@ -230,25 +233,26 @@ def main():
     # NB : The kwargs of this method will only affect how the summary will look
     #      like when it's printed (they won't affect the summary's contents)
     network.summary(
-        initial_spacing=1,
         column_separator="|", # can be multiple characters long
         row_separator="-",    # has to be a single character
-        bounding_box="*"      # has to be a single character
+        bounding_box="*",     # has to be a single character
+        column_spacing=2,
+        horizontal_spacing=4,
+        vertical_spacing=1,
+        offset=1,
     )
     
-    # Or, equivalently, you can run : `print(network)`
+    # Or, equivalently, you can run `network.summary()` or `print(network)`
     
     # ====================================================================== #
     
     # Setting the loss function of the network
     
-    """
-    Possible relevant choices here (the loss function name is case insensitive) :
-        network.set_loss_function("CCE") # CCE = Categorical Cross-Entropy
-        OR
-        network.set_loss_function("MSE") # MSE = Mean Squared Error
-    """
-    network.set_loss_function("CCE")
+    # Relevant choices here : "CCE" (Categorical Cross-Entropy) or "MSE" (Mean
+    # Squared Error). The loss function name is case insensitive
+    loss_function_name = "CCE"
+    
+    network.set_loss_function(loss_function_name)
     
     # ====================================================================== #
     
@@ -301,35 +305,17 @@ def main():
         test_batch_size=32
     )
     
-    # Displaying the raw confusion matrix of the network
-    print_confusion_matrix(
-        conf_matrix,
-        selected_classes=selected_classes,
-        normalize="no", # = "columns", "rows" or "no"
-        initial_spacing=1
-    )
-    
-    # Displaying the precision of the network (i.e. the confusion matrix
-    # with normalized columns)
-    print_confusion_matrix(
-        conf_matrix,
-        selected_classes=selected_classes,
-        normalize="columns", # = "columns", "rows" or "no"
-        precision=1,
-        initial_spacing=1,
-        display_with_line_breaks=True
-    )
-    
-    # Displaying the recall of the network (i.e. the confusion matrix
-    # with normalized rows)
-    print_confusion_matrix(
-        conf_matrix,
-        selected_classes=selected_classes,
-        normalize="rows", # = "columns", "rows" or "no"
-        precision=1,
-        initial_spacing=1,
-        display_with_line_breaks=True
-    )
+    # Displaying the confusion matrices of the network
+    for normalize in ["no", "columns", "rows"]:
+        print_confusion_matrix(
+            conf_matrix,
+            selected_classes=selected_classes,
+            normalize=normalize, # = "no", columns" or "rows"
+            precision=1,
+            color="green", # = "green", "blue", "purple", "red" or "orange"
+            offset=1,
+            display_with_line_breaks=True
+        )
     
     # Displaying the testing loss and the global accuracy scores of the network
     precision_loss = 4 # by default
