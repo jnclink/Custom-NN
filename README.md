@@ -1,7 +1,6 @@
-<p align="center">
-<h1>Custom Multi-Layer Perceptron (MLP)</h1>
-<i><b>NumPy is all you need</b></i>
-</p>
+<center><h1>Custom-MLP</h1></center>
+<center><h3>Implementing a Multi-Layer Perceptron (MLP) from scratch</h3></center>
+<center><h4><i>NumPy is all you need</i></h4></center>
 
 <br/>
 
