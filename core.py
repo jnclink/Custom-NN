@@ -137,7 +137,7 @@ def split_data_into_batches(
 
 
 # Functions related to the accuracy metric (they will basically return the
-# same output of the associated functions of the `sklearn.metrics` module)
+# same output as the associated functions of the `sklearn.metrics` module)
 
 
 def accuracy_score(y_true, y_pred, normalize=True):
@@ -206,7 +206,7 @@ def confusion_matrix(y_true, y_pred):
 
 
 # Main function used to split the raw MNIST data into train/test or train/val/test
-# subsets (it will basically to the same task as the associated `train_test_split`
+# subsets (it will basically do the same task as the associated `train_test_split`
 # function of the `sklearn.model_selection` module)
 
 
