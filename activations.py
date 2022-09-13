@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Script defining the activation functions (and their derivatives)
+Script defining some activation functions (and their derivatives)
 """
 
 import numpy as np
@@ -25,7 +25,7 @@ def ReLU(x):
     """
     Rectified Linear Unit (ReLU) activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     _validate_activation_input(x)
     
@@ -39,16 +39,9 @@ def ReLU_prime(x):
     """
     Derivative of the Rectified Linear Unit (ReLU) activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     _validate_activation_input(x)
-    
-    if np.isscalar(x):
-        if x >= 0:
-            return cast(1, utils.DEFAULT_DATATYPE)
-        return cast(0, utils.DEFAULT_DATATYPE)
-    
-    # here, `x` is a vector/matrix
     
     ReLU_prime_output = np.zeros(x.shape, dtype=x.dtype)
     ReLU_prime_output[x >= 0] = 1
@@ -68,8 +61,8 @@ def leaky_ReLU(x, leaky_ReLU_coeff=0.01):
     """
     Leaky Rectified Linear Unit (leaky ReLU) activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
-    Usually, `leaky_ReLU_coeff` is a small positive constant
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter),
+    and `leaky_ReLU_coeff` is a small positive constant
     """
     _validate_activation_input(x)
     leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
@@ -84,20 +77,11 @@ def leaky_ReLU_prime(x, leaky_ReLU_coeff=0.01):
     """
     Derivative of the leaky Rectified Linear Unit (leaky ReLU) activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
-    Usually, `leaky_ReLU_coeff` is a small positive constant
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter),
+    and `leaky_ReLU_coeff` is a small positive constant
     """
     _validate_activation_input(x)
     leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
-    
-    if np.isscalar(x):
-        if x >= 0:
-            return cast(1, utils.DEFAULT_DATATYPE)
-        
-        # NB : `leaky_ReLU_coeff` has already been cast to `utils.DEFAULT_DATATYPE`
-        return leaky_ReLU_coeff
-    
-    # here, `x` is a vector/matrix
     
     leaky_ReLU_prime_output = np.ones(x.shape, dtype=x.dtype)
     leaky_ReLU_prime_output[x < 0] = leaky_ReLU_coeff
@@ -116,7 +100,7 @@ def tanh(x):
     """
     Hyperbolic tangent (tanh) activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     _validate_activation_input(x)
     
@@ -130,7 +114,7 @@ def tanh_prime(x):
     """
     Derivative of the hyperbolic tangent (tanh) activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     _validate_activation_input(x)
     
@@ -151,10 +135,9 @@ def softmax(x, check_for_illegal_output_values=True):
     """
     Softmax activation function
     
-    `x` is a 1D vector or a 2D matrix (usually the latter)
-    By definition, here `x` CANNOT be a scalar
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x, can_be_scalar=False)
+    _validate_activation_input(x)
     assert isinstance(check_for_illegal_output_values, bool)
     
     if len(x.shape) == 1:
@@ -194,10 +177,9 @@ def softmax_prime(x):
     """
     Derivative of the softmax activation function
     
-    `x` is a 1D vector or a 2D matrix (usually the latter)
-    By definition, here `x` CANNOT be a scalar
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x, can_be_scalar=False)
+    _validate_activation_input(x)
     
     if len(x.shape) == 1:
         softmax_output = softmax(x).reshape((1, x.shape[0]))
@@ -224,12 +206,12 @@ def sigmoid(x, check_for_illegal_output_values=True):
     """
     Sigmoid activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     _validate_activation_input(x)
     assert isinstance(check_for_illegal_output_values, bool)
     
-    if np.isscalar(x) or (len(x.shape) == 1):
+    if len(x.shape) == 1:
         one = cast(1, utils.DEFAULT_DATATYPE)
         sigmoid_output = one / (one + np.exp(-x))
     elif len(x.shape) == 2:
@@ -260,11 +242,11 @@ def sigmoid_prime(x):
     """
     Derivative of the sigmoid activation function
     
-    `x` is either a scalar, a 1D vector or a 2D matrix (usually the latter)
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     _validate_activation_input(x)
     
-    if np.isscalar(x) or (len(x.shape) == 1):
+    if len(x.shape) == 1:
         sigmoid_output = sigmoid(x)
         one = cast(1, utils.DEFAULT_DATATYPE)
         sigmoid_prime_output = sigmoid_output * (one - sigmoid_output)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Script defining the loss functions (and their derivatives)
+Script defining some loss functions (and their derivatives)
 """
 
 import numpy as np

@@ -1,5 +1,6 @@
-# relatively common requirements
 numpy
+
+# only used for data visualization purposes
 pandas
 matplotlib
 
@@ -7,5 +8,5 @@ matplotlib
 # (cf. the "mnist_dataset.py" script)
 sklearn
 
-# used to print colored text in Python consoles/terminals
+# only used to print colored text in Python consoles/terminals
 colorama

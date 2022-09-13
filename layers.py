@@ -19,11 +19,11 @@ from utils import (
 )
 
 from activations import (
-    ReLU, ReLU_prime,
+    ReLU,       ReLU_prime,
     leaky_ReLU, leaky_ReLU_prime,
-    tanh, tanh_prime,
-    softmax, softmax_prime,
-    sigmoid, sigmoid_prime
+    tanh,       tanh_prime,
+    softmax,    softmax_prime,
+    sigmoid,    sigmoid_prime
 )
 
 
@@ -34,6 +34,7 @@ class Layer(ABC):
     """
     Base (abstract) layer class
     """
+    
     def __init__(self):
         self.input  = None
         self.output = None
@@ -84,6 +85,7 @@ class Layer(ABC):
         assert isinstance(learning_rate, float)
         learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
+        learning_rate = max(learning_rate, utils.DTYPE_RESOLUTION)
         assert (learning_rate > 0) and (learning_rate < 1)
         
         return learning_rate
@@ -98,9 +100,12 @@ class InputLayer(Layer):
     of the network
     """
     def __init__(self, input_size):
+        super().__init__()
+        
         assert isinstance(input_size, int)
         assert input_size >= 2
         self.input_size = input_size
+        
         self.nb_trainable_params = 0
     
     def __str__(self):
@@ -143,6 +148,8 @@ class DenseLayer(Layer):
     Dense (i.e. fully connected) layer
     """
     def __init__(self, nb_neurons, seed=None):
+        super().__init__()
+        
         assert isinstance(nb_neurons, int)
         assert nb_neurons >= 2
         self.output_size = nb_neurons
@@ -253,6 +260,8 @@ class ActivationLayer(Layer):
     }
     
     def __init__(self, activation_name, **kwargs):
+        super().__init__()
+        
         # checking the validity of the specified activation name
         assert isinstance(activation_name, str)
         activation_name = activation_name.lower()
@@ -348,6 +357,8 @@ class BatchNormLayer(Layer):
     BatchNorm regularization layer
     """
     def __init__(self):
+        super().__init__()
+        
         # initializing the trainable parameters
         self.gamma = cast(1, utils.DEFAULT_DATATYPE)
         self.beta  = cast(0, utils.DEFAULT_DATATYPE)
@@ -456,6 +467,8 @@ class DropoutLayer(Layer):
     Dropout regularization layer
     """
     def __init__(self, dropout_rate, seed=None):
+        super().__init__()
+        
         assert isinstance(dropout_rate, float)
         assert (dropout_rate > 0) and (dropout_rate < 1)
         self.dropout_rate = dropout_rate

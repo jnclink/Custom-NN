@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Script defining miscellaneous useful functions
+Script defining some miscellaneous useful functions
 """
 
 import os
-from time import time
+from time import perf_counter
 from urllib.request import urlretrieve
 from hashlib import sha256
-
-# used to print colored text in a Python console/terminal
-from colorama import init, Fore
-init() # enables the ability to print colored text in the standard output (of Python consoles/terminals)
 
 try:
     from IPython.display import display
@@ -26,11 +22,15 @@ except:
     pass
 
 import numpy as np
-import pandas as pd
+from pandas import DataFrame, set_option
 
 # imports related to Matplotlib colormaps
 from matplotlib import cm
 from matplotlib.colors import Colormap, rgb2hex
+
+# used to print colored text in a Python console/terminal
+from colorama import init, Back, Style
+init() # enables the ability to print colored text in the standard output (of Python consoles/terminals)
 
 
 ##############################################################################
@@ -101,7 +101,7 @@ def set_global_datatype(datatype):
     inside the code, make sure you add the following import : `import utils`,
     then use the variable `utils.DEFAULT_DATATYPE`. Please DO NOT add the import
     `from utils import DEFAULT_DATATYPE` before calling this function, as it
-    will return the default value of `DEFAULT_DATATYPE`, not the updated one !
+    will return the default value of `DEFAULT_DATATYPE`, NOT the updated one !
     The same goes with the global variable `DTYPE_RESOLUTION`
     """
     if datatype == float:
@@ -125,8 +125,9 @@ def check_dtype(x, dtype):
     """
     Checks if the datatype of `x` is `dtype` or not. Here, `x` can either be
     a scalar or a vector/matrix. By design, in most cases, `dtype` will be
-    equal to `utils.DEFAULT_DATATYPE`
+    equal to `DEFAULT_DATATYPE`
     """
+    # checking the specified arguments
     assert np.isscalar(x) or isinstance(x, np.ndarray)
     dtype = _validate_numpy_datatype(dtype)
     
@@ -141,8 +142,9 @@ def cast(x, dtype):
     """
     Returns the cast version of `x` to `dtype`. Here, `x` can either be a
     scalar or a vector/matrix. By design, in most cases, `dtype` will be
-    equal to `utils.DEFAULT_DATATYPE`
+    equal to `DEFAULT_DATATYPE`
     """
+    # checking the specified arguments
     assert np.isscalar(x) or isinstance(x, np.ndarray)
     dtype = _validate_numpy_datatype(dtype)
     
@@ -203,38 +205,14 @@ def list_to_string(L):
     return str_L
 
 
-def count_nb_decimals_places(x, max_precision=6):
-    """
-    Returns the number of decimal places of the scalar `x`
-    """
-    assert np.isscalar(x)
-    
-    assert isinstance(max_precision, int)
-    assert max_precision >= 0
-    
-    # converting `x` into a positive number, since it doesn't affect the number
-    # of decimal places
-    x = round(float(abs(x)), max_precision)
-    
-    if x == int(x):
-        # here, `x` is a positive integer
-        return 0
-    elif x < 1:
-        # here, `x` is a float in the range ]0, 1[
-        return len(str(x)) - 2
-    else:
-        # here, `x` is a non-integer float in the range ]1, infinity[, therefore
-        # `x - int(x)` will be a float in the range ]0, 1[
-        return len(str(x - int(x))) - 2
-
-
 def clear_currently_printed_row(max_size_of_row=150):
     """
     Clears the currently printed row, and sets the pointer of the `print`
     function at the very beginning of that same row
     """
+    # checking the specified argument
     assert isinstance(max_size_of_row, int)
-    assert max_size_of_row >= 0
+    assert max_size_of_row >= 1
     
     blank_row = " " * max_size_of_row
     print(blank_row, end="\r")
@@ -283,6 +261,35 @@ def progress_bar(
     return str_progress_bar
 
 
+def standardize_data(data):
+    """
+    Normalizes a matrix such that its mean is 0 and its standard deviation
+    is 1 (i.e. it returns the standardized version of the matrix). By default,
+    if `data` is a 2D matrix, then its rows will be standardized
+    
+    Here, `data` can either be a 1D vector or a 2D matrix
+    """
+    # checking the validity of `data`
+    assert isinstance(data, np.ndarray)
+    assert len(data.shape) in [1, 2]
+    global DEFAULT_DATATYPE
+    check_dtype(data, DEFAULT_DATATYPE)
+    
+    # checking if there are any samples that have a standard deviation of zero
+    # (in that case, it means that the sample is filled with the same constant value)
+    data_std = data.std(axis=-1, keepdims=True)
+    for sample_std in data_std.flatten():
+        assert not(np.allclose(sample_std, 0.0))
+    
+    # actually standardizing the data
+    standardized_data = (data - data.mean(axis=-1, keepdims=True)) / data_std
+    
+    assert standardized_data.shape == data.shape
+    check_dtype(standardized_data, DEFAULT_DATATYPE)
+    
+    return standardized_data
+
+
 def is_being_run_on_jupyter_notebook():
     """
     Returns a boolean indicating whether the code is currently being run on
@@ -293,6 +300,37 @@ def is_being_run_on_jupyter_notebook():
         return current_IPython_shell_name == "ZMQInteractiveShell"
     except (Exception, NameError):
         return False
+
+
+def count_nb_decimals_places(x, max_precision=6):
+    """
+    Returns the number of decimal places of the scalar `x`
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the specified arguments
+    
+    assert np.isscalar(x)
+    
+    assert isinstance(max_precision, int)
+    assert max_precision >= 1
+    
+    # ---------------------------------------------------------------------- #
+    
+    # converting `x` into a positive number, since it doesn't affect its number
+    # of decimal places
+    x = round(float(abs(x)), max_precision)
+    
+    if x == int(x):
+        # here, `x` is a positive integer
+        return 0
+    elif x < 1:
+        # here, `x` is a float in the range ]0, 1[
+        return len(str(x)) - 2
+    else:
+        # here, `x` is a non-integer float in the range ]1, infinity[, therefore
+        # `x - int(x)` will be a float in the range ]0, 1[
+        return len(str(x - int(x))) - 2
 
 
 ##############################################################################
@@ -306,12 +344,20 @@ def _validate_hash_of_downloaded_raw_MNIST_dataset(path_of_downloaded_data):
     Checks if the hash of the downloaded raw MNIST data is valid or not (mainly
     for security purposes)
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified path
+    
     assert isinstance(path_of_downloaded_data, str)
     assert len(path_of_downloaded_data) > 0
+    assert len(path_of_downloaded_data.strip()) > 0
     
     assert os.path.exists(path_of_downloaded_data)
     
+    # ---------------------------------------------------------------------- #
+    
     # default SHA-256 hash value of the downloaded raw MNIST data
+    
     default_hash = "731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1"
     
     # ---------------------------------------------------------------------- #
@@ -319,7 +365,7 @@ def _validate_hash_of_downloaded_raw_MNIST_dataset(path_of_downloaded_data):
     # computing the hash value of the specified data
     
     hasher = sha256()
-    chunk_size = 65535
+    chunk_size = 65535 # for example
     
     with open(path_of_downloaded_data, "rb") as DOWNLOADED_DATA:
         for chunk in iter(lambda: DOWNLOADED_DATA.read(chunk_size), b""):
@@ -361,8 +407,8 @@ def _validate_raw_MNIST_dataset(
     assert raw_y_test.shape == (10000, )
     check_dtype(raw_y_test, np.uint8)
     
-    NB_CLASSES = 10
-    expected_classes = np.arange(NB_CLASSES)
+    DEFAULT_NB_CLASSES = 10
+    expected_classes = np.arange(DEFAULT_NB_CLASSES)
     assert np.allclose(np.unique(raw_y_train), expected_classes)
     assert np.allclose(np.unique(raw_y_test),  expected_classes)
 
@@ -370,6 +416,8 @@ def _validate_raw_MNIST_dataset(
 def _validate_label_vector(y, max_class=9, is_whole_label_vector=True):
     """
     Checks the validity of the label vector `y`
+    
+    Here, the default value of `max_class` (= 9) is specific to the MNIST dataset
     """
     assert isinstance(max_class, int)
     assert max_class >= 1
@@ -394,9 +442,9 @@ def _validate_selected_classes(selected_classes):
     potentially corrected version of `selected_classes`
     
     Here, `selected_classes` can either be :
-        - the string "all" (if you're working with all the digits ranging
+        - The string "all" (if you're working with all the digits ranging
           from 0 to 9)
-        - a list/tuple/1D-array containing the specific digits you're
+        - A list/tuple/1D-array containing the specific digits you're
           working with (e.g. [2, 4, 7])
     """
     if isinstance(selected_classes, str):
@@ -419,50 +467,44 @@ def _validate_selected_classes(selected_classes):
     return selected_classes
 
 
+def _validate_activation_input(x):
+    """
+    Checks the validity of `x` (as an input of an activation function)
+    
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
+    """
+    assert isinstance(x, np.ndarray)
+    assert len(x.shape) in [1, 2]
+    
+    global DEFAULT_DATATYPE
+    check_dtype(x, DEFAULT_DATATYPE)
+
+
 def _validate_loss_inputs(y_true, y_pred):
     """
     Checks if `y_true` and `y_pred` are valid or not (as inputs of a
     loss function)
     """
     assert isinstance(y_true, np.ndarray) and isinstance(y_pred, np.ndarray)
-    assert y_true.shape == y_pred.shape
     assert len(y_true.shape) in [1, 2]
+    assert y_true.shape == y_pred.shape
     
     global DEFAULT_DATATYPE
     check_dtype(y_true, DEFAULT_DATATYPE)
     check_dtype(y_pred, DEFAULT_DATATYPE)
 
 
-def _validate_activation_input(x, can_be_scalar=True):
-    """
-    Checks the validity of `x` (as an input of an activation function)
-    
-    If `can_be_scalar` is set to `True`, `x` can either be a scalar, a 1D
-    vector or a 2D matrix (usually the latter). Otherwise, `x` can either be
-    a 1D vector or a 2D matrix
-    """
-    assert isinstance(can_be_scalar, bool)
-    
-    if can_be_scalar:
-        assert np.isscalar(x) or isinstance(x, np.ndarray)
-    else:
-        assert isinstance(x, np.ndarray)
-    
-    if isinstance(x, np.ndarray):
-        assert len(x.shape) in [1, 2]
-    
-    global DEFAULT_DATATYPE
-    check_dtype(x, DEFAULT_DATATYPE)
-
-
 def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff):
     """
-    Checks if `leaky_ReLU_coeff` is valid or not
+    Checks if `leaky_ReLU_coeff` is valid or not, and returns it (cast
+    to `DEFAULT_DATATYPE`)
     """
     assert isinstance(leaky_ReLU_coeff, float)
     
-    global DEFAULT_DATATYPE
+    global DEFAULT_DATATYPE, DTYPE_RESOLUTION
+    
     leaky_ReLU_coeff = cast(leaky_ReLU_coeff, DEFAULT_DATATYPE)
+    leaky_ReLU_coeff = max(leaky_ReLU_coeff, DTYPE_RESOLUTION)
     
     assert (leaky_ReLU_coeff > 0) and (leaky_ReLU_coeff < 1)
     
@@ -614,7 +656,7 @@ def _download_raw_MNIST_dataset():
             data_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
             
             print(f"\nDownloading the raw MNIST data from the URL \"{data_URL}\". This might take a couple of seconds ...\n")
-            t_beginning_downloading = time()
+            t_beginning_downloading = perf_counter()
             
             # actually downloading the raw MNIST data from `data_URL`, and
             # saving it to the location `default_path_of_downloaded_data`
@@ -626,7 +668,7 @@ def _download_raw_MNIST_dataset():
             
             assert os.path.exists(default_path_of_downloaded_data)
             
-            t_end_downloading = time()
+            t_end_downloading = perf_counter()
             duration_downloading = t_end_downloading - t_beginning_downloading
             print(f"\n\nSuccessfully downloaded the raw MNIST data to the location \"{default_path_of_downloaded_data}\". Done in {duration_downloading:.3f} seconds")
         except (Exception, KeyboardInterrupt):
@@ -655,10 +697,16 @@ def get_range_of_array(array, precision=3):
     """
     Returns the range of an array (as a string)
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
     assert isinstance(array, np.ndarray)
     
     assert isinstance(precision, int)
     assert precision >= 0
+    
+    # ---------------------------------------------------------------------- #
     
     min_element_of_array = np.min(array)
     max_element_of_array = np.max(array)
@@ -762,6 +810,7 @@ def vector_to_categorical(y, dtype=int):
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
     """
+    # checking the validity of the specified arguments
     _validate_label_vector(y)
     dtype = _validate_numpy_datatype(dtype)
     
@@ -801,203 +850,10 @@ def categorical_to_vector(y_categorical):
 ##############################################################################
 
 
-# Main function used to split the input data into batches
-
-
-def split_data_into_batches(
-        data,
-        batch_size,
-        labels=None,
-        normalize_batches=True,
-        nb_shuffles=10,
-        seed=None
-    ):
-    """
-    Splits the input data and/or labels into batches with `batch_size` samples
-    each. If `batch_size` doesn't divide the number of samples, then the very
-    last batch will simply have `nb_samples % batch_size` samples
-    
-    Here, if `labels` is not equal to `None`, it can either be a 1D vector of
-    INTEGER labels or its one-hot encoded equivalent (in that case, `labels`
-    will be a 2D matrix)
-    """
-    # ---------------------------------------------------------------------- #
-    
-    # checking the validity of the specified arguments
-    
-    # checking the validity of the argument `data`
-    assert isinstance(data, np.ndarray)
-    assert len(data.shape) == 2
-    nb_samples, nb_features_per_sample = data.shape
-    assert nb_features_per_sample >= 2
-    
-    assert isinstance(batch_size, int)
-    assert (batch_size >= 1) and (batch_size <= nb_samples)
-    
-    # checking the validity of the `labels` kwarg
-    assert isinstance(labels, (type(None), np.ndarray))
-    if labels is not None:
-        assert len(labels.shape) in [1, 2]
-        if len(labels.shape) == 1:
-            _validate_label_vector(labels)
-        elif len(labels.shape) == 2:
-            nb_classes = labels.shape[1]
-            assert nb_classes >= 2
-        assert labels.shape[0] == nb_samples
-    
-    assert isinstance(normalize_batches, bool)
-    
-    assert isinstance(nb_shuffles, int)
-    assert nb_shuffles >= 0
-    
-    if nb_shuffles > 0:
-        assert isinstance(seed, (type(None), int))
-        if isinstance(seed, int):
-            assert seed >= 0
-    
-    # ---------------------------------------------------------------------- #
-    
-    # initialization
-    
-    batches = {
-        "data" : []
-    }
-    if labels is not None:
-        batches["labels"] = []
-    
-    batch_indices = np.arange(nb_samples)
-    
-    if nb_shuffles > 0:
-        # shuffling the batch indices
-        np.random.seed(seed)
-        for shuffle_index in range(nb_shuffles):
-            np.random.shuffle(batch_indices)
-        np.random.seed(None) # resetting the seed
-    
-    if normalize_batches:
-        # here we're assuming that each sample does NOT have a standard
-        # deviation equal to zero (i.e. we're assuming that there are at
-        # least 2 different pixel values in each sample)
-        used_data = (data - data.mean(axis=1, keepdims=True)) / data.std(axis=1, keepdims=True)
-    else:
-        used_data = data.copy()
-    
-    # ---------------------------------------------------------------------- #
-    
-    # actually splitting the data and labels into batches
-    
-    for first_index_of_batch in range(0, nb_samples, batch_size):
-        last_index_of_batch = first_index_of_batch + batch_size
-        
-        indices_of_current_batch = batch_indices[first_index_of_batch : last_index_of_batch]
-        
-        # checking if the batch size is correct
-        if indices_of_current_batch.size != batch_size:
-            # if the batch size isn't equal to `batch_size`, then it means
-            # that we are generating the very last batch (it also implies that
-            # `batch_size` doesn't divide `nb_samples`)
-            assert first_index_of_batch == nb_samples - nb_samples % batch_size
-            assert indices_of_current_batch.size > 0
-            assert indices_of_current_batch.size == nb_samples % batch_size
-        
-        data_current_batch = used_data[indices_of_current_batch, :]
-        batches["data"].append(data_current_batch)
-        
-        if labels is not None:
-            labels_current_batch = labels[indices_of_current_batch]
-            batches["labels"].append(labels_current_batch)
-    
-    # ---------------------------------------------------------------------- #
-    
-    # checking if the resulting batches are valid or not
-    
-    assert np.vstack(tuple(batches["data"])).shape == data.shape
-    
-    if labels is not None:
-        if len(labels.shape) == 1:
-            # in this case, the labels are a 1D vector of INTEGER values
-            stacking_function = np.hstack
-        else:
-            # in this case, the labels are one-hot encoded (2D matrix)
-            assert len(labels.shape) == 2
-            stacking_function = np.vstack
-        assert stacking_function(tuple(batches["labels"])).shape == labels.shape
-    
-    expected_nb_batches = (nb_samples + batch_size - 1) // batch_size
-    assert len(batches["data"]) == expected_nb_batches
-    if labels is not None:
-        assert len(batches["labels"]) == expected_nb_batches
-    
-    # ---------------------------------------------------------------------- #
-    
-    return batches
-
-
-##############################################################################
-
-
-# Functions related to the accuracy metric
-
-
-def accuracy_score(y_true, y_pred, normalize=True):
-    """
-    Returns the proportion of the correctly predicted samples. The returned
-    proportion lies between 0 and 1
-    
-    Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
-    """
-    # checking the validity of `y_true` and `y_pred`
-    _validate_label_vector(y_true, is_whole_label_vector=False)
-    _validate_label_vector(y_pred, is_whole_label_vector=False)
-    assert y_true.size == y_pred.size
-    
-    assert isinstance(normalize, bool)
-    
-    acc_score = np.where(y_true == y_pred)[0].size
-    if normalize:
-        nb_test_samples = y_true.size
-        acc_score = float(acc_score) / nb_test_samples
-    return acc_score
-
-
-def confusion_matrix(y_true, y_pred):
-    """
-    Returns the raw confusion matrix of `y_true` and `y_pred`. Its shape will
-    be `(nb_classes, nb_classes)`, and, for all integers `i` and `j` in the
-    range [0, nb_classes - 1], the value of `conf_matrix[i, j]` (say, for
-    instance, `N`) indicates that :
-        - Out of all the test samples that were predicted to belong to class `j`,
-          `N` of them actually belonged to class `i`
-        - Or, equivalently, out of all the test samples that actually belonged
-          to class `i`, `N` of them were predicted to belong to class `j`
-    
-    Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
-    """
-    # checking the validity of `y_true` and `y_pred`
-    _validate_label_vector(y_true)
-    _validate_label_vector(y_pred)
-    assert y_true.size == y_pred.size
-    
-    nb_classes = np.unique(y_true).size
-    assert nb_classes >= 2
-    
-    conf_matrix = np.zeros((nb_classes, nb_classes), dtype=int)
-    
-    for actual_class, predicted_class in zip(y_true, y_pred):
-        # by definition (the rows are the true classes and the columns are
-        # the predicted classes)
-        conf_matrix[actual_class, predicted_class] += 1
-    
-    return conf_matrix
-
-
-##############################################################################
-
-
 # Functions related to the display of the *styled* confusion matrix
 
 
-def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal):
+def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal="green"):
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script) if the latter is being run from a Jupyter notebook, and
@@ -1010,7 +866,7 @@ def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal):
     # checking the validity of the specified arguments
     
     # checking `conf_matrix_as_dataframe`
-    assert isinstance(conf_matrix_as_dataframe, pd.DataFrame)
+    assert isinstance(conf_matrix_as_dataframe, DataFrame)
     conf_matrix_shape = conf_matrix_as_dataframe.shape
     assert len(conf_matrix_shape) == 2
     nb_classes = conf_matrix_shape[0]
@@ -1032,7 +888,7 @@ def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal):
     CSS_property = f"background-color: {color_of_diagonal};"
     np.fill_diagonal(diagonal_mask, CSS_property)
     
-    diagonal_mask_as_dataframe = pd.DataFrame(
+    diagonal_mask_as_dataframe = DataFrame(
         diagonal_mask,
         index=conf_matrix_as_dataframe.index,
         columns=conf_matrix_as_dataframe.columns
@@ -1041,13 +897,15 @@ def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal):
     return diagonal_mask_as_dataframe
 
 
-def highlight_all_cells(value, colormap):
+def highlight_all_cells(value, colormap=cm.Greens):
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script) if the latter is being run from a Jupyter notebook, and
     if its returned confusion matrix is NORMALIZED. Returns a CSS property
     "background-color", where the intensity of the associated color (relative
     to the specified colormap) is proportional to `value`
+    
+    NB : The input `value` is meant to be a percentage (or its string representation)
     """
     # ---------------------------------------------------------------------- #
     
@@ -1068,10 +926,10 @@ def highlight_all_cells(value, colormap):
     scaling_factor = 0.75
     assert (scaling_factor > 0) and (scaling_factor <= 1)
     
-    relative_intensity_of_color = scaling_factor * (value / 100)
-    assert (relative_intensity_of_color >= 0) and (relative_intensity_of_color <= scaling_factor)
+    relative_color_intensity = scaling_factor * (value / 100)
+    assert (relative_color_intensity >= 0) and (relative_color_intensity <= scaling_factor)
     
-    hex_color_of_cell  = rgb2hex(colormap(relative_intensity_of_color))
+    hex_color_of_cell = rgb2hex(colormap(relative_color_intensity))
     CSS_property = f"background-color: {hex_color_of_cell};"
     
     return CSS_property
@@ -1083,15 +941,16 @@ def print_confusion_matrix(
         normalize="no",
         precision=1,
         color="green",
-        offset=1,
+        offset_spacing=1,
         display_with_line_breaks=True
     ):
     """
-    Prints the styled confusion matrix
+    Prints the styled confusion matrix. The result won't be the same depending
+    on whether you're running the program on a Jupyter notebook or not !
     
     Here, `conf_matrix` is a non-normalized confusion matrix (i.e. a raw,
     integer-valued confusion matrix). By design, `conf_matrix` is meant to
-    be the output of the `confusion_matrix` function (of this script)
+    be the output of the `confusion_matrix` function (of the "core.py" script)
     
     The kwarg `selected_classes` can either be :
         - the string "all" (if you're working with all the digits ranging
@@ -1134,16 +993,16 @@ def print_confusion_matrix(
     
     # keys   : generic color names
     # values : (
-    #     associated ANSI escape sequences,
+    #     associated ANSI escape sequences (for background colors),
     #     associated CSS/HTML color names,
     #     associated Matplotlib colormaps
     # )
     COLORS_AND_COLORMAPS = {
-        "green"  : (Fore.GREEN,   "green",     cm.Greens),
-        "blue"   : (Fore.CYAN,    "cyan",      cm.Blues),
-        "purple" : (Fore.MAGENTA, "indigo",    cm.Purples),
-        "red"    : (Fore.RED,     "red",       cm.Reds),
-        "orange" : (Fore.YELLOW,  "orangered", cm.Oranges)
+        "green"  : (Back.GREEN,   "green",     cm.Greens),
+        "blue"   : (Back.BLUE,    "cyan",      cm.Blues),   # `Back.BLUE` and `Back.CYAN` both work here
+        "purple" : (Back.MAGENTA, "indigo",    cm.Purples),
+        "red"    : (Back.RED,     "red",       cm.Reds),
+        "orange" : (Back.YELLOW,  "orangered", cm.Oranges)
     }
     
     if color not in COLORS_AND_COLORMAPS:
@@ -1152,20 +1011,20 @@ def print_confusion_matrix(
     jupyter_notebook = is_being_run_on_jupyter_notebook()
     
     if not(jupyter_notebook):
-        assert isinstance(offset, int)
-        assert offset >= 0
+        assert isinstance(offset_spacing, int)
+        assert offset_spacing >= 0
         
         assert isinstance(display_with_line_breaks, bool)
-        pd.set_option("display.expand_frame_repr", display_with_line_breaks)
+        set_option("display.expand_frame_repr", display_with_line_breaks) # option of the Pandas module
     
     # ====================================================================== #
     
     # setting some display options of the Pandas module (for convenience purposes)
     
-    pd.set_option("display.max_rows",     None)
-    pd.set_option("display.max_columns",  None)
-    pd.set_option("display.width",        None)
-    pd.set_option("display.max_colwidth", None)
+    set_option("display.max_rows",     None)
+    set_option("display.max_columns",  None)
+    set_option("display.width",        None)
+    set_option("display.max_colwidth", None)
     
     # ====================================================================== #
     
@@ -1192,7 +1051,7 @@ def print_confusion_matrix(
         
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         
-        conf_matrix_as_dataframe = pd.DataFrame(
+        conf_matrix_as_dataframe = DataFrame(
             normalized_conf_matrix,
             index=class_names,
             columns=class_names
@@ -1204,7 +1063,7 @@ def print_confusion_matrix(
     else:
         # here, the `normalize` kwarg is equal to "no", therefore the raw
         # confusion matrix will be printed
-        conf_matrix_as_dataframe = pd.DataFrame(
+        conf_matrix_as_dataframe = DataFrame(
             conf_matrix,
             index=class_names,
             columns=class_names
@@ -1257,14 +1116,14 @@ def print_confusion_matrix(
         relative_color_intensity = 0.50
         assert (relative_color_intensity > 0) and (relative_color_intensity <= 1)
         
-        color_of_hovered_cells = rgb2hex(colormap(relative_color_intensity))
+        hex_color_of_hovered_cells = rgb2hex(colormap(relative_color_intensity))
         
-        cell_hover_CSS_property = {
+        CSS_property_cell_hovering = {
             "selector" : "td:hover",
-            "props"    : [("background-color", color_of_hovered_cells)]
+            "props"    : [("background-color", hex_color_of_hovered_cells)]
         }
         
-        conf_matrix_styler.set_table_styles([cell_hover_CSS_property])
+        conf_matrix_styler.set_table_styles([CSS_property_cell_hovering])
         
         # ------------------------------------------------------------------ #
         
@@ -1278,10 +1137,10 @@ def print_confusion_matrix(
     # ====================================================================== #
     
     # converting the confusion matrix (as a Pandas DataFrame) to a string,
-    # and adding the initial spacing (if not on Jupyter notebook)
+    # and adding the offset spacing (if not on Jupyter notebook)
     
-    offset = " " * offset
-    str_conf_matrix_as_dataframe = f"\n{offset}" + str(conf_matrix_as_dataframe).replace("\n", f"\n{offset}") + "\n"
+    offset_spacing = " " * offset_spacing
+    str_conf_matrix_as_dataframe = f"\n{offset_spacing}" + str(conf_matrix_as_dataframe).replace("\n", f"\n{offset_spacing}") + "\n"
     
     # ====================================================================== #
     
@@ -1296,6 +1155,8 @@ def print_confusion_matrix(
     # the diagonal of the confusion matrix will be printed in this color
     printed_color_of_diagonal = COLORS_AND_COLORMAPS[color][0]
     
+    escape_sequence_of_color_reset = Style.RESET_ALL
+    
     lines_of_str_conf_matrix_as_dataframe = str_conf_matrix_as_dataframe.split("\n")
     lines_of_str_colored_conf_matrix_as_dataframe = lines_of_str_conf_matrix_as_dataframe.copy()
     
@@ -1304,7 +1165,7 @@ def print_confusion_matrix(
     # first index (inclusive) of the area of interest of each row (i.e. the
     # area of each row that potentially contains the actual numerical data of
     # the confusion matrix)
-    first_index_area_of_interest = len(offset) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_len_of_class_names) + 2
+    first_index_area_of_interest = len(offset_spacing) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_len_of_class_names) + 2
     
     for row_index, current_row in enumerate(lines_of_str_conf_matrix_as_dataframe):
         beginning_of_row = current_row[ : first_index_area_of_interest]
@@ -1350,7 +1211,7 @@ def print_confusion_matrix(
         area_of_interest = current_row[first_index_area_of_interest : ]
         
         split_area_of_interest = area_of_interest.split(" ")
-        colored_split_area_of_interest = split_area_of_interest.copy()
+        split_colored_area_of_interest = split_area_of_interest.copy()
         
         # ------------------------------------------------------------------ #
         
@@ -1359,28 +1220,48 @@ def print_confusion_matrix(
         nb_seen_numerical_values_in_row = 0
         
         for element_index, element in enumerate(split_area_of_interest):
-            # here, `is_numerical_value` is a boolean indicating whether
+            # here, `element_is_numerical_value` is a boolean indicating whether
             # `element` is an integer or a float (i.e. a numerical value)
             try:
                 _ = float(element)
-                is_numerical_value = True
+                element_is_numerical_value = True
             except:
-                is_numerical_value = False
+                element_is_numerical_value = False
             
-            if is_numerical_value:
+            if element_is_numerical_value:
                 nb_seen_numerical_values_in_row += 1
                 
                 # updating the current column index (for classes)
                 current_class_index_in_columns = current_class_indices_in_columns[nb_seen_numerical_values_in_row - 1]
             
-            if (current_class_index_in_columns == current_class_index_in_rows) and (is_numerical_value or (element == "%")):
+            if (current_class_index_in_columns == current_class_index_in_rows) and (element_is_numerical_value or (element == "%")):
                 # here, `element` is on the diagonal of the confusion matrix,
                 # therefore color will be added to it !
-                colored_element = f"{printed_color_of_diagonal}{element}{Fore.RESET}"
-                colored_split_area_of_interest[element_index] = colored_element
+                
+                if element_is_numerical_value:
+                    try:
+                        next_element_is_a_percent_symbol = (split_colored_area_of_interest[element_index + 1] == "%")
+                    except:
+                        next_element_is_a_percent_symbol = False
+                    
+                    colored_element = printed_color_of_diagonal + element
+                    if not(next_element_is_a_percent_symbol):
+                        colored_element += escape_sequence_of_color_reset
+                    split_colored_area_of_interest[element_index] = colored_element
+                    
+                    if not(next_element_is_a_percent_symbol):
+                        break
+                else:
+                    assert element == "%"
+                    split_colored_area_of_interest[element_index] += escape_sequence_of_color_reset
+                    
+                    break
         
         # replacing the area of interest with its colored counterpart
-        colored_area_of_interest = " ".join(colored_split_area_of_interest)
+        colored_area_of_interest = " ".join(split_colored_area_of_interest)
+        
+        # ------------------------------------------------------------------ #
+        
         lines_of_str_colored_conf_matrix_as_dataframe[row_index] = beginning_of_row + colored_area_of_interest
     
     # getting the string representation of the confusion matrix (as a Pandas
@@ -1389,5 +1270,6 @@ def print_confusion_matrix(
     
     # ====================================================================== #
     
+    # actually printing the confusion matrix with a colored diagonal
     print(str_colored_conf_matrix_as_dataframe)
 

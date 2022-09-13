@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Script debugging the custom Multi-Layer Perceptron (MLP) implementation
+Script debugging the whole custom Multi-Layer Perceptron (MLP) implementation
 """
 
 from utils import (
@@ -38,7 +38,7 @@ def main():
     
     # Defining the datatype of ALL the data that will flow through the network
     
-    # = "float32" or "float64"
+    # = "float32" (default) or "float64"
     datatype = "float32"
     
     set_global_datatype(datatype)
@@ -54,8 +54,8 @@ def main():
     seed_data_formatting = 555
     
     # Here, `selected_classes` can either be :
-    #     - The string "all" (if you want to work with all the digits ranging
-    #       from 0 to 9)
+    #     - The string "all", if you want to work with all the digits ranging
+    #       from 0 to 9 (default)
     #     - A list/tuple/1D-array containing the specific digits you want to
     #       work with (e.g. [2, 4, 7])
     selected_classes = "all"
@@ -122,16 +122,18 @@ def main():
     # Set this seed to `None` for "real" randomness during those 3 processes
     seed_network = 7777
     
+    # Number of times the trainable parameters will be updated using the WHOLE
+    # training data
     nb_epochs = 10
     
-    # if you lower the batch size, you might also want to lower the learning
+    # If you lower the batch size, you might also want to lower the learning
     # rate (to prevent the network from overfitting)
     train_batch_size = 40
     
-    # the learning rate has to lie in the range ]0, 1[
+    # The learning rate has to lie in the range ]0, 1[
     learning_rate = 0.15
     
-    # in chronological order
+    # In chronological order
     nb_neurons_in_hidden_dense_layers = [
         256,
         64,
@@ -181,12 +183,12 @@ def main():
     
     # Initializing the network
     
-    # If you set `normalize_input_data` to `True`, every time the data will
-    # be split into batches (during the training, validation AND testing phases),
-    # each resulting batch will be normalized such that its mean is 0 and its
-    # standard deviation is 1. It's HIGHLY recommended to set `normalize_input_data`
-    # to `True` here, in order to have better performances
-    network = Network(normalize_input_data=True)
+    # If you set the `standardize_input_data` kwarg to `True`, the training,
+    # validation AND testing sets will be normalized such that their mean is 0
+    # and their standard deviation is 1 (i.e. they will be standardized). It's
+    # HIGHLY recommended to set `normalize_input_data` to `True` here, in order
+    # to obtain better results
+    network = Network(standardize_input_data=True)
     
     # Input layer
     network.add(InputLayer(input_size=nb_pixels_per_image))
@@ -233,13 +235,15 @@ def main():
     # NB : The kwargs of this method will only affect how the summary will look
     #      like when it's printed (they won't affect the summary's contents)
     network.summary(
-        column_separator="|", # can be multiple characters long
-        row_separator="-",    # has to be a single character
-        bounding_box="*",     # has to be a single character
+        column_separator="|",        # can be multiple characters long
+        row_separator="-",           # has to be a single character
+        bounding_box="*",            # has to be a single character
+        alignment="left",            # = "left" (default), "right" or "center"
+        transition_row_style="full", # = "full" (default) or "partial"
         column_spacing=2,
         horizontal_spacing=4,
         vertical_spacing=1,
-        offset=1,
+        offset_spacing=1,
     )
     
     # Or, equivalently, you can run `network.summary()` or `print(network)`
@@ -286,18 +290,25 @@ def main():
     
     # RESULTS
     
+    # ---------------------------------------------------------------------- #
+    
+    # Plotting the network's history
+    
     network.plot_history(
         save_plot_to_disk=False,
         saved_image_name="network_history" # it will be saved as a PNG image by default
     )
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Computing the global accuracy scores, the testing loss and the (raw)
+    # confusion matrix of the network
     
     # The "top-N accuracy" is defined as the proportion of the true classes
     # that lie within the `N` most probable predicted classes (here, `N` is
     # actually `top_N_accuracy`)
     top_N_accuracy = 2
     
-    # Computing the global accuracy scores, the testing loss and the (raw)
-    # confusion matrix of the network
     acc_score, top_N_acc_score, test_loss, conf_matrix = network.evaluate(
         X_test,
         y_test,
@@ -305,27 +316,37 @@ def main():
         test_batch_size=32
     )
     
+    # ---------------------------------------------------------------------- #
+    
     # Displaying the confusion matrices of the network
+    
     for normalize in ["no", "columns", "rows"]:
         print_confusion_matrix(
             conf_matrix,
             selected_classes=selected_classes,
-            normalize=normalize, # = "no", columns" or "rows"
+            normalize=normalize, # = "columns" (default), "rows" or "no"
             precision=1,
-            color="green", # = "green", "blue", "purple", "red" or "orange"
-            offset=1,
+            color="green", # = "green" (default), "blue", "purple", "red" or "orange"
+            offset_spacing=1,
             display_with_line_breaks=True
         )
     
+    # ---------------------------------------------------------------------- #
+    
     # Displaying the testing loss and the global accuracy scores of the network
+    
     precision_loss = 4 # by default
     print(f"\nTESTING LOSS    : {test_loss:.{precision_loss}f}")
+    
     precision_accuracy = 2 # by default
     print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_accuracy}f} %")
     potential_extra_space = " " * int(top_N_accuracy < 10)
     print(f"TOP-{top_N_accuracy}{potential_extra_space} ACCURACY : {top_N_acc_score:.{precision_accuracy}f} %\n")
     
-    # Just for testing purposes
+    # ---------------------------------------------------------------------- #
+    
+    # Displaying some of the network's predictions (for testing purposes only)
+    
     network.display_some_predictions(
         X_test,
         y_test,
