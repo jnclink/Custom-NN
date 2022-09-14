@@ -47,7 +47,12 @@ class Layer(ABC):
         return str(self)
     
     @abstractmethod
-    def forward_propagation(self, input_data, training=True):
+    def forward_propagation(
+            self,
+            input_data,
+            training=True,
+            enable_checks=True
+        ):
         """
         Computes the output Y of a layer for a given input X. The `training`
         kwarg indicates whether we're currently in the training phase or not
@@ -56,7 +61,11 @@ class Layer(ABC):
         """
         pass
     
-    def _validate_forward_propagation_inputs(self, input_data, training):
+    def _validate_forward_propagation_inputs(
+            self,
+            input_data,
+            training
+        ):
         """
         Checks if `input_data` and `training` are valid or not
         """
@@ -67,14 +76,23 @@ class Layer(ABC):
         assert isinstance(training, bool)
     
     @abstractmethod
-    def backward_propagation(self, output_gradient, learning_rate):
+    def backward_propagation(
+            self,
+            output_gradient,
+            learning_rate,
+            enable_checks=True
+        ):
         """
         Computes dE/dX for a given dE/dY, and updates the trainable parameters
         if there are any (using gradient descent)
         """
         pass
     
-    def _validate_backward_propagation_inputs(self, output_gradient, learning_rate):
+    def _validate_backward_propagation_inputs(
+            self,
+            output_gradient,
+            learning_rate
+        ):
         """
         Checks if `output_gradient` and `learning_rate` are valid or not
         """
@@ -111,32 +129,50 @@ class InputLayer(Layer):
     def __str__(self):
         return f"{self.__class__.__name__}({self.input_size})"
     
-    def forward_propagation(self, input_data, training=True):
+    def forward_propagation(
+            self,
+            input_data,
+            training=True,
+            enable_checks=True
+        ):
         """
         Forward propagation of the Input layer
         
         Simply returns the input
         """
-        self._validate_forward_propagation_inputs(input_data, training)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
         self.output = self.input
         
-        check_dtype(self.output, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
     
-    def backward_propagation(self, output_gradient, learning_rate):
+    def backward_propagation(
+            self,
+            output_gradient,
+            learning_rate,
+            enable_checks=True
+        ):
         """
         Backward propagation of the Input layer
         
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_backward_propagation_inputs(output_gradient, learning_rate)
         
         input_gradient = output_gradient
         
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         return input_gradient
 
 
@@ -192,32 +228,51 @@ class DenseLayer(Layer):
         # = (self.input_size + 1) * self.output_size
         self.nb_trainable_params = self.weights.size + self.biases.size
     
-    def forward_propagation(self, input_data, training=True):
+    def forward_propagation(
+            self,
+            input_data,
+            training=True,
+            enable_checks=True
+        ):
         """
         Forward propagation of the Dense layer
         
         Applies the weights and biases to the input, and returns the
         corresponding output
         """
-        self._validate_forward_propagation_inputs(input_data, training)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
         self.output = self.input @ self.weights + self.biases
         
-        check_dtype(self.output, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
     
-    def backward_propagation(self, output_gradient, learning_rate):
+    def backward_propagation(
+            self,
+            output_gradient,
+            learning_rate,
+            enable_checks=True
+        ):
         """
         Backward propagation of the Dense layer
         
         Computes dE/dW and dE/dB for a given output_gradient=dE/dY, updates
         the weights and biases, and returns the input_gradient=dE/dX
         """
-        learning_rate = self._validate_backward_propagation_inputs(
-            output_gradient,
-            learning_rate
-        )
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            learning_rate = self._validate_backward_propagation_inputs(
+                output_gradient,
+                learning_rate
+            )
+        else:
+            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         input_gradient = output_gradient @ self.weights.T # = dE/dX
         check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
@@ -229,15 +284,17 @@ class DenseLayer(Layer):
         weights_gradient = averaging_factor * self.input.T @ output_gradient # = dE/dW
         biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)  # = dE/dB
         
-        check_dtype(weights_gradient, utils.DEFAULT_DATATYPE)
-        check_dtype(biases_gradient,  utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(weights_gradient, utils.DEFAULT_DATATYPE)
+            check_dtype(biases_gradient,  utils.DEFAULT_DATATYPE)
         
         # updating the trainable parameters (using gradient descent)
         self.weights -= learning_rate * weights_gradient
         self.biases  -= learning_rate * biases_gradient
         
-        check_dtype(self.weights, utils.DEFAULT_DATATYPE)
-        check_dtype(self.biases,  utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.weights, utils.DEFAULT_DATATYPE)
+            check_dtype(self.biases,  utils.DEFAULT_DATATYPE)
         
         return input_gradient
 
@@ -300,30 +357,55 @@ class ActivationLayer(Layer):
             extra_info = ""
         return f"{self.__class__.__name__}(\"{self.activation_name}\"{extra_info})"
     
-    def forward_propagation(self, input_data, training=True):
+    def forward_propagation(
+            self,
+            input_data,
+            training=True,
+            enable_checks=True
+        ):
         """
         Forward propagation of the Activation layer
         
         Returns the activated input
         """
-        self._validate_forward_propagation_inputs(input_data, training)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
-        self.output = self.activation(self.input, **self.activation_kwargs)
+        self.output = self.activation(
+            self.input,
+            **self.activation_kwargs,
+            enable_checks=enable_checks
+        )
         
-        check_dtype(self.output, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
     
-    def backward_propagation(self, output_gradient, learning_rate):
+    def backward_propagation(
+            self,
+            output_gradient,
+            learning_rate,
+            enable_checks=True
+        ):
         """
         Backward propagation of the Activation layer
         
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+        assert isinstance(enable_checks, bool)
         
-        activation_prime_of_input = self.activation_prime(self.input, **self.activation_kwargs)
+        if enable_checks:
+            self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+        
+        activation_prime_of_input = self.activation_prime(
+            self.input,
+            **self.activation_kwargs,
+            enable_checks=enable_checks
+        )
         
         if not(self._is_softmax):
             # element-wise multiplication
@@ -345,7 +427,8 @@ class ActivationLayer(Layer):
                 the computations a bit more compact !
             """
         
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         return input_gradient
 
 
@@ -381,14 +464,22 @@ class BatchNormLayer(Layer):
         self.epsilon = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
     
-    def forward_propagation(self, input_data, training=True):
+    def forward_propagation(
+            self,
+            input_data,
+            training=True,
+            enable_checks=True
+        ):
         """
         Forward propagation of the BatchNorm layer
         
         Returns the normalized (and rescaled) input along the 1st axis, i.e.
         along the batches/rows
         """
-        self._validate_forward_propagation_inputs(input_data, training)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_forward_propagation_inputs(input_data, training)
         self.input = input_data
         
         if training:
@@ -404,33 +495,47 @@ class BatchNormLayer(Layer):
             self.moving_mean = self.momentum * self.moving_mean + self.inverse_momentum * np.mean(input_mean)
             self.moving_var  = self.momentum * self.moving_var  + self.inverse_momentum * np.mean(input_variance)
             
-            check_dtype(self.moving_mean, utils.DEFAULT_DATATYPE)
-            check_dtype(self.moving_var,  utils.DEFAULT_DATATYPE)
+            if enable_checks:
+                check_dtype(self.moving_mean, utils.DEFAULT_DATATYPE)
+                check_dtype(self.moving_var,  utils.DEFAULT_DATATYPE)
         else:
             self.moving_std = np.sqrt(self.moving_var + self.epsilon)
-            check_dtype(self.moving_std, utils.DEFAULT_DATATYPE)
+            if enable_checks:
+                check_dtype(self.moving_std, utils.DEFAULT_DATATYPE)
             
             self.normalized_input = (self.input - self.moving_mean) / self.moving_std
         
-        check_dtype(self.normalized_input, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.normalized_input, utils.DEFAULT_DATATYPE)
         
         # rescaling the normalized input
         self.output = self.gamma * self.normalized_input + self.beta
         
-        check_dtype(self.output, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
     
-    def backward_propagation(self, output_gradient, learning_rate):
+    def backward_propagation(
+            self,
+            output_gradient,
+            learning_rate,
+            enable_checks=True
+        ):
         """
         Backward propagation of the BatchNorm layer
         
         Computes dE/d_gamma and dE/d_beta for a given output_gradient=dE/dY,
         updates gamma and beta, and returns the input_gradient=dE/dX
         """
-        learning_rate = self._validate_backward_propagation_inputs(
-            output_gradient,
-            learning_rate
-        )
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            learning_rate = self._validate_backward_propagation_inputs(
+                output_gradient,
+                learning_rate
+            )
+        else:
+            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         
         output_gradient_mean = output_gradient.mean(axis=1, keepdims=True)
         centered_output_gradient = output_gradient - output_gradient_mean
@@ -440,21 +545,24 @@ class BatchNormLayer(Layer):
         intermediate_mean = np.mean(output_gradient * self.normalized_input, axis=1, keepdims=True)
         
         input_gradient = self.gamma * (centered_output_gradient - intermediate_mean * self.normalized_input) / self.input_std
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
         # gradient averaging for batch processing
         gamma_gradient = np.mean(np.sum(output_gradient * self.normalized_input, axis=1))
         beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
         
-        check_dtype(gamma_gradient, utils.DEFAULT_DATATYPE)
-        check_dtype(beta_gradient,  utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(gamma_gradient, utils.DEFAULT_DATATYPE)
+            check_dtype(beta_gradient,  utils.DEFAULT_DATATYPE)
         
         # updating the trainable parameters (using gradient descent)
         self.gamma -= learning_rate * gamma_gradient
         self.beta  -= learning_rate * beta_gradient
         
-        check_dtype(self.gamma, utils.DEFAULT_DATATYPE)
-        check_dtype(self.beta,  utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.gamma, utils.DEFAULT_DATATYPE)
+            check_dtype(self.beta,  utils.DEFAULT_DATATYPE)
         
         return input_gradient
 
@@ -479,7 +587,7 @@ class DropoutLayer(Layer):
         self.seed = seed
         
         # all the deactivated values will be set to this value (by default)
-        self.deactivated_value = cast(0, utils.DEFAULT_DATATYPE)
+        self.deactivated_value = 0
         
         # all the non-deactivated values will be scaled up by this factor (by default)
         one = cast(1, utils.DEFAULT_DATATYPE)
@@ -492,43 +600,60 @@ class DropoutLayer(Layer):
         precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
         return f"{self.__class__.__name__}({self.dropout_rate:.{precision_dropout_rate}f})"
     
-    def generate_random_dropout_matrix(self, shape, dtype):
+    def generate_random_dropout_matrix(
+            self,
+            shape,
+            dtype,
+            enable_checks=True
+        ):
         """
         Returns a "dropout matrix" with the specified shape and datatype. For each
         row of that matrix, the values have a probability of `self.dropout_rate`
         to be deactivated (i.e. set to zero). All the non-deactivated values
         will be set to `self.scaling_factor` (i.e. 1 / (1 - self.dropout_rate))
         """
-        assert isinstance(shape, tuple)
-        assert len(shape) == 2
+        assert isinstance(enable_checks, bool)
         
-        dtype = _validate_numpy_datatype(dtype)
+        if enable_checks:
+            assert isinstance(shape, tuple)
+            assert len(shape) == 2
+            dtype = _validate_numpy_datatype(dtype)
         
         batch_size, output_size = shape
         
         dropout_matrix = self.scaling_factor * np.ones(shape, dtype=dtype)
         nb_of_values_to_drop_per_input_sample = int(round(self.dropout_rate * output_size))
-        choices_for_dropped_indices = np.arange(output_size)
         
-        np.random.seed(self.seed)
-        for batch_sample_index in range(batch_size):
-            indices_of_randomly_dropped_values = np.random.choice(
-                choices_for_dropped_indices,
-                size=(nb_of_values_to_drop_per_input_sample, ),
-                replace=False
-            )
-            dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
-        np.random.seed(None) # resetting the seed
+        if nb_of_values_to_drop_per_input_sample > 0:
+            choices_for_dropped_indices = np.arange(output_size)
+            
+            np.random.seed(self.seed)
+            for batch_sample_index in range(batch_size):
+                indices_of_randomly_dropped_values = np.random.choice(
+                    choices_for_dropped_indices,
+                    size=(nb_of_values_to_drop_per_input_sample, ),
+                    replace=False
+                )
+                dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
+            np.random.seed(None) # resetting the seed
         
         return dropout_matrix
     
-    def forward_propagation(self, input_data, training=True):
+    def forward_propagation(
+            self,
+            input_data,
+            training=True,
+            enable_checks=True
+        ):
         """
         Forward propagation of the Dropout layer
         
         Returns the input with randomly deactivated values
         """
-        self._validate_forward_propagation_inputs(input_data, training)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_forward_propagation_inputs(input_data, training)
         self.input = input_data
         
         if training:
@@ -537,7 +662,8 @@ class DropoutLayer(Layer):
             #      training phase)
             self.dropout_matrix  = self.generate_random_dropout_matrix(
                 shape=self.input.shape,
-                dtype=self.input.dtype
+                dtype=self.input.dtype,
+                enable_checks=enable_checks
             )
             self.output =  self.input * self.dropout_matrix
         else:
@@ -545,20 +671,30 @@ class DropoutLayer(Layer):
             # testing phases
             self.output = self.input
         
-        check_dtype(self.output, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(self.output, utils.DEFAULT_DATATYPE)
         return self.output
     
-    def backward_propagation(self, output_gradient, learning_rate):
+    def backward_propagation(
+            self,
+            output_gradient,
+            learning_rate,
+            enable_checks=True
+        ):
         """
         Backward propagation of the Dropout layer
         
         NB : Here, `learning_rate` is not used because there are no trainable
              parameters
         """
-        self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+        assert isinstance(enable_checks, bool)
+        
+        if enable_checks:
+            self._validate_backward_propagation_inputs(output_gradient, learning_rate)
         
         input_gradient = output_gradient * self.dropout_matrix
         
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         return input_gradient
 

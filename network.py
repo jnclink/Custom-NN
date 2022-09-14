@@ -433,7 +433,13 @@ class Network:
         self.loss, self.loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
     
     
-    def _validate_data(self, X, y=None):
+    @staticmethod
+    def _validate_data(
+            X,
+            y=None,
+            input_size_of_network=None,
+            output_size_of_network=None,
+        ):
         """
         Checks if the specified (training, validation or testing) data is
         valid or not
@@ -445,16 +451,33 @@ class Network:
         """
         # ------------------------------------------------------------------ #
         
+        # checking `input_size_of_network` and `output_size_of_network`
+        
+        assert isinstance(input_size_of_network, (type(None), int))
+        if isinstance(input_size_of_network, int):
+            assert input_size_of_network >= 2
+        
+        assert isinstance(output_size_of_network, (type(None), int))
+        if isinstance(output_size_of_network, int):
+            assert output_size_of_network >= 2
+        
+        # ------------------------------------------------------------------ #
+        
         # checking `X`
         
         assert isinstance(X, np.ndarray)
         assert len(X.shape) == 2
-        check_dtype(X, utils.DEFAULT_DATATYPE)
         
-        nb_features_per_sample = X.shape[1] # = nb_pixels_per_image = 28 * 28 = 784
+        try:
+            check_dtype(X, utils.DEFAULT_DATATYPE)
+            used_X = X
+        except:
+            used_X = cast(X, utils.DEFAULT_DATATYPE)
+        
+        nb_features_per_sample = X.shape[1] # = number of pixels per image
         assert nb_features_per_sample >= 2
-        input_size_of_network = self._io_sizes[0][0]
-        assert nb_features_per_sample == input_size_of_network
+        if input_size_of_network is not None:
+            assert nb_features_per_sample == input_size_of_network
         
         # ------------------------------------------------------------------ #
         
@@ -469,10 +492,13 @@ class Network:
                 y_flat = y.copy()
                 y_categorical = vector_to_categorical(y_flat, utils.DEFAULT_DATATYPE)
             elif len(y.shape) == 2:
-                y_categorical = y.copy()
-                y_flat = categorical_to_vector(y_categorical)
-            
-            check_dtype(y_categorical, utils.DEFAULT_DATATYPE)
+                try:
+                    check_dtype(y_categorical, utils.DEFAULT_DATATYPE)
+                    y_categorical = y
+                except:
+                    y_categorical = cast(y, utils.DEFAULT_DATATYPE)
+                
+                y_flat = categorical_to_vector(y_categorical, enable_checks=True)
             
             nb_samples = X.shape[0]
             assert y_categorical.shape[0] == nb_samples
@@ -481,10 +507,12 @@ class Network:
             nb_classes = y_categorical.shape[1]
             assert nb_classes >= 2
             assert np.unique(y_flat).size == nb_classes
-            output_size_of_network = self._io_sizes[-1][1]
-            assert nb_classes == output_size_of_network
+            if output_size_of_network is not None:
+                assert nb_classes == output_size_of_network
             
-            return y_categorical, y_flat
+            return used_X, y_categorical, y_flat
+        
+        return used_X
     
     
     def fit(
@@ -496,6 +524,7 @@ class Network:
             learning_rate,
             nb_shuffles_before_each_train_batch_split=10,
             seed_train_batch_splits=None,
+            enable_checks=True,
             validation_data=None,
             val_batch_size=32
         ):
@@ -513,7 +542,12 @@ class Network:
         # checking all the args/kwargs (except for `validation_data` and
         # `val_batch_size`)
         
-        y_train, _ = self._validate_data(X_train, y=y_train)
+        used_X_train, used_y_train, _ = Network._validate_data(
+            X_train,
+            y=y_train,
+            input_size_of_network=self._io_sizes[0][0],
+            output_size_of_network=self._io_sizes[-1][1]
+        )
         nb_train_samples = X_train.shape[0]
         
         assert isinstance(nb_epochs, int)
@@ -536,6 +570,8 @@ class Network:
             if isinstance(seed_train_batch_splits, int):
                 assert seed_train_batch_splits >= 0
         
+        assert isinstance(enable_checks, bool)
+        
         # ------------------------------------------------------------------ #
         
         # checking the `validation_data` and `val_batch_size` kwargs
@@ -546,7 +582,12 @@ class Network:
             assert len(validation_data) == 2
             X_val, y_val = validation_data
             
-            y_val, _ = self._validate_data(X_val, y=y_val)
+            used_X_val, used_y_val, _ = Network._validate_data(
+                X_val,
+                y=y_val,
+                input_size_of_network=self._io_sizes[0][0],
+                output_size_of_network=self._io_sizes[-1][1]
+            )
             nb_val_samples = X_val.shape[0]
             
             # the `val_batch_size` kwarg will not be used if `validation_data`
@@ -583,20 +624,12 @@ class Network:
         
         # ================================================================== #
         
-        t_beginning_training = perf_counter()
-        
-        # ================================================================== #
-        
         # potentially standardizing the input training and/or validation data
         
         if self.__standardize_input_data:
-            used_X_train = standardize_data(X_train)
+            used_X_train = standardize_data(used_X_train)
             if _has_validation_data:
-                used_X_val = standardize_data(X_val)
-        else:
-            used_X_train = X_train.copy()
-            if _has_validation_data:
-                used_X_val = X_val.copy()
+                used_X_val = standardize_data(used_X_val)
         
         # ================================================================== #
         
@@ -618,8 +651,9 @@ class Network:
             val_batches = split_data_into_batches(
                 used_X_val,
                 val_batch_size,
-                labels=y_val,
-                nb_shuffles=0
+                labels=used_y_val,
+                nb_shuffles=0,
+                enable_checks=True
             )
             
             nb_val_batches = len(val_batches["data"])
@@ -656,6 +690,10 @@ class Network:
         
         # ================================================================== #
         
+        t_beginning_training = perf_counter()
+        
+        # ================================================================== #
+        
         # training loop
         
         print(transition)
@@ -669,11 +707,14 @@ class Network:
             train_batches = split_data_into_batches(
                 used_X_train,
                 train_batch_size,
-                labels=y_train,
+                labels=used_y_train,
                 nb_shuffles=nb_shuffles_before_each_train_batch_split,
-                seed=seed
+                seed=seed,
+                enable_checks=enable_checks
             )
-            assert len(train_batches["data"]) == nb_train_batches
+            
+            if enable_checks:
+                assert len(train_batches["data"]) == nb_train_batches
             
             if seed is not None:
                 # updating the seed in order to make the shuffling of the
@@ -693,20 +734,37 @@ class Network:
                 # forward propagation
                 train_output = X_train_batch
                 for layer in self.layers:
-                    train_output = layer.forward_propagation(train_output, training=True)
+                    train_output = layer.forward_propagation(
+                        train_output,
+                        training=True,
+                        enable_checks=enable_checks
+                    )
                 
                 # computing the training loss and accuracy (for display purposes only)
-                train_loss += np.sum(self.loss(y_train_batch, train_output))
+                train_loss += np.sum(self.loss(
+                    y_train_batch,
+                    train_output,
+                    enable_checks=enable_checks
+                ))
                 train_accuracy += accuracy_score(
-                    categorical_to_vector(y_train_batch),
-                    categorical_to_vector(train_output),
-                    normalize=False
+                    categorical_to_vector(y_train_batch, enable_checks=enable_checks),
+                    categorical_to_vector(train_output,  enable_checks=enable_checks),
+                    normalize=False,
+                    enable_checks=enable_checks
                 )
                 
                 # backward propagation
-                output_gradient = self.loss_prime(y_train_batch, train_output)
+                output_gradient = self.loss_prime(
+                    y_train_batch,
+                    train_output,
+                    enable_checks=enable_checks
+                )
                 for layer in reversed_layers:
-                    output_gradient = layer.backward_propagation(output_gradient, learning_rate)
+                    output_gradient = layer.backward_propagation(
+                        output_gradient,
+                        learning_rate,
+                        enable_checks=enable_checks
+                    )
                 
                 if ((train_batch_index + 1) % train_batch_index_update_step == 0) or ((train_batch_index + 1) in [1, nb_train_batches]):
                     formatted_batch_index = format(train_batch_index + 1, train_batch_index_format)
@@ -741,14 +799,23 @@ class Network:
                     # forward propagation
                     val_output = X_val_batch
                     for layer in self.layers:
-                        val_output = layer.forward_propagation(val_output, training=False)
+                        val_output = layer.forward_propagation(
+                            val_output,
+                            training=False,
+                            enable_checks=enable_checks
+                        )
                     
                     # computing the validation loss and accuracy (for display purposes only)
-                    val_loss += np.sum(self.loss(y_val_batch, val_output))
+                    val_loss += np.sum(self.loss(
+                        y_val_batch,
+                        val_output,
+                        enable_checks=enable_checks
+                    ))
                     val_accuracy += accuracy_score(
-                        categorical_to_vector(y_val_batch),
-                        categorical_to_vector(val_output),
-                        normalize=False
+                        categorical_to_vector(y_val_batch, enable_checks=enable_checks),
+                        categorical_to_vector(val_output,  enable_checks=enable_checks),
+                        normalize=False,
+                        enable_checks=enable_checks
                     )
                 
                 val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
@@ -782,10 +849,12 @@ class Network:
         
         # ================================================================== #
         
-        # termination of the training and validation phases
-        
         t_end_training = perf_counter()
         duration_training = t_end_training - t_beginning_training
+        
+        # ================================================================== #
+        
+        # termination of the training and validation phases
         
         average_epoch_duration = duration_training / nb_epochs
         if _has_validation_data:
@@ -958,8 +1027,11 @@ class Network:
         
         # checking the validity of the specified arguments
         
-        self._validate_data(X_test)
-        nb_test_samples = X_test.shape[0]
+        used_X_test = Network._validate_data(
+            X_test,
+            input_size_of_network=self._io_sizes[0][0]
+        )
+        nb_test_samples = used_X_test.shape[0]
         
         assert isinstance(test_batch_size, int)
         assert test_batch_size > 0
@@ -978,17 +1050,15 @@ class Network:
         # potentially normalizing/standardizing the input testing data
         
         if self.__standardize_input_data:
-            used_X_test = standardize_data(X_test)
-        else:
-            used_X_test = X_test.copy()
+            used_X_test = standardize_data(used_X_test)
         
         # ------------------------------------------------------------------ #
         
         test_batches = split_data_into_batches(
             used_X_test,
             test_batch_size,
-            labels=None,
-            nb_shuffles=0
+            nb_shuffles=0,
+            enable_checks=True
         )
         nb_test_batches = len(test_batches["data"])
         
@@ -1000,7 +1070,11 @@ class Network:
             # forward propagation
             test_output = X_test_batch
             for layer in self.layers:
-                test_output = layer.forward_propagation(test_output, training=False)
+                test_output = layer.forward_propagation(
+                    test_output,
+                    training=False,
+                    enable_checks=True
+                )
             
             test_outputs.append(test_output)
         
@@ -1010,7 +1084,7 @@ class Network:
         
         if not(return_logits):
             # in this case, the 1D vector of INTEGER labels is returned
-            y_pred = categorical_to_vector(y_pred)
+            y_pred = categorical_to_vector(y_pred, enable_checks=True)
         
         return y_pred
     
@@ -1041,10 +1115,15 @@ class Network:
         
         # checking the validity of the specified arguments
         
-        y_test_categorical, y_test_flat = self._validate_data(X_test, y=y_test)
+        used_X_test, y_test_categorical, y_test_flat = Network._validate_data(
+            X_test,
+            y=y_test,
+            input_size_of_network=self._io_sizes[0][0],
+            output_size_of_network=self._io_sizes[-1][1]
+        )
         
-        nb_test_samples = X_test.shape[0]
-        nb_classes = np.unique(y_test_flat).size
+        nb_test_samples = used_X_test.shape[0]
+        nb_classes = y_test_categorical.shape[1]
         
         assert isinstance(top_N_accuracy, int)
         assert (top_N_accuracy >= 1) and (top_N_accuracy <= nb_classes)
@@ -1063,11 +1142,11 @@ class Network:
         
         # getting the raw prediction of the network (i.e. the logits)
         y_pred = self.predict(
-            X_test,
+            used_X_test,
             test_batch_size=test_batch_size
         )
         
-        y_pred_flat = categorical_to_vector(y_pred)
+        y_pred_flat = categorical_to_vector(y_pred, enable_checks=True)
         
         # ------------------------------------------------------------------ #
         
@@ -1082,11 +1161,16 @@ class Network:
             y_test_batch = y_test_categorical[first_index_of_test_batch : last_index_of_test_batch, :]
             y_pred_batch = y_pred[first_index_of_test_batch : last_index_of_test_batch, :]
             
-            test_loss += np.sum(self.loss(y_test_batch, y_pred_batch))
+            test_loss += np.sum(self.loss(
+                y_test_batch,
+                y_pred_batch,
+                enable_checks=True
+            ))
             test_accuracy += accuracy_score(
-                y_test_flat[first_index_of_test_batch : last_index_of_test_batch],
-                y_pred_flat[first_index_of_test_batch : last_index_of_test_batch],
-                normalize=False
+                categorical_to_vector(y_test_batch, enable_checks=True), # NB : We could have also used `y_test_flat` here
+                categorical_to_vector(y_pred_batch, enable_checks=True), # NB : We could have also used `y_pred_flat` here
+                normalize=False,
+                enable_checks=True
             )
         
         test_loss /= cast(nb_test_samples, utils.DEFAULT_DATATYPE)
@@ -1133,33 +1217,89 @@ class Network:
             X_test,
             y_test,
             selected_classes="all",
+            dict_of_real_class_names=None,
+            image_shape=None,
             seed=None
         ):
         """
-        Displays the predictions of random test samples
+        Displays some of the network's predictions (of random test samples)
+        
+        NB : This function only works if the rows of `X_test` are flattened
+             images
         
         Here, `y_test` can either be a 1D vector of INTEGER labels or its
         one-hot encoded equivalent (in that case it will be a 2D matrix)
         
         The kwarg `selected_classes` can either be :
-            - the string "all" (if you're working with all the digits ranging
-              from 0 to 9)
-            - a list/tuple/1D-array containing the specific digits you're
+            - the string "all", if you're working with all the classes (default)
+            - a list/tuple/1D-array containing the specific class indices you're
               working with (e.g. [2, 4, 7])
+        
+        The kwarg `dict_of_real_class_names`, if not set to `None`, is a
+        dictionary with :
+            - as its keys   : all the selected class indices (as integers)
+            - as its values : the REAL names of the associated classes (as strings)
+        For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
+        could, for instance, set `dict_of_real_class_names` to the following
+        dictionary :
+        dict_of_real_class_names = {
+            2 : "TWO",
+            4 : "FOUR",
+            7 : "SEVEN"
+        }
+        By default, if `dict_of_real_class_names` is set to `None`, then the
+        class names will simply be the string representations of the (selected)
+        class indices
+        
+        If `image_shape` is `None`, then it's automatically assumed that
+        the images are 2D and square-shaped
         """
         # ------------------------------------------------------------------ #
         
         # checking the validity of the specified arguments
         
-        _, y_test_flat = self._validate_data(X_test, y=y_test)
+        used_X_test, y_test_categorical, y_test_flat = Network._validate_data(
+            X_test,
+            y=y_test,
+            input_size_of_network=self._io_sizes[0][0],
+            output_size_of_network=self._io_sizes[-1][1]
+        )
         
-        selected_classes = _validate_selected_classes(selected_classes)
-        if isinstance(selected_classes, str):
-            # here, `selected_classes` is equal to the string "all"
-            nb_classes = np.unique(y_test_flat).size
-            classes = np.arange(nb_classes)
+        nb_classes = y_test_categorical.shape[1]
+        
+        _, class_names = _validate_selected_classes(
+            selected_classes,
+            nb_classes,
+            dict_of_real_class_names=dict_of_real_class_names
+        )
+        
+        assert isinstance(image_shape, (type(None), tuple))
+        if isinstance(image_shape, tuple):
+            assert len(image_shape) in [2, 3]
+            
+            assert isinstance(image_shape[0], (int, np.int_))
+            assert image_shape[0] >= 2
+            assert isinstance(image_shape[1], (int, np.int_))
+            assert image_shape[1] >= 2
+            
+            if len(image_shape) == 2:
+                default_image_shape = image_shape
+            elif len(image_shape) == 3:
+                assert isinstance(image_shape[2], (int, np.int_))
+                assert image_shape[2] in [1, 3]
+                
+                if image_shape[2] == 1:
+                    default_image_shape = image_shape[ : 2]
+                elif image_shape[2] == 3:
+                    default_image_shape = image_shape
+            
+            assert used_X_test.shape[1] == np.prod(default_image_shape)
         else:
-            classes = selected_classes
+            # here we're assuming that the images are square-shaped
+            nb_pixels_per_image = used_X_test.shape[1]
+            sidelength_of_each_image = int(round(np.sqrt(nb_pixels_per_image)))
+            assert sidelength_of_each_image**2 == nb_pixels_per_image
+            default_image_shape = (sidelength_of_each_image, sidelength_of_each_image)
         
         assert isinstance(seed, (type(None), int))
         if isinstance(seed, int):
@@ -1179,17 +1319,17 @@ class Network:
         nb_columns = 5
         
         nb_predictions = nb_rows * nb_columns
-        nb_test_samples = X_test.shape[0]
+        nb_test_samples = used_X_test.shape[0]
         
         np.random.seed(seed)
         random_test_indices = np.random.choice(np.arange(nb_test_samples), size=(nb_predictions, ), replace=False)
         np.random.seed(None) # resetting the seed
         
-        random_test_samples = X_test[random_test_indices, :]
+        random_test_samples = used_X_test[random_test_indices, :]
         logits = self.predict(random_test_samples) # = y_pred
         
         # getting the "top-2 integer predictions"
-        predicted_digit_values = np.fliplr(np.argsort(logits, axis=1))[:, 0 : 2]
+        predicted_class_indices = np.fliplr(np.argsort(logits, axis=1))[:, 0 : 2]
         
         # by default
         confidence_level_precision = 0
@@ -1199,12 +1339,6 @@ class Network:
         # softmax, like sigmoid for instance)
         logits /= np.sum(logits, axis=1, keepdims=True)
         
-        # here we're assuming that the images are square-shaped
-        nb_pixels_per_image = X_test.shape[1]
-        sidelength_of_each_image = int(round(np.sqrt(nb_pixels_per_image)))
-        assert sidelength_of_each_image**2 == nb_pixels_per_image
-        default_image_shape = (sidelength_of_each_image, sidelength_of_each_image)
-        
         # ------------------------------------------------------------------ #
         
         # displaying the predictions
@@ -1213,26 +1347,30 @@ class Network:
         plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples (and their confidence level)", fontsize=15)
         
         for image_index in range(nb_predictions):
-            predicted_digit_value_index = predicted_digit_values[image_index, 0]
-            predicted_digit_value = classes[predicted_digit_value_index]
-            confidence_level_first_choice = 100 * logits[image_index, predicted_digit_value_index]
+            predicted_class_index = predicted_class_indices[image_index, 0]
+            predicted_class_name = class_names[predicted_class_index]
+            confidence_level_first_choice = 100 * logits[image_index, predicted_class_index]
             
-            second_choice_predicted_digit_index = predicted_digit_values[image_index, 1]
-            second_choice_predicted_digit = classes[second_choice_predicted_digit_index]
-            confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_digit_index]
+            second_choice_predicted_class_index = predicted_class_indices[image_index, 1]
+            second_choice_predicted_class_name = class_names[second_choice_predicted_class_index]
+            confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_class_index]
             
-            actual_digit_value_index = y_test_flat[random_test_indices[image_index]]
-            actual_digit_value = classes[actual_digit_value_index]
+            actual_class_index = y_test_flat[random_test_indices[image_index]]
+            actual_class_name = class_names[actual_class_index]
             
             random_test_image = random_test_samples[image_index, :].reshape(default_image_shape)
             
             row_index = image_index // nb_columns
             column_index = image_index % nb_columns
-            ax[row_index, column_index].imshow(random_test_image, cmap="gray")
             
-            subplot_title = f"1st prediction : {predicted_digit_value} ({confidence_level_first_choice:.{confidence_level_precision}f}%)"
-            subplot_title += f"\n2nd prediction : {second_choice_predicted_digit} ({confidence_level_second_choice:.{confidence_level_precision}f}%)"
-            subplot_title += f"\nActual value : {actual_digit_value}"
+            if len(default_image_shape) == 2:
+                ax[row_index, column_index].imshow(random_test_image, cmap="gray")
+            if len(default_image_shape) == 3:
+                ax[row_index, column_index].imshow(random_test_image)
+            
+            subplot_title = f"1st prediction : {predicted_class_name} ({confidence_level_first_choice:.{confidence_level_precision}f}%)"
+            subplot_title += f"\n2nd prediction : {second_choice_predicted_class_name} ({confidence_level_second_choice:.{confidence_level_precision}f}%)"
+            subplot_title += f"\nActual class : {actual_class_name}"
             
             ax[row_index, column_index].set_title(subplot_title)
             ax[row_index, column_index].axis("off")

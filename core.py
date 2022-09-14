@@ -20,7 +20,8 @@ def split_data_into_batches(
         batch_size,
         labels=None,
         nb_shuffles=10,
-        seed=None
+        seed=None,
+        enable_checks=True
     ):
     """
     Splits the input data and/or labels into batches with `batch_size` samples
@@ -35,44 +36,50 @@ def split_data_into_batches(
     
     # checking the validity of the specified arguments
     
-    # checking the validity of the argument `data`
-    assert isinstance(data, np.ndarray)
-    assert len(data.shape) == 2
-    nb_samples, nb_features_per_sample = data.shape
-    assert nb_features_per_sample >= 2
+    assert isinstance(enable_checks, bool)
     
-    assert isinstance(batch_size, int)
-    assert (batch_size >= 1) and (batch_size <= nb_samples)
-    
-    # checking the validity of the `labels` kwarg
-    assert isinstance(labels, (type(None), np.ndarray))
-    if labels is not None:
-        assert len(labels.shape) in [1, 2]
-        if len(labels.shape) == 1:
-            _validate_label_vector(labels)
-        elif len(labels.shape) == 2:
-            nb_classes = labels.shape[1]
-            assert nb_classes >= 2
-        assert labels.shape[0] == nb_samples
-    
-    assert isinstance(nb_shuffles, int)
-    assert nb_shuffles >= 0
-    
-    if nb_shuffles > 0:
-        assert isinstance(seed, (type(None), int))
-        if isinstance(seed, int):
-            assert seed >= 0
+    if enable_checks:
+        # checking the validity of the argument `data`
+        assert isinstance(data, np.ndarray)
+        assert len(data.shape) == 2
+        nb_samples, nb_features_per_sample = data.shape
+        assert nb_features_per_sample >= 2
+        
+        assert isinstance(batch_size, int)
+        assert (batch_size >= 1) and (batch_size <= nb_samples)
+        
+        # checking the validity of the `labels` kwarg
+        assert isinstance(labels, (type(None), np.ndarray))
+        if labels is not None:
+            assert len(labels.shape) in [1, 2]
+            if len(labels.shape) == 1:
+                _validate_label_vector(labels)
+            elif len(labels.shape) == 2:
+                nb_classes = labels.shape[1]
+                assert nb_classes >= 2
+            assert labels.shape[0] == nb_samples
+        
+        assert isinstance(nb_shuffles, int)
+        assert nb_shuffles >= 0
+        
+        if nb_shuffles > 0:
+            assert isinstance(seed, (type(None), int))
+            if isinstance(seed, int):
+                assert seed >= 0
     
     # ---------------------------------------------------------------------- #
     
     # initialization
     
+    _has_labels = (labels is not None)
+    
     batches = {
         "data" : []
     }
-    if labels is not None:
+    if _has_labels:
         batches["labels"] = []
     
+    nb_samples = data.shape[0]
     batch_indices = np.arange(nb_samples)
     
     if nb_shuffles > 0:
@@ -91,19 +98,20 @@ def split_data_into_batches(
         
         indices_of_current_batch = batch_indices[first_index_of_batch : last_index_of_batch]
         
-        # checking if the batch size is correct
-        if indices_of_current_batch.size != batch_size:
-            # if the batch size isn't equal to `batch_size`, then it means
-            # that we are generating the very last batch (it also implies that
-            # `batch_size` doesn't divide `nb_samples`)
-            assert first_index_of_batch == nb_samples - nb_samples % batch_size
-            assert indices_of_current_batch.size > 0
-            assert indices_of_current_batch.size == nb_samples % batch_size
+        if enable_checks:
+            # checking if the batch size is correct
+            if indices_of_current_batch.size != batch_size:
+                # if the batch size isn't equal to `batch_size`, then it means
+                # that we are generating the very last batch (it also implies that
+                # `batch_size` doesn't divide `nb_samples`)
+                assert first_index_of_batch == nb_samples - nb_samples % batch_size
+                assert indices_of_current_batch.size > 0
+                assert indices_of_current_batch.size == nb_samples % batch_size
         
         data_current_batch = data[indices_of_current_batch, :]
         batches["data"].append(data_current_batch)
         
-        if labels is not None:
+        if _has_labels:
             labels_current_batch = labels[indices_of_current_batch]
             batches["labels"].append(labels_current_batch)
     
@@ -111,22 +119,23 @@ def split_data_into_batches(
     
     # checking if the resulting batches are valid or not
     
-    assert np.vstack(tuple(batches["data"])).shape == data.shape
-    
-    if labels is not None:
-        if len(labels.shape) == 1:
-            # in this case, the labels are a 1D vector of INTEGER values
-            stacking_function = np.hstack
-        else:
-            # in this case, the labels are one-hot encoded (2D matrix)
-            assert len(labels.shape) == 2
-            stacking_function = np.vstack
-        assert stacking_function(tuple(batches["labels"])).shape == labels.shape
-    
-    expected_nb_batches = (nb_samples + batch_size - 1) // batch_size
-    assert len(batches["data"]) == expected_nb_batches
-    if labels is not None:
-        assert len(batches["labels"]) == expected_nb_batches
+    if enable_checks:
+        assert np.vstack(tuple(batches["data"])).shape == data.shape
+        
+        if _has_labels:
+            if len(labels.shape) == 1:
+                # in this case, the labels are a 1D vector of INTEGER values
+                stacking_function = np.hstack
+            else:
+                # in this case, the labels are one-hot encoded (2D matrix)
+                assert len(labels.shape) == 2
+                stacking_function = np.vstack
+            assert stacking_function(tuple(batches["labels"])).shape == labels.shape
+        
+        expected_nb_batches = (nb_samples + batch_size - 1) // batch_size
+        assert len(batches["data"]) == expected_nb_batches
+        if _has_labels:
+            assert len(batches["labels"]) == expected_nb_batches
     
     # ---------------------------------------------------------------------- #
     
@@ -140,7 +149,7 @@ def split_data_into_batches(
 # same output as the associated functions of the `sklearn.metrics` module)
 
 
-def accuracy_score(y_true, y_pred, normalize=True):
+def accuracy_score(y_true, y_pred, normalize=True, enable_checks=True):
     """
     Returns the proportion of the correctly predicted samples. The returned
     proportion lies between 0 and 1
@@ -151,11 +160,14 @@ def accuracy_score(y_true, y_pred, normalize=True):
     
     # checking the validity of the specified arguments
     
-    _validate_label_vector(y_true, is_whole_label_vector=False)
-    _validate_label_vector(y_pred, is_whole_label_vector=False)
-    assert y_true.size == y_pred.size
+    assert isinstance(enable_checks, bool)
     
-    assert isinstance(normalize, bool)
+    if enable_checks:
+        _validate_label_vector(y_true, is_whole_label_vector=False)
+        _validate_label_vector(y_pred, is_whole_label_vector=False)
+        assert y_true.size == y_pred.size
+        
+        assert isinstance(normalize, bool)
     
     # ---------------------------------------------------------------------- #
     

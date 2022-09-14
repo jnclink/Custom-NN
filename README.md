@@ -14,7 +14,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 The main purpose of this repo is to experiment with a [Multi-Layer Perceptron (MLP)](https://en.wikipedia.org/wiki/Multilayer_perceptron) made **from scratch**, almost only using the **NumPy** module.
 
-Dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database)
+Default dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database)
 
 Language used : **Python**
 
@@ -25,7 +25,7 @@ Language used : **Python**
 - At the very beginning of the main script (`main.py`), you can **select the type of the data** that will flow through the network. For now, the only available datatypes are `float32` (default) and `float64`. Typically, compared to `float64` data, `float32` data will naturally make the computations a little less accurate, but they will be done faster and use less RAM and/or CPU !
 - At the very beginning of the main script, you can also, if you want, **select a specific subset of classes to work with**. For instance, if you only want to work with the digits `2`, `4` and `7` (and not with all the digits ranging from `0` to `9`), then all you need to do is set the variable `selected_classes` to the list `[2, 4, 7]` (in the main script) !
 - Automated the creation of the (formatted) training, validation and testing sets by only specifying their respective number of samples at the beginning of the main script. Those 3 sets will have a **uniform class distribution**. In particular, if **all** the classes are selected, then those 3 sets will have the **same class distribution** as the initial raw MNIST data (since the latter also has a uniform class distribution) !
-- Added a **validation step** at each epoch (assuming you didn't set `nb_val_samples` to `0` in the main script). Even though the validation step is **optional** during training, it's highly recommended !
+- Added a **validation step** at each epoch. Even though this step is **optional**, it's highly recommended !
 - Added **batch processing** for the training, validation *and* testing phases ! Note that, for the validation and testing phases, the batch size will *not* affect the resulting losses and accuracies. Therefore, for those 2 phases, you might want to put the maximum batch size your CPU can handle, in order to speed up the computations (`val_batch_size` and `test_batch_size` are set to `32` by default in the main script). The batch size also doesn't have to perfectly divide the number of samples of the data that is going to be split into batches !
 - The input data can be normalized such that each (input) sample has a mean of `0` and a standard deviation of `1` (i.e. the data can be **standardized**). This feature is enabled when you instantiate the `Network` class with the `standardize_input_data` kwarg set to `True` (which is done by default)
 - The weights and biases of the Dense layers are now initialized using the [He initialization](https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/#:~:text=The%20he%20initialization%20method%20is,of%20inputs%20to%20the%20node.)
@@ -39,6 +39,16 @@ Language used : **Python**
 - For testing purposes, you can also plot some predictions of the network (after it's trained) !
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script
 - Globally speaking, the main script is written such that you can tweak a <ins>**maximum**</ins> amount of parameters related to the MLP you want to build !
+
+<br/>
+
+## How to test this project with another dataset
+
+- First, all the samples in your data must be numerical, and have the <ins>same dimensions</ins>
+- The formatted data (i.e. `X_train`, `X_test` and/or `X_val`) have to be 2D, where each row of the data is the <ins>flattened</ins> version of each (corresponding) sample
+- The formatted labels (i.e. `y_train`, `y_test` and/or `y_val`) have to either be <ins>one-hot encoded</ins> or <ins>1D arrays of (positive) integers</ins>. The classes they represent also need to be the same : for instance, if `y_train` contains the classes `0`, `1` and `2`, then `y_test` and/or `y_val` also need to contain the classes `0`, `1` and `2`. Also, quite naturally, their first dimension needs to match the first dimension of their corresponding data subset !
+
+Basically, **assuming all the previous conditions are met**, you can simply replace the `"Loading and formatting the data"` section of the main script with *yours* !
 
 <br/>
 

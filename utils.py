@@ -30,7 +30,6 @@ from matplotlib.colors import Colormap, rgb2hex
 
 # used to print colored text in a Python console/terminal
 from colorama import init, Back, Style
-init() # enables the ability to print colored text in the standard output (of Python consoles/terminals)
 
 
 ##############################################################################
@@ -40,7 +39,7 @@ init() # enables the ability to print colored text in the standard output (of Py
 # (i.e. we're defining the "global datatype")
 
 # global variables (these are the 2 only global variables of the entire project)
-DEFAULT_DATATYPE = "float32"
+DEFAULT_DATATYPE = "float32" # = "float32" or "float64"
 DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
 
 
@@ -81,11 +80,6 @@ def _validate_global_datatype(datatype):
         else:
             str_datatype = str(datatype)
         raise ValueError(f"_validate_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
-
-
-# checking the hard-coded value of `DEFAULT_DATATYPE` (in fact, this is already
-# done by the `np.finfo` method when defining the global variable `DTYPE_RESOLUTION` !)
-_validate_global_datatype(DEFAULT_DATATYPE)
 
 
 def set_global_datatype(datatype):
@@ -132,10 +126,12 @@ def check_dtype(x, dtype):
     dtype = _validate_numpy_datatype(dtype)
     
     if np.isscalar(x):
-        assert type(x) == np.dtype(dtype).type
+        if type(x) != np.dtype(dtype).type:
+            raise TypeError(f"check_dtype (utils.py) - The datatype of the scalar `x` isn't \"{str(dtype)}\", it's \"{type(x).__name__}\" !")
     else:
         # here, `x` is a vector/matrix
-        assert x.dtype == dtype
+        if x.dtype != dtype:
+            raise TypeError(f"check_dtype (utils.py) - The datatype of the matrix `x` isn't \"{str(dtype)}\", it's \"{x.dtype.type.__name__}\" !")
 
 
 def cast(x, dtype):
@@ -265,18 +261,20 @@ def standardize_data(data):
     """
     Normalizes a matrix such that its mean is 0 and its standard deviation
     is 1 (i.e. it returns the standardized version of the matrix). By default,
-    if `data` is a 2D matrix, then its rows will be standardized
+    if `data` is a 2D matrix, then it will be standardized along its ROWS
     
     Here, `data` can either be a 1D vector or a 2D matrix
     """
     # checking the validity of `data`
     assert isinstance(data, np.ndarray)
     assert len(data.shape) in [1, 2]
+    assert data.shape[0] > 0
     global DEFAULT_DATATYPE
     check_dtype(data, DEFAULT_DATATYPE)
     
     # checking if there are any samples that have a standard deviation of zero
-    # (in that case, it means that the sample is filled with the same constant value)
+    # (in that case, it means that the illegal sample is filled with the exact
+    # same constant value)
     data_std = data.std(axis=-1, keepdims=True)
     for sample_std in data_std.flatten():
         assert not(np.allclose(sample_std, 0.0))
@@ -413,40 +411,70 @@ def _validate_raw_MNIST_dataset(
     assert np.allclose(np.unique(raw_y_test),  expected_classes)
 
 
-def _validate_label_vector(y, max_class=9, is_whole_label_vector=True):
+def _validate_label_vector(y, is_whole_label_vector=True):
     """
     Checks the validity of the label vector `y`
     
     Here, the default value of `max_class` (= 9) is specific to the MNIST dataset
     """
-    assert isinstance(max_class, int)
-    assert max_class >= 1
-    
     assert isinstance(is_whole_label_vector, bool)
     
     assert isinstance(y, np.ndarray)
     assert len(y.shape) == 1
+    assert y.size > 0
     assert issubclass(y.dtype.type, np.integer)
     
     assert np.min(y) >= 0
-    assert np.max(y) <= max_class
     
     if is_whole_label_vector:
         nb_classes = np.unique(y).size
         assert nb_classes >= 2
 
 
-def _validate_selected_classes(selected_classes):
+def _validate_selected_classes(
+        selected_classes,
+        max_nb_classes,
+        dict_of_real_class_names=None
+    ):
     """
     Checks the validity of the `selected_classes` argument, and returns the
     potentially corrected version of `selected_classes`
     
     Here, `selected_classes` can either be :
-        - The string "all" (if you're working with all the digits ranging
-          from 0 to 9)
-        - A list/tuple/1D-array containing the specific digits you're
+        - The string "all", if you're working with all the classes (default)
+        - A list/tuple/1D-array containing the specific class indices you're
           working with (e.g. [2, 4, 7])
+    
+    The kwarg `dict_of_real_class_names`, if not set to `None`, is a dictionary
+    with :
+        - as its keys   : all the selected class indices (as integers)
+        - as its values : the REAL names of the associated classes (as strings)
+    For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
+    could, for instance, set `dict_of_real_class_names` to the following
+    dictionary :
+    dict_of_real_class_names = {
+        2 : "TWO",
+        4 : "FOUR",
+        7 : "SEVEN"
+    }
+    By default, if `dict_of_real_class_names` is set to `None`, then the
+    class names will simply be the string representations of the (selected)
+    class indices
     """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of `max_nb_classes`
+    
+    assert isinstance(max_nb_classes, int)
+    assert max_nb_classes >= 2
+    
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of `selected_classes`
+    
+    # by default
+    class_indices = np.arange(max_nb_classes)
+    
     if isinstance(selected_classes, str):
         selected_classes = selected_classes.lower()
         if selected_classes != "all":
@@ -461,10 +489,48 @@ def _validate_selected_classes(selected_classes):
         
         distinct_selected_classes = np.unique(selected_classes)
         assert distinct_selected_classes.size >= 2, "_validate_selected_classes (utils.py) - Please select at least 2 distinct classes in the `selected_classes` argument !"
+        assert distinct_selected_classes.size <= max_nb_classes
         
         selected_classes = distinct_selected_classes
+        class_indices = selected_classes
     
-    return selected_classes
+    # by default
+    class_names = [str(class_index) for class_index in class_indices]
+    
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of `dict_of_real_class_names`
+    
+    assert isinstance(dict_of_real_class_names, (type(None), dict))
+    
+    if isinstance(dict_of_real_class_names, dict):
+        if len(dict_of_real_class_names) != len(class_names):
+            raise ValueError(f"_validate_selected_classes (utils.py) - The length of the specified `dict_of_real_class_names` kwarg (= {len(dict_of_real_class_names)}) has to be the same as the number of (distinct) selected classes (= {len(class_names)}) !")
+        
+        for class_index, real_class_name in dict_of_real_class_names.items():
+            assert isinstance(class_index, int)
+            assert class_index >= 0
+            assert str(class_index) in class_names
+            
+            assert isinstance(real_class_name, str)
+            assert len(real_class_name) > 0
+            assert len(real_class_name.strip()) > 0
+            real_class_name = real_class_name.strip()
+            dict_of_real_class_names[class_index] = real_class_name
+        
+        # sorting `dict_of_real_class_names` such that its keys are in
+        # ASCENDING order
+        sorted_dict_of_real_class_names = {}
+        for sorted_class_index in sorted(dict_of_real_class_names):
+            sorted_class_name = dict_of_real_class_names[sorted_class_index]
+            sorted_dict_of_real_class_names[sorted_class_index] = sorted_class_name
+        
+        # updating `class_names` with its real labels
+        class_names = list(sorted_dict_of_real_class_names.values())
+    
+    # ---------------------------------------------------------------------- #
+    
+    return selected_classes, class_names
 
 
 def _validate_activation_input(x):
@@ -741,6 +807,7 @@ def get_range_of_array(array, precision=3):
 def display_class_distributions(
         dict_of_label_vectors,
         selected_classes="all",
+        dict_of_real_class_names=None,
         precision=2
     ):
     """
@@ -749,52 +816,78 @@ def display_class_distributions(
     are the names of the corresponding label vectors (as strings)
     
     The kwarg `selected_classes` can either be :
-        - the string "all" (if you're working with all the digits ranging
-          from 0 to 9)
-        - a list/tuple/1D-array containing the specific digits you're
+        - the string "all", if you're working with all the classes (default)
+        - a list/tuple/1D-array containing the specific class indices you're
           working with (e.g. [2, 4, 7])
+    
+    The kwarg `dict_of_real_class_names`, if not set to `None`, is a dictionary
+    with :
+        - as its keys   : all the selected class indices (as integers)
+        - as its values : the REAL names of the associated classes (as strings)
+    For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
+    could, for instance, set `dict_of_real_class_names` to the following
+    dictionary :
+    dict_of_real_class_names = {
+        2 : "TWO",
+        4 : "FOUR",
+        7 : "SEVEN"
+    }
+    By default, if `dict_of_real_class_names` is set to `None`, then the
+    class names will simply be the string representations of the (selected)
+    class indices
     """
     # ---------------------------------------------------------------------- #
     
     # checking the validity of the specified arguments
     
     assert isinstance(dict_of_label_vectors, dict)
+    assert len(dict_of_label_vectors) > 0
+    nb_classes = None
+    for label_vector_name, label_vector in dict_of_label_vectors.items():
+        assert isinstance(label_vector_name, str)
+        assert len(label_vector_name) > 0
+        assert label_vector_name == label_vector_name.strip()
+        
+        _validate_label_vector(label_vector)
+        if nb_classes is None:
+            distinct_class_indices = np.unique(label_vector)
+            nb_classes = distinct_class_indices.size
+        else:
+            assert np.allclose(np.unique(label_vector), distinct_class_indices)
     
-    selected_classes = _validate_selected_classes(selected_classes)
+    selected_classes, class_names = _validate_selected_classes(
+        selected_classes,
+        nb_classes,
+        dict_of_real_class_names=dict_of_real_class_names
+    )
     
     assert isinstance(precision, int)
     assert precision >= 0
     
     # ---------------------------------------------------------------------- #
     
-    displayed_string = "\nClass distributions :\n"
+    if dict_of_real_class_names is not None:
+        displayed_string = "\nClass distributions :\n"
+    else:
+        displayed_string = "\nDistribution of the class indices :\n"
+    
+    # used to align the displayed class names
+    max_length_of_class_names = max([len(class_name) for class_name in class_names])
     
     for label_vector_name, label_vector in dict_of_label_vectors.items():
-        # checking the validity of the individual components of `dict_of_label_vectors`
-        assert isinstance(label_vector_name, str)
-        _validate_label_vector(label_vector)
+        nb_labels = label_vector.size
         
         displayed_string += f"\n{label_vector_name} :"
         
-        nb_classes = np.unique(label_vector).size
-        assert nb_classes >= 2
-        
-        if isinstance(selected_classes, str):
-            # here, `selected_classes` is equal to the string "all"
-            classes = np.arange(nb_classes)
-        else:
-            assert nb_classes == selected_classes.size
-            classes = selected_classes
-        
-        nb_labels = label_vector.size
-        
-        for digit_index, digit in enumerate(classes):
-            nb_corresponding_digits = np.where(label_vector == digit_index)[0].size
-            proportion = 100 * float(nb_corresponding_digits) / nb_labels
+        for class_index, class_name in enumerate(class_names):
+            nb_corresponding_class_indices = np.where(label_vector == class_index)[0].size
+            proportion = 100 * float(nb_corresponding_class_indices) / nb_labels
             str_proportion = f"{proportion:.{precision}f}"
             if proportion < 10:
                 str_proportion = "0" + str_proportion
-            displayed_string += f"\n    {digit} --> {str_proportion} %"
+            
+            class_name_spacing = " " * (max_length_of_class_names - len(class_name))
+            displayed_string += f"\n    {class_name_spacing}{class_name} --> {str_proportion} %"
     
     print(displayed_string)
 
@@ -829,21 +922,25 @@ def vector_to_categorical(y, dtype=int):
     return y_categorical
 
 
-def categorical_to_vector(y_categorical):
+def categorical_to_vector(y_categorical, enable_checks=True):
     """
     Converts a 2D categorical matrix (one-hot encoded matrix or logits) into
     its associated 1D vector of INTEGER labels
     """
-    # checking the validity of `y_categorical`
-    assert isinstance(y_categorical, np.ndarray)
-    assert len(y_categorical.shape) == 2
-    global DEFAULT_DATATYPE
-    check_dtype(y_categorical, DEFAULT_DATATYPE)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        # checking the validity of `y_categorical`
+        assert isinstance(y_categorical, np.ndarray)
+        assert len(y_categorical.shape) == 2
+        global DEFAULT_DATATYPE
+        check_dtype(y_categorical, DEFAULT_DATATYPE)
     
     # by definition
     y = np.argmax(y_categorical, axis=1)
     
-    _validate_label_vector(y, is_whole_label_vector=False)
+    if enable_checks:
+        _validate_label_vector(y, is_whole_label_vector=False)
     return y
 
 
@@ -938,11 +1035,12 @@ def highlight_all_cells(value, colormap=cm.Greens):
 def print_confusion_matrix(
         conf_matrix,
         selected_classes="all",
+        dict_of_real_class_names=None,
         normalize="no",
         precision=1,
         color="green",
         offset_spacing=1,
-        display_with_line_breaks=True
+        display_with_line_breaks=False
     ):
     """
     Prints the styled confusion matrix. The result won't be the same depending
@@ -953,10 +1051,25 @@ def print_confusion_matrix(
     be the output of the `confusion_matrix` function (of the "core.py" script)
     
     The kwarg `selected_classes` can either be :
-        - the string "all" (if you're working with all the digits ranging
-          from 0 to 9)
-        - a list/tuple/1D-array containing the specific digits you're
+        - the string "all", if you're working with all the classes (default)
+        - a list/tuple/1D-array containing the specific class indices you're
           working with (e.g. [2, 4, 7])
+    
+    The kwarg `dict_of_real_class_names`, if not set to `None`, is a dictionary
+    with :
+        - as its keys   : all the selected class indices (as integers)
+        - as its values : the REAL names of the associated classes (as strings)
+    For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
+    could, for instance, set `dict_of_real_class_names` to the following
+    dictionary :
+    dict_of_real_class_names = {
+        2 : "TWO",
+        4 : "FOUR",
+        7 : "SEVEN"
+    }
+    By default, if `dict_of_real_class_names` is set to `None`, then the
+    class names will simply be the string representations of the (selected)
+    class indices
     """
     # ====================================================================== #
     
@@ -969,12 +1082,12 @@ def print_confusion_matrix(
     assert nb_classes >= 2
     assert conf_matrix.shape[1] == nb_classes
     
-    selected_classes = _validate_selected_classes(selected_classes)
-    if isinstance(selected_classes, str):
-        # here, `selected_classes` is equal to the string "all"
-        class_names = [str(digit) for digit in range(nb_classes)]
-    else:
-        class_names = [str(digit) for digit in selected_classes]
+    selected_classes, class_names = _validate_selected_classes(
+        selected_classes,
+        nb_classes,
+        dict_of_real_class_names=dict_of_real_class_names
+    )
+    assert len(class_names) == nb_classes
     
     assert isinstance(normalize, str)
     normalize = normalize.lower()
@@ -1049,6 +1162,7 @@ def print_confusion_matrix(
                     raise Exception(f"print_confusion_matrix (utils.py) - The true class \"{class_names[class_index]}\" (class_index={class_index}) isn't represented in the confusion matrix !")
                 normalized_conf_matrix[class_index, :] /= sum_of_row
         
+        # rounding the normalized confusion matrix to the specified precision
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         
         conf_matrix_as_dataframe = DataFrame(
@@ -1057,7 +1171,7 @@ def print_confusion_matrix(
             columns=class_names
         )
         
-        for class_index, class_name in enumerate(class_names):
+        for class_name in class_names:
             # adding the "%" symbol to all the elements of the dataframe
             conf_matrix_as_dataframe[class_name] = conf_matrix_as_dataframe[class_name].astype("<U24") + " %"
     else:
@@ -1073,7 +1187,10 @@ def print_confusion_matrix(
     conf_matrix_as_dataframe.columns.name = "PREDICTED"
     conf_matrix_as_dataframe.index.name   = "ACTUAL"
     
-    # printing the header/description of the confusion matrix
+    assert conf_matrix_as_dataframe.columns.name not in class_names
+    assert conf_matrix_as_dataframe.index.name not in class_names
+    
+    # building the header/description of the confusion matrix
     if normalize == "no":
         conf_matrix_header = "\nRAW CONFUSION MATRIX"
     elif normalize == "columns":
@@ -1081,7 +1198,6 @@ def print_confusion_matrix(
     elif normalize == "rows":
         conf_matrix_header = "\nNETWORK RECALL - NORMALIZED CONFUSION MATRIX"
     conf_matrix_header += f" (normalized=\"{normalize}\") :"
-    print(conf_matrix_header)
     
     # ====================================================================== #
     
@@ -1130,6 +1246,8 @@ def print_confusion_matrix(
         # NB : `conf_matrix_styler` is a Pandas Styler object (i.e. a
         #       `pandas.io.formats.style.Styler` object), NOT a Pandas
         #       DataFrame object
+        
+        print(conf_matrix_header)
         display(conf_matrix_styler)
         
         return
@@ -1160,12 +1278,12 @@ def print_confusion_matrix(
     lines_of_str_conf_matrix_as_dataframe = str_conf_matrix_as_dataframe.split("\n")
     lines_of_str_colored_conf_matrix_as_dataframe = lines_of_str_conf_matrix_as_dataframe.copy()
     
-    max_len_of_class_names = max([len(class_name) for class_name in class_names])
+    max_length_of_class_names = max([len(class_name) for class_name in class_names])
     
     # first index (inclusive) of the area of interest of each row (i.e. the
     # area of each row that potentially contains the actual numerical data of
     # the confusion matrix)
-    first_index_area_of_interest = len(offset_spacing) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_len_of_class_names) + 2
+    first_index_area_of_interest = len(offset_spacing) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_length_of_class_names) + 2
     
     for row_index, current_row in enumerate(lines_of_str_conf_matrix_as_dataframe):
         beginning_of_row = current_row[ : first_index_area_of_interest]
@@ -1186,21 +1304,18 @@ def print_confusion_matrix(
             continue
         
         if content_of_beginning_of_row == conf_matrix_as_dataframe.columns.name:
-            # updating the current column indices (for classes)
+            # updating the current column names (for classes)
             
-            current_class_indices_in_columns = current_row.split()[1 : ]
-            if current_class_indices_in_columns[-1] == "\\":
+            current_class_names_in_columns = current_row.split()[1 : ]
+            if current_class_names_in_columns[-1] == "\\":
                 # here, the trailing "\" means that there's a line break
-                current_class_indices_in_columns = current_class_indices_in_columns[ : -1]
-            
-            # converting the column indices into integers
-            current_class_indices_in_columns = [int(str_class_index_in_columns) for str_class_index_in_columns in current_class_indices_in_columns]
+                current_class_names_in_columns = current_class_names_in_columns[ : -1]
             
             continue
         
-        # updating the current row index (for classes)
+        # updating the current row name (for classes)
         assert content_of_beginning_of_row in class_names
-        current_class_index_in_rows = int(content_of_beginning_of_row)
+        current_class_name_in_rows = content_of_beginning_of_row
         
         # ------------------------------------------------------------------ #
         
@@ -1219,6 +1334,8 @@ def print_confusion_matrix(
         # encountered in the area of interest of the current row
         nb_seen_numerical_values_in_row = 0
         
+        current_class_name_in_columns = None
+        
         for element_index, element in enumerate(split_area_of_interest):
             # here, `element_is_numerical_value` is a boolean indicating whether
             # `element` is an integer or a float (i.e. a numerical value)
@@ -1231,10 +1348,13 @@ def print_confusion_matrix(
             if element_is_numerical_value:
                 nb_seen_numerical_values_in_row += 1
                 
-                # updating the current column index (for classes)
-                current_class_index_in_columns = current_class_indices_in_columns[nb_seen_numerical_values_in_row - 1]
+                # updating the current column name (for classes)
+                current_class_name_in_columns = current_class_names_in_columns[nb_seen_numerical_values_in_row - 1]
             
-            if (current_class_index_in_columns == current_class_index_in_rows) and (element_is_numerical_value or (element == "%")):
+            if current_class_name_in_columns is None:
+                continue
+            
+            if (current_class_name_in_columns == current_class_name_in_rows) and (element_is_numerical_value or (element == "%")):
                 # here, `element` is on the diagonal of the confusion matrix,
                 # therefore color will be added to it !
                 
@@ -1271,5 +1391,11 @@ def print_confusion_matrix(
     # ====================================================================== #
     
     # actually printing the confusion matrix with a colored diagonal
+    
+    # Enables the ability to print colored text in the standard output (of Python
+    # consoles/terminals). This method is imported from the `colorama` module
+    init()
+    
+    print(conf_matrix_header)
     print(str_colored_conf_matrix_as_dataframe)
 

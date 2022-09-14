@@ -21,32 +21,40 @@ from utils import (
 # Defining the Rectified Linear Unit (ReLU) activation function and its derivative
 
 
-def ReLU(x):
+def ReLU(x, enable_checks=True):
     """
     Rectified Linear Unit (ReLU) activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
     
     ReLU_output = np.maximum(x, 0)
     
-    check_dtype(ReLU_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(ReLU_output, utils.DEFAULT_DATATYPE)
     return ReLU_output
 
 
-def ReLU_prime(x):
+def ReLU_prime(x, enable_checks=True):
     """
     Derivative of the Rectified Linear Unit (ReLU) activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
     
     ReLU_prime_output = np.zeros(x.shape, dtype=x.dtype)
     ReLU_prime_output[x >= 0] = 1
     
-    check_dtype(ReLU_prime_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(ReLU_prime_output, utils.DEFAULT_DATATYPE)
     return ReLU_prime_output
 
 
@@ -57,36 +65,48 @@ def ReLU_prime(x):
 # and its derivative
 
 
-def leaky_ReLU(x, leaky_ReLU_coeff=0.01):
+def leaky_ReLU(x, leaky_ReLU_coeff=0.01, enable_checks=True):
     """
     Leaky Rectified Linear Unit (leaky ReLU) activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter),
     and `leaky_ReLU_coeff` is a small positive constant
     """
-    _validate_activation_input(x)
-    leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
+        leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
+    else:
+        leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
     
     leaky_ReLU_output = np.maximum(x, leaky_ReLU_coeff * x)
     
-    check_dtype(leaky_ReLU_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(leaky_ReLU_output, utils.DEFAULT_DATATYPE)
     return leaky_ReLU_output
 
 
-def leaky_ReLU_prime(x, leaky_ReLU_coeff=0.01):
+def leaky_ReLU_prime(x, leaky_ReLU_coeff=0.01, enable_checks=True):
     """
     Derivative of the leaky Rectified Linear Unit (leaky ReLU) activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter),
     and `leaky_ReLU_coeff` is a small positive constant
     """
-    _validate_activation_input(x)
-    leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
+        leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
+    else:
+        leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
     
     leaky_ReLU_prime_output = np.ones(x.shape, dtype=x.dtype)
     leaky_ReLU_prime_output[x < 0] = leaky_ReLU_coeff
     
-    check_dtype(leaky_ReLU_prime_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(leaky_ReLU_prime_output, utils.DEFAULT_DATATYPE)
     return leaky_ReLU_prime_output
 
 
@@ -96,32 +116,40 @@ def leaky_ReLU_prime(x, leaky_ReLU_coeff=0.01):
 # Defining the hyperbolic tangent (tanh) activation function and its derivative
 
 
-def tanh(x):
+def tanh(x, enable_checks=True):
     """
     Hyperbolic tangent (tanh) activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
     
     tanh_output = np.tanh(x)
     
-    check_dtype(tanh_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(tanh_output, utils.DEFAULT_DATATYPE)
     return tanh_output
 
 
-def tanh_prime(x):
+def tanh_prime(x, enable_checks=True):
     """
     Derivative of the hyperbolic tangent (tanh) activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
     
     one = cast(1, utils.DEFAULT_DATATYPE)
     tanh_prime_output = one - np.tanh(x)**2
     
-    check_dtype(tanh_prime_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(tanh_prime_output, utils.DEFAULT_DATATYPE)
     return tanh_prime_output
 
 
@@ -131,14 +159,21 @@ def tanh_prime(x):
 # Defining the softmax activation function and its derivative
 
 
-def softmax(x, check_for_illegal_output_values=True):
+def softmax(x, replace_illegal_output_values=True, enable_checks=True):
     """
     Softmax activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
+    
+    NB : Here, the `replace_illegal_output_values` kwarg has priority
+         over the `enable_checks` kwarg. In fact, `replace_illegal_output_values`
+         should, in practice, NEVER be set to `False` !
     """
-    _validate_activation_input(x)
-    assert isinstance(check_for_illegal_output_values, bool)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
+        assert isinstance(replace_illegal_output_values, bool)
     
     if len(x.shape) == 1:
         # NB : The softmax function is translationally invariant, i.e., for any
@@ -156,30 +191,36 @@ def softmax(x, check_for_illegal_output_values=True):
             x_sample = x[batch_sample_index, :]
             softmax_output[batch_sample_index, :] = softmax(
                 x_sample,
-                check_for_illegal_output_values=False
+                replace_illegal_output_values=False,
+                enable_checks=False
             )
     
-    if check_for_illegal_output_values:
+    if replace_illegal_output_values:
         # replacing the softmax output values that are *very close* to zero
         # with the smallest possible positive value of the current global datatype
         resolution = utils.DTYPE_RESOLUTION
         softmax_output[softmax_output < resolution] = resolution
-        
+    
+    if enable_checks:
         # the values of the softmax output have to be strictly positive
         nb_illegal_values_in_softmax_output = np.where(softmax_output <= 0)[0].size
         assert nb_illegal_values_in_softmax_output == 0
+        
+        check_dtype(softmax_output, utils.DEFAULT_DATATYPE)
     
-    check_dtype(softmax_output, utils.DEFAULT_DATATYPE)
     return softmax_output
 
 
-def softmax_prime(x):
+def softmax_prime(x, enable_checks=True):
     """
     Derivative of the softmax activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
     
     if len(x.shape) == 1:
         softmax_output = softmax(x).reshape((1, x.shape[0]))
@@ -192,7 +233,8 @@ def softmax_prime(x):
             x_sample = x[batch_sample_index, :]
             softmax_prime_output[batch_sample_index] = softmax_prime(x_sample)
     
-    check_dtype(softmax_prime_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(softmax_prime_output, utils.DEFAULT_DATATYPE)
     return softmax_prime_output
 
 
@@ -202,14 +244,21 @@ def softmax_prime(x):
 # Defining the sigmoid activation function and its derivative
 
 
-def sigmoid(x, check_for_illegal_output_values=True):
+def sigmoid(x, replace_illegal_output_values=True, enable_checks=True):
     """
     Sigmoid activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
+    
+    NB : Here, the `replace_illegal_output_values` kwarg has priority
+         over the `enable_checks` kwarg. In fact, `replace_illegal_output_values`
+         should, in practice, NEVER be set to `False` !
     """
-    _validate_activation_input(x)
-    assert isinstance(check_for_illegal_output_values, bool)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
+        assert isinstance(replace_illegal_output_values, bool)
     
     if len(x.shape) == 1:
         one = cast(1, utils.DEFAULT_DATATYPE)
@@ -221,30 +270,36 @@ def sigmoid(x, check_for_illegal_output_values=True):
             x_sample = x[batch_sample_index, :]
             sigmoid_output[batch_sample_index, :] = sigmoid(
                 x_sample,
-                check_for_illegal_output_values=False
+                replace_illegal_output_values=False,
+                enable_checks=False
             )
     
-    if check_for_illegal_output_values:
+    if replace_illegal_output_values:
         # replacing the sigmoid output values that are *very close* to zero
         # with the smallest possible positive value of the current global datatype
         resolution = utils.DTYPE_RESOLUTION
         sigmoid_output[sigmoid_output < resolution] = resolution
-        
+    
+    if enable_checks:
         # the values of the sigmoid output have to be strictly positive
         nb_illegal_values_in_sigmoid_output = np.where(sigmoid_output <= 0)[0].size
         assert nb_illegal_values_in_sigmoid_output == 0
+        
+        check_dtype(sigmoid_output, utils.DEFAULT_DATATYPE)
     
-    check_dtype(sigmoid_output, utils.DEFAULT_DATATYPE)
     return sigmoid_output
 
 
-def sigmoid_prime(x):
+def sigmoid_prime(x, enable_checks=True):
     """
     Derivative of the sigmoid activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
-    _validate_activation_input(x)
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
     
     if len(x.shape) == 1:
         sigmoid_output = sigmoid(x)
@@ -257,6 +312,7 @@ def sigmoid_prime(x):
             x_sample = x[batch_sample_index, :]
             sigmoid_prime_output[batch_sample_index, :] = sigmoid_prime(x_sample)
     
-    check_dtype(sigmoid_prime_output, utils.DEFAULT_DATATYPE)
+    if enable_checks:
+        check_dtype(sigmoid_prime_output, utils.DEFAULT_DATATYPE)
     return sigmoid_prime_output
 

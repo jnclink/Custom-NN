@@ -189,6 +189,7 @@ def format_raw_MNIST_dataset(
         nb_val_samples,
         nb_test_samples,
         selected_classes="all",
+        dict_of_real_class_names=None,
         nb_shuffles=20,
         seed=None,
         verbose=False
@@ -207,12 +208,27 @@ def format_raw_MNIST_dataset(
     will both be equal to `None`
     
     The kwarg `selected_classes` can either be :
-        - the string "all" (if you want to work with all the digits ranging
-          from 0 to 9)
-        - a list/tuple/1D-array containing the specific digits you want to work
-          with (e.g. [2, 4, 7])
+        - the string "all", if you want to work with all the classes (default)
+        - a list/tuple/1D-array containing the specific class indices you want
+          to work with (e.g. [2, 4, 7])
+    
+    The kwarg `dict_of_real_class_names`, if not set to `None`, is a dictionary
+    with :
+        - as its keys   : all the selected class indices (as integers)
+        - as its values : the REAL names of the associated classes (as strings)
+    For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
+    could, for instance, set `dict_of_real_class_names` to the following
+    dictionary :
+    dict_of_real_class_names = {
+        2 : "TWO",
+        4 : "FOUR",
+        7 : "SEVEN"
+    }
+    By default, if `dict_of_real_class_names` is set to `None`, then the
+    class names will simply be the string representations of the (selected)
+    class indices
     """
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # checking the validity of the specified arguments
     
@@ -222,6 +238,7 @@ def format_raw_MNIST_dataset(
         raw_X_test,
         raw_y_test
     )
+    nb_classes = np.unique(raw_y_train).size # = 10
     
     # the 3 arguments `nb_train_samples`, `nb_val_samples` and `nb_test_samples`
     # will be re-checked a bit later in this function, once we check if the
@@ -235,7 +252,11 @@ def format_raw_MNIST_dataset(
     assert isinstance(nb_test_samples, int)
     assert nb_test_samples > 0
     
-    selected_classes = _validate_selected_classes(selected_classes)
+    selected_classes, _ = _validate_selected_classes(
+        selected_classes,
+        nb_classes,
+        dict_of_real_class_names=dict_of_real_class_names
+    )
     
     assert isinstance(nb_shuffles, int)
     assert nb_shuffles >= 0
@@ -246,18 +267,15 @@ def format_raw_MNIST_dataset(
     
     assert isinstance(verbose, bool)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     t_beginning_formatting = perf_counter()
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # only keeping the selected classes in the raw MNIST data
     
-    if isinstance(selected_classes, str):
-        # here, `selected_classes` is equal to the string "all"
-        nb_classes = np.unique(raw_y_train).size # = 10
-    else:
+    if not(isinstance(selected_classes, str)):
         nb_classes = selected_classes.size
         
         indices_of_selected_train_classes = []
@@ -288,7 +306,7 @@ def format_raw_MNIST_dataset(
         print(f"    - X_test  : {raw_X_test.shape}")
         print(f"    - y_test  : {raw_y_test.shape}")
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # re-checking the validity of the arguments `nb_train_samples`, `nb_val_samples`
     # and `nb_test_samples`
@@ -308,7 +326,7 @@ def format_raw_MNIST_dataset(
     total_nb_of_raw_test_samples = raw_X_test.shape[0] # = 10000 (if ALL the classes are selected)
     assert nb_test_samples <= total_nb_of_raw_test_samples
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # step 1/6 : copying, reshaping, casting and normalizing the data
     
@@ -336,7 +354,7 @@ def format_raw_MNIST_dataset(
     X_train *= normalizing_factor
     X_test  *= normalizing_factor
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # step 2/6 : splitting the data into train/test or train/val/test
     #            sub-datasets, such that the resulting class distributions
@@ -408,7 +426,7 @@ def format_raw_MNIST_dataset(
     
     assert np.unique(y_test).size == nb_classes
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # step 3/6 : one-hot encoding the resulting label vectors
     
@@ -417,7 +435,7 @@ def format_raw_MNIST_dataset(
         y_val = vector_to_categorical(y_val, dtype=utils.DEFAULT_DATATYPE)
     y_test = vector_to_categorical(y_test,  dtype=utils.DEFAULT_DATATYPE)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # step 4/6 : shuffling the data
     
@@ -443,7 +461,7 @@ def format_raw_MNIST_dataset(
         X_test = X_test[shuffled_indices_test_data, :]
         y_test = y_test[shuffled_indices_test_data, :]
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # step 5/6 : checking the shapes of the final formatted data
     
@@ -455,7 +473,7 @@ def format_raw_MNIST_dataset(
     assert X_test.shape == (nb_test_samples, nb_pixels_per_image)
     assert y_test.shape == (nb_test_samples, nb_classes)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     # step 6/6 : checking the datatype of the final formatted data
     
@@ -467,10 +485,12 @@ def format_raw_MNIST_dataset(
     check_dtype(X_test, utils.DEFAULT_DATATYPE)
     check_dtype(y_test, utils.DEFAULT_DATATYPE)
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
     t_end_formatting = perf_counter()
     duration_formatting = t_end_formatting - t_beginning_formatting
+    
+    # ====================================================================== #
     
     if verbose:
         print("\nShapes of the formatted MNIST data :")
@@ -503,31 +523,39 @@ def format_raw_MNIST_dataset(
         
         # ------------------------------------------------------------------ #
         
-        # displaying the class distribution of the final formatted data
+        # displaying the class distributions of the final formatted data
         
         if _return_validation_data:
             dict_of_label_vectors = {
-                "y_train" : categorical_to_vector(y_train),
-                "y_val"   : categorical_to_vector(y_val),
-                "y_test"  : categorical_to_vector(y_test)
+                "y_train" : categorical_to_vector(y_train, enable_checks=True),
+                "y_val"   : categorical_to_vector(y_val,   enable_checks=True),
+                "y_test"  : categorical_to_vector(y_test,  enable_checks=True)
             }
         else:
             dict_of_label_vectors = {
-                "y_train" : categorical_to_vector(y_train),
-                "y_test"  : categorical_to_vector(y_test)
+                "y_train" : categorical_to_vector(y_train, enable_checks=True),
+                "y_test"  : categorical_to_vector(y_test,  enable_checks=True)
             }
         
         display_class_distributions(
             dict_of_label_vectors,
             selected_classes=selected_classes,
+            dict_of_real_class_names=dict_of_real_class_names,
             precision=2
         )
+    
+    # ====================================================================== #
+    
+    if not(_return_validation_data):
+        # checking that `X_val` and `y_val` have not been defined yet (within
+        # this scope)
+        assert ("X_val" not in locals()) and ("y_val" not in locals())
         
-        # ------------------------------------------------------------------ #
+        # by design
+        X_val = None
+        y_val = None
     
     print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_formatting:.3f} seconds")
     
-    if _return_validation_data:
-        return X_train, y_train, X_val, y_val, X_test, y_test
-    return X_train, y_train, None, None, X_test, y_test
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
