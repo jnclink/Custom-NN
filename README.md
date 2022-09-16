@@ -44,11 +44,11 @@ Language used : **Python**
 
 ## How to test this project with another dataset
 
-- First, all the samples in your data must be numerical, and have the <ins>same dimensions</ins>
+- First, all the samples in your data must be numeric, and have the <ins>same dimensions</ins>
 - The formatted data (i.e. `X_train`, `X_test` and/or `X_val`) have to be 2D, where each row of the data is the <ins>flattened</ins> version of each (corresponding) sample
 - The formatted labels (i.e. `y_train`, `y_test` and/or `y_val`) have to either be <ins>one-hot encoded</ins> or <ins>1D arrays of (positive) integers</ins>. The classes they represent also need to be the same : for instance, if `y_train` contains the classes `0`, `1` and `2`, then `y_test` and/or `y_val` also need to contain the classes `0`, `1` and `2`. Also, quite naturally, their first dimension needs to match the first dimension of their corresponding data subset !
 
-Basically, **assuming all the previous conditions are met**, you can simply replace the `"Loading and formatting the data"` section of the main script with *yours* !
+**Assuming all the previous conditions are met**, you can simply replace the `"Loading and formatting the data"` section of the main script with *yours* ! Basically, all you need to do is define <ins>valid</ins> versions of `X_train`, `y_train`, `X_test` and `y_test` (and/or `X_val` and `y_val`) by the end of that replaced section (the generated data/label arrays will be checked right after that section anyway)
 
 <br/>
 
