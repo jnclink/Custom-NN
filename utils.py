@@ -1313,7 +1313,7 @@ def print_confusion_matrix(
     # first index (inclusive) of the area of interest of each row (i.e. the
     # area of each row that potentially contains the actual numeric data of
     # the confusion matrix)
-    first_index_area_of_interest = len(offset_spacing) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_length_of_class_names) + 2
+    first_index_area_of_interest = len(offset_spacing) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_length_of_class_names)
     
     for row_index, current_row in enumerate(lines_of_str_conf_matrix_as_dataframe):
         beginning_of_row = current_row[ : first_index_area_of_interest]
