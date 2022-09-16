@@ -12,7 +12,7 @@ import utils
 from utils import (
     cast,
     check_dtype,
-    _validate_numpy_datatype,
+    _validate_numpy_dtype,
     _validate_leaky_ReLU_coeff,
     list_to_string,
     count_nb_decimals_places
@@ -41,6 +41,8 @@ class Layer(ABC):
         self.nb_trainable_params = None
     
     def __str__(self):
+        # default string representation of the layer classes (most of the
+        # time their `__str__` method will override this one)
         return f"{self.__class__.__name__}()"
     
     def __repr__(self):
@@ -74,6 +76,18 @@ class Layer(ABC):
         check_dtype(input_data, utils.DEFAULT_DATATYPE)
         
         assert isinstance(training, bool)
+    
+    def build(self, input_size):
+        """
+        Now that we know the input size of the layer, we can actually
+        initialize/build the latter (if needed). The layer will be built when
+        it is added to the network (with the `Network.add` method of the
+        "network.py" script)
+        
+        This method doesn't have to be overridden by any child classes,
+        therefore it won't be defined as an abstract method
+        """
+        pass
     
     @abstractmethod
     def backward_propagation(
@@ -191,18 +205,25 @@ class DenseLayer(Layer):
         self.output_size = nb_neurons
         
         assert isinstance(seed, (type(None), int))
-        if isinstance(seed, int):
+        if seed is not None:
             assert seed >= 0
         self.seed = seed
+        
+        # will be initialized in the `build` method (along with
+        # `self.nb_trainable_params`, that was initialized to `None` via
+        # `super().__init__()`)
+        self.input_size = None
+        self.weights = None
+        self.biases = None
     
     def __str__(self):
         return f"{self.__class__.__name__}({self.output_size})"
     
     def build(self, input_size):
         """
-        Now that we know the input size of the layer, we can actually initialize/build
-        the latter. This layer is built when it is added to the network (with
-        the `Network.add` method of the "network.py" script)
+        Now that we know the input size of the layer, we can actually
+        initialize/build the latter. This layer is built when it is added
+        to the network (with the `Network.add` method of the "network.py" script)
         """
         assert isinstance(input_size, int)
         assert input_size >= 2
@@ -282,7 +303,7 @@ class DenseLayer(Layer):
         
         # gradient averaging for batch processing
         weights_gradient = averaging_factor * self.input.T @ output_gradient # = dE/dW
-        biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)  # = dE/dB
+        biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)    # = dE/dB
         
         if enable_checks:
             check_dtype(weights_gradient, utils.DEFAULT_DATATYPE)
@@ -451,6 +472,7 @@ class BatchNormLayer(Layer):
         # initializing the non-trainable parameters
         self.moving_mean = cast(0, utils.DEFAULT_DATATYPE)
         self.moving_var  = cast(1, utils.DEFAULT_DATATYPE)
+        self.moving_std  = None
         
         # by default
         self.momentum = cast(0.99, utils.DEFAULT_DATATYPE)
@@ -463,6 +485,10 @@ class BatchNormLayer(Layer):
         # by default (used for numerical stability)
         self.epsilon = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
+        
+        # initializing the cached input data (to speed up the backward propagation)
+        self.input_std = None
+        self.normalized_input = None
     
     def forward_propagation(
             self,
@@ -582,7 +608,7 @@ class DropoutLayer(Layer):
         self.dropout_rate = dropout_rate
         
         assert isinstance(seed, (type(None), int))
-        if isinstance(seed, int):
+        if seed is not None:
             assert seed >= 0
         self.seed = seed
         
@@ -595,6 +621,9 @@ class DropoutLayer(Layer):
         check_dtype(self.scaling_factor, utils.DEFAULT_DATATYPE)
         
         self.nb_trainable_params = 0
+        
+        # initializing the dropout matrix
+        self.dropout_matrix = None
     
     def __str__(self):
         precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
@@ -617,7 +646,7 @@ class DropoutLayer(Layer):
         if enable_checks:
             assert isinstance(shape, tuple)
             assert len(shape) == 2
-            dtype = _validate_numpy_datatype(dtype)
+            dtype = _validate_numpy_dtype(dtype)
         
         batch_size, output_size = shape
         
@@ -636,6 +665,12 @@ class DropoutLayer(Layer):
                 )
                 dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
             np.random.seed(None) # resetting the seed
+            
+            # updating the value of the seed such that the generated dropout
+            # matrices aren't the same at each forward propagation (during the
+            # training phase)
+            if self.seed is not None:
+                self.seed += 55 # the chosen increment value is arbitrary
         
         return dropout_matrix
     

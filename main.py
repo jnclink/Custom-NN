@@ -54,7 +54,8 @@ def main():
     
     if samples_are_images:
         # Format : (height, width), (height, width, 1) or (height, width, 3)
-        default_image_shape = (28, 28)
+        #          (or `None` if the images are 2D/grayscale and square-shaped)
+        default_image_shape = None
     
     # ====================================================================== #
     
@@ -140,36 +141,39 @@ def main():
     # NB : Assuming your data meets all the conditons described in the README,
     #      you don't need to change anything in this section
     
+    # ---------------------------------------------------------------------- #
+    
     # Checking the validity of `X_train`, `y_train`, `X_test` and `y_test`,
     # and returning their "corrected" counterparts
+    
     try:
-        X_train, y_train, _ = Network._validate_data(X_train, y=y_train)
-        X_test,  y_test,  _ = Network._validate_data(X_test,  y=y_test)
+        X_train, y_train, _ = Network._validate_data(X_train, y_train)
+        X_test,  y_test,  _ = Network._validate_data(X_test,  y_test)
         
         assert X_train.shape[1] == X_test.shape[1], "X_train and X_test don't have the same number of features per sample !"
         assert y_train.shape[1] == y_test.shape[1], "y_train and y_test don't have the same number of classes !"
     except (UnboundLocalError, NameError):
         raise Exception("Some training and/or testing data is not defined !")
     
+    # ---------------------------------------------------------------------- #
+    
     # Checking the validity of `X_val` and `y_val` (if they exist, and are both
     # not equal to `None`), and returning their "corrected" counterparts
+    
     try:
         if (X_val is not None) and (y_val is not None):
-            X_val, y_val, _ = Network._validate_data(X_val, y=y_val)
+            X_val, y_val, _ = Network._validate_data(X_val, y_val)
             
             assert X_train.shape[1] == X_val.shape[1], "X_train and X_val don't have the same number of features per sample !"
             assert y_train.shape[1] == y_val.shape[1], "y_train and y_val don't have the same number of classes !"
-            
-            validation_kwargs = {
-                "validation_data" : (X_val, y_val),
-                "val_batch_size"  : 32 # by default
-            }
         else:
-            validation_kwargs = {}
+            X_val, y_val = None, None
     except (UnboundLocalError, NameError):
         # Here, it simply means that the validation data is not defined (which
         # isn't a problem, since it's optional)
-        validation_kwargs = {}
+        X_val, y_val = None, None
+    
+    assert ("X_val" in locals()) and ("y_val" in locals())
     
     # ====================================================================== #
     
@@ -349,10 +353,18 @@ def main():
     #      use validation data, please (at least) set the `validation_data`
     #      kwarg to `None` (or don't specify it at all)
     
+    if (X_val is not None) and (y_val is not None):
+        validation_kwargs = {
+            "validation_data" : (X_val, y_val), # can be set to `None` if needed
+            "val_batch_size"  : 32              # default value
+        }
+    else:
+        validation_kwargs = {}
+    
     # If you set the `enable_checks` kwarg to `False` (to speed up the training),
-    # please make sure your network runs a couple of epochs without errors when
-    # the same kwarg is set to `True`. This comment is only relevant for people
-    # who want to add or change some features of the project
+    # please first make sure your network runs a couple of epochs without errors
+    # when the same kwarg is set to `True`. This comment is only relevant to
+    # whoever wants to change some features of the project (or add some more !)
     
     network.fit(
         X_train,
@@ -362,8 +374,8 @@ def main():
         learning_rate,
         nb_shuffles_before_each_train_batch_split=10,
         seed_train_batch_splits=seed_network,
-        enable_checks=True,
-        **validation_kwargs
+        **validation_kwargs,
+        enable_checks=True
     )
     
     # ====================================================================== #
@@ -394,7 +406,7 @@ def main():
         X_test,
         y_test,
         top_N_accuracy=top_N_accuracy,
-        test_batch_size=32 # by default
+        test_batch_size=32 # default value
     )
     
     # ---------------------------------------------------------------------- #

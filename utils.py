@@ -11,7 +11,7 @@ from hashlib import sha256
 
 try:
     from IPython.display import display
-except:
+except ImportError:
     # The `IPython.display.display` method will only be called if the
     # `print_confusion_matrix` function (of this script) is run from a
     # Jupyter notebook, which itself requires an IPython backend. Therefore,
@@ -19,7 +19,7 @@ except:
     # backend is not available, which in turn implies that the code is not
     # being run on a Jupyter notebook, meaning that the `IPython.display.display`
     # method would have never been called anyway !
-    pass
+    display = None
 
 import numpy as np
 from pandas import DataFrame, set_option
@@ -46,17 +46,35 @@ DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
 ##############################################################################
 
 
-def _validate_numpy_datatype(datatype):
+# Function related to pure datatype checking (for numeric NumPy arrays)
+
+
+def _validate_numpy_dtype(dtype):
     """
-    Checks if the specified datatype is a valid NumPy datatype or not
+    Checks if the specified datatype is a valid (numeric) NumPy datatype or not
     """
-    if isinstance(datatype, str):
-        datatype = datatype.lower().replace(" ", "")
+    if isinstance(dtype, str):
+        dtype = dtype.lower().replace(" ", "")
+    
     try:
-        _ = np.dtype(datatype)
+        numpy_dtype = np.dtype(dtype)
     except:
-        raise ValueError(f"_validate_numpy_datatype (utils.py) - Invalid NumPy datatype : \"{str(datatype)}\"")
-    return datatype
+        if isinstance(dtype, type):
+            str_datatype = dtype.__name__
+        else:
+            str_datatype = str(dtype)
+        raise ValueError(f"_validate_numpy_datatype (utils.py) - Invalid NumPy datatype : \"{str_datatype}\"")
+    
+    if not(issubclass(numpy_dtype.type, np.number)):
+        raise TypeError(f"_validate_numpy_datatype (utils.py) - The specified NumPy datatype (= \"{str(numpy_dtype)}\") isn't numeric !")
+    
+    return numpy_dtype
+
+
+##############################################################################
+
+
+# Functions related to the checking and setting of the global datatype
 
 
 def _validate_global_datatype(datatype):
@@ -65,21 +83,17 @@ def _validate_global_datatype(datatype):
     network (or not). For now, the only available datatypes are float32
     and float64
     """
-    datatype = _validate_numpy_datatype(datatype)
+    datatype = _validate_numpy_dtype(datatype)
     
     AVAILABLE_DATATYPES = (
-        "float32",
         np.float32,
-        "float64",
         np.float64
     )
     
-    if datatype not in AVAILABLE_DATATYPES:
-        if isinstance(datatype, type):
-            str_datatype = datatype.__name__
-        else:
-            str_datatype = str(datatype)
-        raise ValueError(f"_validate_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str_datatype}\" (has to be float32 or float64)")
+    if datatype.type not in AVAILABLE_DATATYPES:
+        raise ValueError(f"_validate_global_datatype (utils.py) - Unrecognized value for `datatype` : \"{str(datatype)}\" (has to be float32 or float64)")
+    
+    return datatype
 
 
 def set_global_datatype(datatype):
@@ -98,11 +112,8 @@ def set_global_datatype(datatype):
     will return the default value of `DEFAULT_DATATYPE`, NOT the updated one !
     The same goes with the global variable `DTYPE_RESOLUTION`
     """
-    if datatype == float:
-        set_global_datatype(np.float_)
-    
     # checking the specified datatype first
-    _validate_global_datatype(datatype)
+    datatype = _validate_global_datatype(datatype)
     
     global DEFAULT_DATATYPE, DTYPE_RESOLUTION
     DEFAULT_DATATYPE = datatype
@@ -112,7 +123,8 @@ def set_global_datatype(datatype):
 ##############################################################################
 
 
-# Functions related to the checking/casting of the global datatype of the network
+# Functions related to the checking/casting of the datatypes of (numeric)
+# NumPy arrays and scalars
 
 
 def check_dtype(x, dtype):
@@ -123,7 +135,7 @@ def check_dtype(x, dtype):
     """
     # checking the specified arguments
     assert np.isscalar(x) or isinstance(x, np.ndarray)
-    dtype = _validate_numpy_datatype(dtype)
+    dtype = _validate_numpy_dtype(dtype)
     
     if np.isscalar(x):
         if type(x) != np.dtype(dtype).type:
@@ -131,7 +143,7 @@ def check_dtype(x, dtype):
     else:
         # here, `x` is a vector/matrix
         if x.dtype != dtype:
-            raise TypeError(f"check_dtype (utils.py) - The datatype of the matrix `x` isn't \"{str(dtype)}\", it's \"{x.dtype.type.__name__}\" !")
+            raise TypeError(f"check_dtype (utils.py) - The datatype of the array `x` isn't \"{str(dtype)}\", it's \"{str(x.dtype)}\" !")
 
 
 def cast(x, dtype):
@@ -142,7 +154,7 @@ def cast(x, dtype):
     """
     # checking the specified arguments
     assert np.isscalar(x) or isinstance(x, np.ndarray)
-    dtype = _validate_numpy_datatype(dtype)
+    dtype = _validate_numpy_dtype(dtype)
     
     if np.isscalar(x):
         cast_x = np.dtype(dtype).type(x)
@@ -158,6 +170,51 @@ def cast(x, dtype):
 
 
 # Generally useful functions
+
+
+def vector_to_categorical(y, *, dtype=int):
+    """
+    Performs one-hot encoding on a 1D vector of INTEGER labels
+    """
+    # checking the validity of the specified arguments
+    _validate_label_vector(y)
+    dtype = _validate_numpy_dtype(dtype)
+    
+    nb_labels = y.size
+    
+    distinct_labels, distinct_labels_inverse = np.unique(y, return_inverse=True)
+    nb_classes = distinct_labels.size
+    assert nb_classes >= 2
+    
+    y_categorical = np.zeros((nb_labels, nb_classes), dtype=dtype)
+    
+    for label_index, label in enumerate(distinct_labels_inverse):
+        # by definition
+        y_categorical[label_index, label] = 1
+    
+    return y_categorical
+
+
+def categorical_to_vector(y_categorical, *, enable_checks=True):
+    """
+    Converts a 2D categorical matrix (one-hot encoded matrix or logits) into
+    its associated 1D vector of INTEGER labels
+    """
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        # checking the validity of `y_categorical`
+        assert isinstance(y_categorical, np.ndarray)
+        assert len(y_categorical.shape) == 2
+        global DEFAULT_DATATYPE
+        check_dtype(y_categorical, DEFAULT_DATATYPE)
+    
+    # by definition
+    y = np.argmax(y_categorical, axis=1)
+    
+    if enable_checks:
+        _validate_label_vector(y, is_whole_label_vector=False)
+    return y
 
 
 def list_to_string(L):
@@ -201,7 +258,7 @@ def list_to_string(L):
     return str_L
 
 
-def clear_currently_printed_row(max_size_of_row=150):
+def clear_currently_printed_row(*, max_size_of_row=150):
     """
     Clears the currently printed row, and sets the pointer of the `print`
     function at the very beginning of that same row
@@ -217,7 +274,9 @@ def clear_currently_printed_row(max_size_of_row=150):
 def progress_bar(
         current_index,
         total_nb_elements,
-        progress_bar_size=15
+        *,
+        progress_bar_size=15,
+        enable_checks=True
     ):
     """
     Returns a progress bar (as a string) corresponding to the progress of
@@ -231,14 +290,17 @@ def progress_bar(
     
     # checking the specified arguments
     
-    assert isinstance(current_index, int)
-    assert current_index >= 1
+    assert isinstance(enable_checks, bool)
     
-    assert isinstance(total_nb_elements, int)
-    assert total_nb_elements >= current_index
-    
-    assert isinstance(progress_bar_size, int)
-    assert progress_bar_size >= 2
+    if enable_checks:
+        assert isinstance(current_index, int)
+        assert current_index >= 1
+        
+        assert isinstance(total_nb_elements, int)
+        assert total_nb_elements >= current_index
+        
+        assert isinstance(progress_bar_size, int)
+        assert progress_bar_size >= 2
     
     # ---------------------------------------------------------------------- #
     
@@ -252,7 +314,8 @@ def progress_bar(
         
         str_progress_bar = "[" + "=" * nb_equal_signs + ">" + "." * nb_dots + "]"
     
-    assert len(str_progress_bar) == progress_bar_size + 2
+    if enable_checks:
+        assert len(str_progress_bar) == progress_bar_size + 2
     
     return str_progress_bar
 
@@ -295,12 +358,18 @@ def is_being_run_on_jupyter_notebook():
     """
     try:
         current_IPython_shell_name = get_ipython().__class__.__name__
-        return current_IPython_shell_name == "ZMQInteractiveShell"
+        jupyter_notebook = (current_IPython_shell_name == "ZMQInteractiveShell")
+        
+        global display
+        if jupyter_notebook and (display is None):
+            raise ImportError("The `display` method (from the `IPython.display` module) should have been imported, since, in theory, the code is being run on a Jupyter notebook (which itself runs on an IPython backend) !")
+        
+        return jupyter_notebook
     except (Exception, NameError):
         return False
 
 
-def count_nb_decimals_places(x, max_precision=6):
+def count_nb_decimals_places(x, *, max_precision=6):
     """
     Returns the number of decimal places of the scalar `x`
     """
@@ -331,87 +400,143 @@ def count_nb_decimals_places(x, max_precision=6):
         return len(str(x - int(x))) - 2
 
 
+def get_dtype_of_array(array):
+    """
+    Returns the datatype of an array (as a string)
+    """
+    assert isinstance(array, np.ndarray)
+    str_dtype = "numpy." + str(array.dtype)
+    return str_dtype
+
+
+def get_range_of_array(array, *, precision=3):
+    """
+    Returns the range of an array (as a string)
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
+    assert isinstance(array, np.ndarray)
+    
+    assert isinstance(precision, int)
+    assert precision >= 0
+    
+    # ---------------------------------------------------------------------- #
+    
+    min_element_of_array = np.min(array)
+    max_element_of_array = np.max(array)
+    
+    array_dtype = array.dtype.type
+    
+    if issubclass(array_dtype, np.floating):
+        # floating-point data
+        str_range = f"{min_element_of_array:.{precision}f} -> {max_element_of_array:.{precision}f}"
+    elif issubclass(array_dtype, np.integer):
+        # integer data
+        str_range = f"{min_element_of_array} -> {max_element_of_array}"
+    else:
+        raise TypeError(f"get_range_of_array (utils.py) - The input `array` has an unrecognized datatype : \"{array_dtype.__name__}\" (it has to be numeric, i.e. float or int)")
+    
+    return str_range
+
+
+def display_class_distributions(
+        dict_of_label_vectors,
+        *,
+        selected_classes="all",
+        dict_of_real_class_names=None,
+        precision=2
+    ):
+    """
+    Prints the class distributions of the specified label vectors (i.e. the
+    values of the dictionary `dict_of_label_vectors`). The keys of `dict_of_label_vectors`
+    are the names of the corresponding label vectors (as strings)
+    
+    The kwarg `selected_classes` can either be :
+        - the string "all", if you're working with all the classes (default)
+        - a list/tuple/1D-array containing the specific class indices you're
+          working with (e.g. [2, 4, 7])
+    
+    The kwarg `dict_of_real_class_names`, if not set to `None`, is a dictionary
+    with :
+        - as its keys   : all the selected class indices (as integers)
+        - as its values : the REAL names of the associated classes (as strings)
+    For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
+    could, for instance, set `dict_of_real_class_names` to the following
+    dictionary :
+    dict_of_real_class_names = {
+        2 : "TWO",
+        4 : "FOUR",
+        7 : "SEVEN"
+    }
+    By default, if `dict_of_real_class_names` is set to `None`, then the
+    class names will simply be the string representations of the (selected)
+    class indices
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified arguments
+    
+    assert isinstance(dict_of_label_vectors, dict)
+    assert len(dict_of_label_vectors) > 0
+    nb_classes = None
+    for label_vector_name, label_vector in dict_of_label_vectors.items():
+        assert isinstance(label_vector_name, str)
+        assert len(label_vector_name.strip()) > 0
+        label_vector_name = label_vector_name.strip()
+        
+        _validate_label_vector(label_vector)
+        if nb_classes is None:
+            distinct_class_indices = np.unique(label_vector)
+            nb_classes = distinct_class_indices.size
+        else:
+            assert np.allclose(np.unique(label_vector), distinct_class_indices)
+    
+    selected_classes, class_names = _validate_selected_classes(
+        selected_classes,
+        nb_classes,
+        dict_of_real_class_names=dict_of_real_class_names
+    )
+    
+    assert isinstance(precision, int)
+    assert precision >= 0
+    
+    # ---------------------------------------------------------------------- #
+    
+    if dict_of_real_class_names is not None:
+        displayed_string = "\nClass distributions :\n"
+    else:
+        displayed_string = "\nDistribution of the class indices :\n"
+    
+    # used to align the displayed class names
+    max_length_of_class_names = max([len(class_name) for class_name in class_names])
+    
+    for label_vector_name, label_vector in dict_of_label_vectors.items():
+        nb_labels = label_vector.size
+        
+        displayed_string += f"\n{label_vector_name} :"
+        
+        for class_index, class_name in enumerate(class_names):
+            nb_corresponding_class_indices = np.where(label_vector == class_index)[0].size
+            proportion = 100 * float(nb_corresponding_class_indices) / nb_labels
+            str_proportion = f"{proportion:.{precision}f}"
+            if proportion < 10:
+                str_proportion = "0" + str_proportion
+            
+            class_name_spacing = " " * (max_length_of_class_names - len(class_name))
+            displayed_string += f"\n    {class_name_spacing}{class_name} --> {str_proportion} %"
+    
+    print(displayed_string)
+
+
 ##############################################################################
 
 
-# Other functions used to validate values/objects/arguments
+# Input validators
 
 
-def _validate_hash_of_downloaded_raw_MNIST_dataset(path_of_downloaded_data):
-    """
-    Checks if the hash of the downloaded raw MNIST data is valid or not (mainly
-    for security purposes)
-    """
-    # ---------------------------------------------------------------------- #
-    
-    # checking the validity of the specified path
-    
-    assert isinstance(path_of_downloaded_data, str)
-    assert len(path_of_downloaded_data) > 0
-    assert len(path_of_downloaded_data.strip()) > 0
-    
-    assert os.path.exists(path_of_downloaded_data)
-    
-    # ---------------------------------------------------------------------- #
-    
-    # default SHA-256 hash value of the downloaded raw MNIST data
-    
-    default_hash = "731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1"
-    
-    # ---------------------------------------------------------------------- #
-    
-    # computing the hash value of the specified data
-    
-    hasher = sha256()
-    chunk_size = 65535 # for example
-    
-    with open(path_of_downloaded_data, "rb") as DOWNLOADED_DATA:
-        for chunk in iter(lambda: DOWNLOADED_DATA.read(chunk_size), b""):
-            hasher.update(chunk)
-    
-    computed_hash = hasher.hexdigest()
-    
-    # ---------------------------------------------------------------------- #
-    
-    if computed_hash != default_hash:
-        raise Exception(f"_validate_hash_of_downloaded_raw_MNIST_dataset (utils.py) - The hash of the raw MNIST data downloaded to the location \"{path_of_downloaded_data}\" is invalid !")
-
-
-def _validate_raw_MNIST_dataset(
-        raw_X_train,
-        raw_y_train,
-        raw_X_test,
-        raw_y_test
-    ):
-    """
-    Checks if the specified raw MNIST data is valid or not. By design, the
-    arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
-    meant to be the outputs of the `load_raw_MNIST_dataset_from_disk` function
-    (of the "mnist_dataset.py" script)
-    """
-    assert isinstance(raw_X_train, np.ndarray)
-    assert raw_X_train.shape == (60000, 28, 28)
-    check_dtype(raw_X_train, np.uint8)
-    
-    assert isinstance(raw_y_train, np.ndarray)
-    assert raw_y_train.shape == (60000, )
-    check_dtype(raw_y_train, np.uint8)
-    
-    assert isinstance(raw_X_test, np.ndarray)
-    assert raw_X_test.shape == (10000, 28, 28)
-    check_dtype(raw_X_test, np.uint8)
-    
-    assert isinstance(raw_y_test, np.ndarray)
-    assert raw_y_test.shape == (10000, )
-    check_dtype(raw_y_test, np.uint8)
-    
-    DEFAULT_NB_CLASSES = 10
-    expected_classes = np.arange(DEFAULT_NB_CLASSES)
-    assert np.allclose(np.unique(raw_y_train), expected_classes)
-    assert np.allclose(np.unique(raw_y_test),  expected_classes)
-
-
-def _validate_label_vector(y, is_whole_label_vector=True):
+def _validate_label_vector(y, *, is_whole_label_vector=True):
     """
     Checks the validity of the label vector `y`
     
@@ -434,6 +559,7 @@ def _validate_label_vector(y, is_whole_label_vector=True):
 def _validate_selected_classes(
         selected_classes,
         max_nb_classes,
+        *,
         dict_of_real_class_names=None
     ):
     """
@@ -503,7 +629,7 @@ def _validate_selected_classes(
     
     assert isinstance(dict_of_real_class_names, (type(None), dict))
     
-    if isinstance(dict_of_real_class_names, dict):
+    if dict_of_real_class_names is not None:
         if len(dict_of_real_class_names) != len(class_names):
             raise ValueError(f"_validate_selected_classes (utils.py) - The length of the specified `dict_of_real_class_names` kwarg (= {len(dict_of_real_class_names)}) has to be the same as the number of (distinct) selected classes (= {len(class_names)}) !")
         
@@ -513,9 +639,9 @@ def _validate_selected_classes(
             assert str(class_index) in class_names
             
             assert isinstance(real_class_name, str)
-            assert len(real_class_name) > 0
             assert len(real_class_name.strip()) > 0
             real_class_name = real_class_name.strip()
+            real_class_name = " ".join(real_class_name.split())
             dict_of_real_class_names[class_index] = real_class_name
         
         # sorting `dict_of_real_class_names` such that its keys are in
@@ -531,6 +657,67 @@ def _validate_selected_classes(
     # ---------------------------------------------------------------------- #
     
     return selected_classes, class_names
+
+
+def _validate_one_hot_encoded_array(array):
+    """
+    Checks if the specified array is one-hot encoded or not
+    
+    The input `array` can either be a 1D vector or a 2D matrix (usually the latter) 
+    """
+    assert isinstance(array, np.ndarray)
+    assert len(array.shape) in [1, 2]
+    _validate_numpy_dtype(array.dtype) # checking if `array` has numeric data
+    nb_classes = array.shape[-1]
+    assert nb_classes >= 2
+    
+    # checking if the array only contains zeros and ones
+    assert np.allclose(np.unique(array), [0, 1]), "The specified array doesn't only contain zeros and ones !"
+    
+    # checking that there is only one `1` per row (assuming the previous
+    # condition was met)
+    assert np.allclose(np.sum((array.sum(axis=-1) - 1)**2), 0), "The specified array has rows that don't contain exactly one `1` in them !"
+
+
+def _validate_split_data_into_batches_inputs(
+        data,
+        batch_size,
+        labels,
+        nb_shuffles,
+        seed
+    ):
+    """
+    Checks the validity of the specified arguments (as inputs of the functions
+    used to split the data into batches, defined in this script)
+    """
+    # checking the validity of the argument `data`
+    assert isinstance(data, np.ndarray)
+    assert len(data.shape) == 2
+    nb_samples, nb_features_per_sample = data.shape
+    assert nb_features_per_sample >= 2
+    
+    assert isinstance(batch_size, int)
+    assert (batch_size >= 1) and (batch_size <= nb_samples)
+    
+    # checking the validity of the `labels` kwarg
+    assert isinstance(labels, (type(None), np.ndarray))
+    if labels is not None:
+        assert len(labels.shape) in [1, 2]
+        if len(labels.shape) == 1:
+            _validate_label_vector(labels)
+        elif len(labels.shape) == 2:
+            global DEFAULT_DATATYPE
+            check_dtype(labels, DEFAULT_DATATYPE)
+            _validate_one_hot_encoded_array(labels)
+        assert labels.shape[0] == nb_samples
+    
+    assert isinstance(nb_shuffles, int)
+    assert nb_shuffles >= 0
+    
+    if nb_shuffles > 0:
+        assert isinstance(seed, (type(None), int))
+        if seed is not None:
+            assert seed >= 0
 
 
 def _validate_activation_input(x):
@@ -580,7 +767,54 @@ def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff):
 ##############################################################################
 
 
-# Functions related to the `mnist_dataset.py` script
+# Functions related to the downloading of online data
+
+
+def _validate_hash_of_downloaded_data(
+        path_of_downloaded_data,
+        hash_value
+    ):
+    """
+    Checks if the (SHA-256) hash of the data that was downloaded to the
+    specified path is valid or not, i.e. if it's the same as the specified
+    (SHA-256) hash value
+    
+    This function is mainly used for security purposes
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # checking the validity of the specified path
+    
+    assert isinstance(path_of_downloaded_data, str)
+    assert len(path_of_downloaded_data.strip()) > 0
+    path_of_downloaded_data = path_of_downloaded_data.strip()
+    assert os.path.exists(path_of_downloaded_data)
+    
+    assert isinstance(hash_value, str)
+    assert len(hash_value.strip()) > 0
+    hash_value = hash_value.strip()
+    assert len(hash_value) == 64 # specific to the SHA-256 hashing algorithm
+    
+    # ---------------------------------------------------------------------- #
+    
+    # computing the hash value of the specified data
+    
+    hasher = sha256()
+    chunk_size = 65535 # for example
+    
+    with open(path_of_downloaded_data, "rb") as DOWNLOADED_DATA:
+        for chunk in iter(lambda: DOWNLOADED_DATA.read(chunk_size), b""):
+            hasher.update(chunk)
+    
+    computed_hash = hasher.hexdigest()
+    
+    assert isinstance(computed_hash, str)
+    assert len(computed_hash) == 64 # specific to the SHA-256 hashing algorithm
+    
+    # ---------------------------------------------------------------------- #
+    
+    if computed_hash != hash_value:
+        raise Exception(f"_validate_hash_of_downloaded_data (utils.py) - The hash of the data that was downloaded to the location \"{path_of_downloaded_data}\" is invalid !")
 
 
 def _download_progress_bar(
@@ -589,10 +823,11 @@ def _download_progress_bar(
         total_size_of_data_in_bytes
     ):
     """
-    Prints the progress bar related to the download of the raw MNIST data
-    
-    The signature of this function is imposed by the `reporthook` kwarg of
+    Prints the progress bar related to the online downloading of data, using
     the `urllib.request.urlretrieve` method
+    
+    NB : The signature of this function is imposed by the `reporthook` kwarg
+         of the `urllib.request.urlretrieve` method
     """
     # ---------------------------------------------------------------------- #
     
@@ -662,295 +897,88 @@ def _download_progress_bar(
         print(current_progress_bar, end="\r")
 
 
-def _download_raw_MNIST_dataset():
-    r"""
-    Automatically downloads the raw MNIST data (as a single file), and saves
-    it to the following location on your disk :
-        - on Windows : "C:\Users\YourUsername\.Custom-MLP\datasets\MNIST\raw_MNIST_data.npz"
-        - on Linux   : "/home/YourUsername/.Custom-MLP/datasets/MNIST/raw_MNIST_data.npz"
-    
-    Naturally, if this is the very first time you call this function, you'll
-    need to have an internet connection !
-    
-    The downloaded file has a size of about 11 MB, and is retrieved from the
-    following URL :
-    https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
-    
-    If the data has already been downloaded, it's simply retrieved from your disk
-    
-    Also, the absolute path of the downloaded data is returned
-    
-    Sidenote
-    --------
-    This function is basically equivalent to the `tensorflow.keras.datasets.mnist.load_data`
-    method. The only real difference is that the downloaded data has a different
-    location on your disk. The reason as for why the previous `mnist.load_data`
-    method isn't used is simply because we do NOT want to import TensorFlow !
-    Indeed, in my opinion, it would be kind of awkward to import TensorFlow in
-    a project aiming to implement a Deep Learning model *from scratch* !
-    Note that, if you use the `mnist.load_data` method of the TensorFlow module,
-    the raw MNIST data will be saved at the following location on your disk :
-        - on Windows : "C:\Users\YourUsername\.keras\datasets\mnist.npz"
-        - on Linux   : "/home/YourUsername/.keras/datasets/mnist.npz"
+def _download_data(
+        data_URL,
+        path_of_downloaded_data,
+        *,
+        hash_value=None
+    ):
     """
+    Automatically downloads the data located at the specified URL, and saves
+    it to the specified path. If the data already exists on your disk, then
+    nothing is done
     
-    # creating the folder that will contain the raw MNIST data (if it doesn't
-    # already exist)
-    default_data_directory = os.path.join(
-        os.path.expanduser("~"),
-        ".Custom-MLP",
-        "datasets",
-        "MNIST"
-    )
-    os.makedirs(default_data_directory, exist_ok=True)
+    Naturally, assuming the data doesn't already exist on your disk, an
+    internet connection is required to run this function
     
-    # here, `default_data_filename` has to be a "*.npz" filename
-    default_data_filename = "raw_MNIST_data.npz"
-    assert default_data_filename[-4 : ] == ".npz"
+    For security purposes, you can also input the (SHA-256) hash value of the
+    downloaded data (assuming you know it before downloading the data). In that
+    case, the hash of the downloaded data will be compared to the specified
+    value (and an exception will be raised if both hashes don't match)
+    """
+    # ---------------------------------------------------------------------- #
     
-    # defining the absolute path of the downloaded file
-    default_path_of_downloaded_data = os.path.join(
-        default_data_directory,
-        default_data_filename
-    )
+    # checking the validity of the specified arguments
+    
+    assert isinstance(data_URL, str)
+    assert len(data_URL.strip()) > 0
+    data_URL = data_URL.strip()
+    
+    assert isinstance(path_of_downloaded_data, str)
+    assert len(path_of_downloaded_data.strip()) > 0
+    path_of_downloaded_data = path_of_downloaded_data.strip()
+    
+    assert isinstance(hash_value, (type(None), str))
+    if hash_value is not None:
+        assert len(hash_value.strip()) > 0
+        hash_value = hash_value.strip()
+        assert len(hash_value) == 64 # specific to the SHA-256 hashing algorithm
+    
+    # ---------------------------------------------------------------------- #
     
     # if the data already exists on your disk, there is no need to re-download it
-    download_is_required = not(os.path.exists(default_path_of_downloaded_data))
+    download_is_required = not(os.path.exists(path_of_downloaded_data))
     
     if download_is_required:
         try:
-            data_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
-            
-            print(f"\nDownloading the raw MNIST data from the URL \"{data_URL}\". This might take a couple of seconds ...\n")
+            print(f"\nDownloading the data from the URL \"{data_URL}\". This might take a couple of seconds ...\n")
             t_beginning_downloading = perf_counter()
             
             # actually downloading the raw MNIST data from `data_URL`, and
             # saving it to the location `default_path_of_downloaded_data`
             urlretrieve(
                 url=data_URL,
-                filename=default_path_of_downloaded_data,
+                filename=path_of_downloaded_data,
                 reporthook=_download_progress_bar
             )
             
-            assert os.path.exists(default_path_of_downloaded_data)
+            assert os.path.exists(path_of_downloaded_data)
             
             t_end_downloading = perf_counter()
             duration_downloading = t_end_downloading - t_beginning_downloading
-            print(f"\n\nSuccessfully downloaded the raw MNIST data to the location \"{default_path_of_downloaded_data}\". Done in {duration_downloading:.3f} seconds")
+            print(f"\n\nSuccessfully downloaded the data to the location \"{path_of_downloaded_data}\". Done in {duration_downloading:.3f} seconds")
         except (Exception, KeyboardInterrupt):
             print("\n")
-            if os.path.exists(default_path_of_downloaded_data):
-                os.remove(default_path_of_downloaded_data)
+            if os.path.exists(path_of_downloaded_data):
+                os.remove(path_of_downloaded_data)
             raise
     
-    # checking if the hash value of the downloaded data is valid or not (for
-    # security purposes)
-    _validate_hash_of_downloaded_raw_MNIST_dataset(default_path_of_downloaded_data)
-    
-    return default_path_of_downloaded_data
-
-
-def get_dtype_of_array(array):
-    """
-    Returns the datatype of an array (as a string)
-    """
-    assert isinstance(array, np.ndarray)
-    str_dtype = "numpy." + str(array.dtype)
-    return str_dtype
-
-
-def get_range_of_array(array, precision=3):
-    """
-    Returns the range of an array (as a string)
-    """
-    # ---------------------------------------------------------------------- #
-    
-    # checking the validity of the specified arguments
-    
-    assert isinstance(array, np.ndarray)
-    
-    assert isinstance(precision, int)
-    assert precision >= 0
-    
-    # ---------------------------------------------------------------------- #
-    
-    min_element_of_array = np.min(array)
-    max_element_of_array = np.max(array)
-    
-    FLOAT_DATATYPES = (
-        np.float16,
-        np.float32,
-        np.float64
-    )
-    
-    INTEGER_DATATYPES = (
-        np.int8,  np.uint8,
-        np.int16, np.uint16,
-        np.int32, np.uint32,
-        np.int64, np.uint64
-    )
-    
-    array_dtype = array.dtype.type
-    
-    if array_dtype in FLOAT_DATATYPES:
-        # floating-point data
-        str_range = f"{min_element_of_array:.{precision}f} -> {max_element_of_array:.{precision}f}"
-    elif array_dtype in INTEGER_DATATYPES:
-        # integer data
-        str_range = f"{min_element_of_array} -> {max_element_of_array}"
-    else:
-        raise TypeError(f"get_range_of_array (utils.py) - The input `array` has an unrecognized datatype : \"{array_dtype.__name__}\" (it has to be numerical, i.e. float or int)")
-    
-    return str_range
-
-
-def display_class_distributions(
-        dict_of_label_vectors,
-        selected_classes="all",
-        dict_of_real_class_names=None,
-        precision=2
-    ):
-    """
-    Prints the class distributions of the specified label vectors (i.e. the
-    values of the dictionary `dict_of_label_vectors`). The keys of `dict_of_label_vectors`
-    are the names of the corresponding label vectors (as strings)
-    
-    The kwarg `selected_classes` can either be :
-        - the string "all", if you're working with all the classes (default)
-        - a list/tuple/1D-array containing the specific class indices you're
-          working with (e.g. [2, 4, 7])
-    
-    The kwarg `dict_of_real_class_names`, if not set to `None`, is a dictionary
-    with :
-        - as its keys   : all the selected class indices (as integers)
-        - as its values : the REAL names of the associated classes (as strings)
-    For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
-    could, for instance, set `dict_of_real_class_names` to the following
-    dictionary :
-    dict_of_real_class_names = {
-        2 : "TWO",
-        4 : "FOUR",
-        7 : "SEVEN"
-    }
-    By default, if `dict_of_real_class_names` is set to `None`, then the
-    class names will simply be the string representations of the (selected)
-    class indices
-    """
-    # ---------------------------------------------------------------------- #
-    
-    # checking the validity of the specified arguments
-    
-    assert isinstance(dict_of_label_vectors, dict)
-    assert len(dict_of_label_vectors) > 0
-    nb_classes = None
-    for label_vector_name, label_vector in dict_of_label_vectors.items():
-        assert isinstance(label_vector_name, str)
-        assert len(label_vector_name) > 0
-        assert label_vector_name == label_vector_name.strip()
-        
-        _validate_label_vector(label_vector)
-        if nb_classes is None:
-            distinct_class_indices = np.unique(label_vector)
-            nb_classes = distinct_class_indices.size
-        else:
-            assert np.allclose(np.unique(label_vector), distinct_class_indices)
-    
-    selected_classes, class_names = _validate_selected_classes(
-        selected_classes,
-        nb_classes,
-        dict_of_real_class_names=dict_of_real_class_names
-    )
-    
-    assert isinstance(precision, int)
-    assert precision >= 0
-    
-    # ---------------------------------------------------------------------- #
-    
-    if dict_of_real_class_names is not None:
-        displayed_string = "\nClass distributions :\n"
-    else:
-        displayed_string = "\nDistribution of the class indices :\n"
-    
-    # used to align the displayed class names
-    max_length_of_class_names = max([len(class_name) for class_name in class_names])
-    
-    for label_vector_name, label_vector in dict_of_label_vectors.items():
-        nb_labels = label_vector.size
-        
-        displayed_string += f"\n{label_vector_name} :"
-        
-        for class_index, class_name in enumerate(class_names):
-            nb_corresponding_class_indices = np.where(label_vector == class_index)[0].size
-            proportion = 100 * float(nb_corresponding_class_indices) / nb_labels
-            str_proportion = f"{proportion:.{precision}f}"
-            if proportion < 10:
-                str_proportion = "0" + str_proportion
-            
-            class_name_spacing = " " * (max_length_of_class_names - len(class_name))
-            displayed_string += f"\n    {class_name_spacing}{class_name} --> {str_proportion} %"
-    
-    print(displayed_string)
+    if hash_value is not None:
+        # checking if the hash value of the downloaded data is valid or not
+        # (for security purposes)
+        _validate_hash_of_downloaded_data(
+            path_of_downloaded_data,
+            hash_value
+        )
 
 
 ##############################################################################
 
 
-# Functions used to switch from an integer vector of labels to a one-hot encoded
-# matrix (and vice-versa)
+# Functions related to the display of the styled confusion matrix
 
 
-def vector_to_categorical(y, dtype=int):
-    """
-    Performs one-hot encoding on a 1D vector of INTEGER labels
-    """
-    # checking the validity of the specified arguments
-    _validate_label_vector(y)
-    dtype = _validate_numpy_datatype(dtype)
-    
-    nb_labels = y.size
-    
-    distinct_labels, distinct_labels_inverse = np.unique(y, return_inverse=True)
-    nb_classes = distinct_labels.size
-    assert nb_classes >= 2
-    
-    y_categorical = np.zeros((nb_labels, nb_classes), dtype=dtype)
-    
-    for label_index, label in enumerate(distinct_labels_inverse):
-        # by definition
-        y_categorical[label_index, label] = 1
-    
-    return y_categorical
-
-
-def categorical_to_vector(y_categorical, enable_checks=True):
-    """
-    Converts a 2D categorical matrix (one-hot encoded matrix or logits) into
-    its associated 1D vector of INTEGER labels
-    """
-    assert isinstance(enable_checks, bool)
-    
-    if enable_checks:
-        # checking the validity of `y_categorical`
-        assert isinstance(y_categorical, np.ndarray)
-        assert len(y_categorical.shape) == 2
-        global DEFAULT_DATATYPE
-        check_dtype(y_categorical, DEFAULT_DATATYPE)
-    
-    # by definition
-    y = np.argmax(y_categorical, axis=1)
-    
-    if enable_checks:
-        _validate_label_vector(y, is_whole_label_vector=False)
-    return y
-
-
-##############################################################################
-
-
-# Functions related to the display of the *styled* confusion matrix
-
-
-def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal="green"):
+def highlight_diagonal(conf_matrix_as_dataframe, *, color_of_diagonal="green"):
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script) if the latter is being run from a Jupyter notebook, and
@@ -994,7 +1022,7 @@ def highlight_diagonal(conf_matrix_as_dataframe, color_of_diagonal="green"):
     return diagonal_mask_as_dataframe
 
 
-def highlight_all_cells(value, colormap=cm.Greens):
+def highlight_all_cells(value, *, colormap=cm.Greens):
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script) if the latter is being run from a Jupyter notebook, and
@@ -1034,6 +1062,7 @@ def highlight_all_cells(value, colormap=cm.Greens):
 
 def print_confusion_matrix(
         conf_matrix,
+        *,
         selected_classes="all",
         dict_of_real_class_names=None,
         normalize="no",
@@ -1076,11 +1105,11 @@ def print_confusion_matrix(
     # checking the validity of the specified arguments
     
     assert isinstance(conf_matrix, np.ndarray)
-    assert issubclass(conf_matrix.dtype.type, np.integer)
     assert len(conf_matrix.shape) == 2
     nb_classes = conf_matrix.shape[0]
     assert nb_classes >= 2
     assert conf_matrix.shape[1] == nb_classes
+    assert issubclass(conf_matrix.dtype.type, np.integer)
     
     selected_classes, class_names = _validate_selected_classes(
         selected_classes,
@@ -1218,7 +1247,8 @@ def print_confusion_matrix(
         else:
             # if the returned confusion matrix is normalized, then its cells
             # will be highlighted in a color whose intensity is proportional
-            # to the value they hold (relative to the used colormap)
+            # to the value they hold (relative to the used colormap), i.e.
+            # the returned confusion matrix will have a background gradient
             conf_matrix_styler = conf_matrix_as_dataframe.style.applymap(
                 highlight_all_cells,
                 colormap=colormap
@@ -1281,7 +1311,7 @@ def print_confusion_matrix(
     max_length_of_class_names = max([len(class_name) for class_name in class_names])
     
     # first index (inclusive) of the area of interest of each row (i.e. the
-    # area of each row that potentially contains the actual numerical data of
+    # area of each row that potentially contains the actual numeric data of
     # the confusion matrix)
     first_index_area_of_interest = len(offset_spacing) + max(len(conf_matrix_as_dataframe.columns.name), len(conf_matrix_as_dataframe.index.name), max_length_of_class_names) + 2
     
@@ -1320,7 +1350,7 @@ def print_confusion_matrix(
         # ------------------------------------------------------------------ #
         
         # if we made it to this point, then it means that the current row
-        # is a row of interest (i.e. it holds the actual numerical data of
+        # is a row of interest (i.e. it holds the actual numeric data of
         # the confusion matrix)
         
         area_of_interest = current_row[first_index_area_of_interest : ]
@@ -1330,35 +1360,35 @@ def print_confusion_matrix(
         
         # ------------------------------------------------------------------ #
         
-        # this counter holds the number of numerical values that have been
+        # this counter holds the number of numeric values that have been
         # encountered in the area of interest of the current row
-        nb_seen_numerical_values_in_row = 0
+        nb_seen_numeric_values_in_row = 0
         
         current_class_name_in_columns = None
         
         for element_index, element in enumerate(split_area_of_interest):
-            # here, `element_is_numerical_value` is a boolean indicating whether
-            # `element` is an integer or a float (i.e. a numerical value)
+            # here, `element_is_numeric_value` is a boolean indicating whether
+            # `element` is an integer or a float (i.e. a numeric value)
             try:
                 _ = float(element)
-                element_is_numerical_value = True
+                element_is_numeric_value = True
             except:
-                element_is_numerical_value = False
+                element_is_numeric_value = False
             
-            if element_is_numerical_value:
-                nb_seen_numerical_values_in_row += 1
+            if element_is_numeric_value:
+                nb_seen_numeric_values_in_row += 1
                 
                 # updating the current column name (for classes)
-                current_class_name_in_columns = current_class_names_in_columns[nb_seen_numerical_values_in_row - 1]
+                current_class_name_in_columns = current_class_names_in_columns[nb_seen_numeric_values_in_row - 1]
             
             if current_class_name_in_columns is None:
                 continue
             
-            if (current_class_name_in_columns == current_class_name_in_rows) and (element_is_numerical_value or (element == "%")):
+            if (current_class_name_in_columns == current_class_name_in_rows) and (element_is_numeric_value or (element == "%")):
                 # here, `element` is on the diagonal of the confusion matrix,
                 # therefore color will be added to it !
                 
-                if element_is_numerical_value:
+                if element_is_numeric_value:
                     try:
                         next_element_is_a_percent_symbol = (split_colored_area_of_interest[element_index + 1] == "%")
                     except:

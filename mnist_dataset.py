@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Script defining the functions used to load and format the raw MNIST dataset
+Script defining all the functions that are specific to the MNIST dataset
 """
 
+import os
 from time import perf_counter
 
 import numpy as np
@@ -19,8 +20,7 @@ import utils
 from utils import (
     cast,
     check_dtype,
-    _download_raw_MNIST_dataset,
-    _validate_raw_MNIST_dataset,
+    _download_data,
     _validate_selected_classes,
     get_dtype_of_array,
     get_range_of_array,
@@ -34,7 +34,113 @@ from utils import (
 ##############################################################################
 
 
-def load_raw_MNIST_dataset_from_disk(verbose=False):
+def _download_raw_MNIST_dataset():
+    r"""
+    Automatically downloads the raw MNIST data (as a single file), and saves
+    it to the following location on your disk :
+        - on Windows : "C:\Users\YourUsername\.Custom-MLP\datasets\MNIST\raw_MNIST_data.npz"
+        - on Linux   : "/home/YourUsername/.Custom-MLP/datasets/MNIST/raw_MNIST_data.npz"
+    
+    Naturally, if this is the very first time you call this function, you'll
+    need to have an internet connection !
+    
+    The downloaded file has a size of about 11 MB, and is retrieved from the
+    following URL :
+    https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
+    
+    Also, the absolute path of the downloaded data is returned
+    
+    Sidenote
+    --------
+    This function is basically equivalent to the `tensorflow.keras.datasets.mnist.load_data`
+    method. The only real difference is that the downloaded data has a different
+    location on your disk. The reason as for why the previous `mnist.load_data`
+    method isn't used is simply because we do NOT want to import TensorFlow !
+    Indeed, in my opinion, it would be kind of awkward to import TensorFlow in
+    a project aiming to implement a Deep Learning model *from scratch* !
+    Note that, if you use the `mnist.load_data` method of the TensorFlow module,
+    the raw MNIST data will be saved at the following location on your disk :
+        - on Windows : "C:\Users\YourUsername\.keras\datasets\mnist.npz"
+        - on Linux   : "/home/YourUsername/.keras/datasets/mnist.npz"
+    """
+    
+    # the raw MNIST data will be downloaded from this URL (by default)
+    data_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
+    
+    # creating the folder that will contain the raw MNIST data (if it doesn't
+    # already exist)
+    default_data_directory = os.path.join(
+        os.path.expanduser("~"),
+        ".Custom-MLP",
+        "datasets",
+        "MNIST"
+    )
+    os.makedirs(default_data_directory, exist_ok=True)
+    
+    # here, `default_data_filename` must have a "*.npz" extension
+    default_data_filename = "raw_MNIST_data.npz"
+    assert os.path.splitext(default_data_filename)[1] == ".npz"
+    
+    # defining the absolute path of the downloaded file
+    path_of_downloaded_data = os.path.join(
+        default_data_directory,
+        default_data_filename
+    )
+    
+    # default SHA-256 hash value of the raw MNIST data 
+    hash_value = "731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1"
+    
+    # actually downloading the raw MNIST data
+    _download_data(
+        data_URL,
+        path_of_downloaded_data,
+        hash_value=hash_value
+    )
+    
+    return path_of_downloaded_data
+
+
+##############################################################################
+
+
+def _validate_raw_MNIST_dataset(
+        raw_X_train,
+        raw_y_train,
+        raw_X_test,
+        raw_y_test
+    ):
+    """
+    Checks if the specified raw MNIST data is valid or not. By design, the
+    arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
+    meant to be the outputs of the `load_raw_MNIST_dataset_from_disk` function
+    (of the "mnist_dataset.py" script)
+    """
+    assert isinstance(raw_X_train, np.ndarray)
+    assert raw_X_train.shape == (60000, 28, 28)
+    check_dtype(raw_X_train, np.uint8)
+    
+    assert isinstance(raw_y_train, np.ndarray)
+    assert raw_y_train.shape == (60000, )
+    check_dtype(raw_y_train, np.uint8)
+    
+    assert isinstance(raw_X_test, np.ndarray)
+    assert raw_X_test.shape == (10000, 28, 28)
+    check_dtype(raw_X_test, np.uint8)
+    
+    assert isinstance(raw_y_test, np.ndarray)
+    assert raw_y_test.shape == (10000, )
+    check_dtype(raw_y_test, np.uint8)
+    
+    DEFAULT_NB_CLASSES = 10
+    expected_classes = np.arange(DEFAULT_NB_CLASSES)
+    assert np.allclose(np.unique(raw_y_train), expected_classes)
+    assert np.allclose(np.unique(raw_y_test),  expected_classes)
+
+
+##############################################################################
+
+
+def load_raw_MNIST_dataset_from_disk(*, verbose=False):
     """
     Loads the raw MNIST data from the disk
     """
@@ -42,8 +148,8 @@ def load_raw_MNIST_dataset_from_disk(verbose=False):
     
     # ---------------------------------------------------------------------- #
     
-    # downloading the raw MNIST data to the (default) location `path_of_downloaded_data`
-    # (if it hasn't already been done)
+    # downloading the raw MNIST data to the (default) location `path_of_downloaded_data`,
+    # if it hasn't already been done
     path_of_downloaded_data = _download_raw_MNIST_dataset()
     
     t_beginning_loading = perf_counter()
@@ -112,6 +218,7 @@ def plot_random_images_from_raw_MNIST_dataset(
         raw_y_train,
         raw_X_test,
         raw_y_test,
+        *,
         seed=None
     ):
     """
@@ -132,7 +239,7 @@ def plot_random_images_from_raw_MNIST_dataset(
     )
     
     assert isinstance(seed, (type(None), int))
-    if isinstance(seed, int):
+    if seed is not None:
         assert seed >= 0
     
     # ---------------------------------------------------------------------- #
@@ -164,6 +271,7 @@ def plot_random_images_from_raw_MNIST_dataset(
         possible_image_indices = np.where(labels == image_index)[0]
         random_image_index = possible_image_indices[np.random.randint(0, possible_image_indices.size)]
         random_image = data[random_image_index]
+        assert len(random_image.shape) == 2
         
         row_index = image_index // nb_columns
         column_index = image_index % nb_columns
@@ -188,6 +296,7 @@ def format_raw_MNIST_dataset(
         nb_train_samples,
         nb_val_samples,
         nb_test_samples,
+        *,
         selected_classes="all",
         dict_of_real_class_names=None,
         nb_shuffles=20,
@@ -238,6 +347,7 @@ def format_raw_MNIST_dataset(
         raw_X_test,
         raw_y_test
     )
+    
     nb_classes = np.unique(raw_y_train).size # = 10
     
     # the 3 arguments `nb_train_samples`, `nb_val_samples` and `nb_test_samples`
@@ -262,7 +372,7 @@ def format_raw_MNIST_dataset(
     assert nb_shuffles >= 0
     
     assert isinstance(seed, (type(None), int))
-    if isinstance(seed, int):
+    if seed is not None:
         assert seed >= 0
     
     assert isinstance(verbose, bool)
@@ -309,9 +419,10 @@ def format_raw_MNIST_dataset(
     # ====================================================================== #
     
     # re-checking the validity of the arguments `nb_train_samples`, `nb_val_samples`
-    # and `nb_test_samples`
+    # and `nb_test_samples` (since the raw data might have been modified if
+    # all the classes weren't selected)
     
-    # we want to have each class represented at least once in the formatted
+    # we want to have each class represented AT LEAST ONCE in the formatted
     # data, therefore the number of samples of the train, val and test datasets
     # CANNOT be strictly less than `nb_classes`
     assert nb_train_samples >= nb_classes
@@ -552,8 +663,7 @@ def format_raw_MNIST_dataset(
         assert ("X_val" not in locals()) and ("y_val" not in locals())
         
         # by design
-        X_val = None
-        y_val = None
+        X_val, y_val = None, None
     
     print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_formatting:.3f} seconds")
     

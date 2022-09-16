@@ -22,6 +22,8 @@ from utils import (
     categorical_to_vector,
     _validate_label_vector,
     _validate_selected_classes,
+    _validate_numpy_dtype,
+    _validate_one_hot_encoded_array,
     list_to_string,
     clear_currently_printed_row,
     progress_bar
@@ -71,26 +73,26 @@ class Network:
         "mse" : (MSE, MSE_prime)  # MSE = Mean Squared Error
     }
     
-    def __init__(self, standardize_input_data=True):
+    def __init__(self, *, standardize_input_data=True):
         assert isinstance(standardize_input_data, bool)
         self.__standardize_input_data = standardize_input_data
         
-        self.layers = []
+        self._layers = []
         
         # list containing the input/output sizes of all the layers of the
         # network (it's a list of tuples of 2 integers)
         self._io_sizes = []
         
         self.loss_name = None
-        self.loss = None
-        self.loss_prime = None
+        self._loss = None
+        self._loss_prime = None
         
         self.history = None
         self._is_trained = False
     
     
     def __str__(self):
-        if len(self.layers) == 0:
+        if len(self._layers) == 0:
             return f"{self.__class__.__name__}()"
         
         # using the default summary kwargs (except for `print_summary`, which
@@ -118,21 +120,24 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        if isinstance(layer, InputLayer):
-            assert len(self.layers) == 0, "\nNetwork.add - ERROR - You cannot add an InputLayer if other layers have already been added to the Network !"
-            input_size  = layer.input_size
-            output_size = input_size
-        else:
-            assert len(self.layers) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
-            input_size  = self._io_sizes[-1][1] # output size of the previous layer
-            
-            if isinstance(layer, DenseLayer):
-                output_size = layer.output_size
-                layer.build(input_size) # actually building the Dense layer
-            elif isinstance(layer, (ActivationLayer, BatchNormLayer, DropoutLayer)):
-                output_size = input_size
+        assert len(self._layers) == len(self._io_sizes)
         
-        self.layers.append(layer)
+        if isinstance(layer, InputLayer):
+            assert len(self._layers) == 0, "\nNetwork.add - ERROR - You cannot add an InputLayer if other layers have already been added to the Network !"
+            input_size  = layer.input_size
+        else:
+            assert len(self._layers) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
+            input_size  = self._io_sizes[-1][1] # output size of the previous layer
+        
+        layer.build(input_size)
+        
+        if hasattr(layer, "output_size"):
+            # for now, only the Dense layer has an `output_size` attribute
+            output_size = layer.output_size
+        else:
+            output_size = input_size
+        
+        self._layers.append(layer)
         self._io_sizes.append((input_size, output_size))
     
     
@@ -142,12 +147,12 @@ class Network:
         """
         total_nb_of_trainable_params = 0
         
-        for layer in self.layers:
+        for layer in self._layers:
             assert issubclass(type(layer), Layer)
             nb_trainable_params = layer.nb_trainable_params
             
             if nb_trainable_params is None:
-                raise Exception(f"Network._get_total_nb_of_trainable_params - Please define the `nb_trainable_params` attribute of the \"{layer.__class__.__name__}\" class !")
+                raise Exception(f"Network._get_total_nb_of_trainable_params - Please define the `nb_trainable_params` attribute of the \"{layer.__class__.__name__}\" class ! It's still set to the default value (i.e. `None`)")
             
             total_nb_of_trainable_params += nb_trainable_params
         
@@ -171,21 +176,23 @@ class Network:
             "trainable_params" : ["Trainable parameters"]
         }
         
-        for layer_index, layer in enumerate(self.layers):
+        assert len(self._layers) == len(self._io_sizes)
+        
+        for layer, io_size in zip(self._layers, self._io_sizes):
             # -------------------------------------------------------------- #
             
             # retrieving the summary data related to the current layer
             
             layer_type = str(layer).replace("Layer", "")
             
-            input_size, output_size = self._io_sizes[layer_index]
+            input_size, output_size = io_size
             input_shape  = str((None, input_size))
             output_shape = str((None, output_size))
             
             assert issubclass(type(layer), Layer)
             nb_trainable_params = layer.nb_trainable_params
             if nb_trainable_params is None:
-                raise Exception(f"Network._get_summary_data - Please define the `nb_trainable_params` attribute of the \"{layer.__class__.__name__}\" class !")
+                raise Exception(f"Network._get_summary_data - Please define the `nb_trainable_params` attribute of the \"{layer.__class__.__name__}\" class ! It's still set to the default value (i.e. `None`)")
             nb_trainable_params = "{:,}".format(nb_trainable_params)
             
             # -------------------------------------------------------------- #
@@ -204,6 +211,7 @@ class Network:
     
     def summary(
             self,
+            *,
             print_summary=True,
             column_separator="|",        # can be multiple characters long
             row_separator="-",           # has to be a single character
@@ -265,7 +273,7 @@ class Network:
         
         # checking if the network has got any layers or not
         
-        assert len(self.layers) >= 1, "\nNetwork.summary - ERROR - You can't print the network's summary if it doesn't contain any layers !"
+        assert len(self._layers) >= 1, "\nNetwork.summary - ERROR - You can't print the network's summary if it doesn't contain any layers !"
         
         # ------------------------------------------------------------------ #
         
@@ -275,7 +283,7 @@ class Network:
         
         summary_data = self._get_summary_data()
         
-        nb_aligned_rows = len(self.layers) + 1
+        nb_aligned_rows = len(self._layers) + 1
         for data in summary_data.values():
             assert isinstance(data, list)
             assert len(data) == nb_aligned_rows
@@ -415,7 +423,7 @@ class Network:
             print(str_summary)
             return
         
-        # for the `__str__` method only
+        # for the `Network.__str__` method only
         return str_summary
     
     
@@ -430,13 +438,14 @@ class Network:
             raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES.keys()))})")
         
         self.loss_name = loss_name
-        self.loss, self.loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
+        self._loss, self._loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
     
     
     @staticmethod
     def _validate_data(
             X,
             y=None,
+            *,
             input_size_of_network=None,
             output_size_of_network=None,
         ):
@@ -451,53 +460,54 @@ class Network:
         """
         # ------------------------------------------------------------------ #
         
-        # checking `input_size_of_network` and `output_size_of_network`
-        
-        assert isinstance(input_size_of_network, (type(None), int))
-        if isinstance(input_size_of_network, int):
-            assert input_size_of_network >= 2
-        
-        assert isinstance(output_size_of_network, (type(None), int))
-        if isinstance(output_size_of_network, int):
-            assert output_size_of_network >= 2
-        
-        # ------------------------------------------------------------------ #
-        
         # checking `X`
         
         assert isinstance(X, np.ndarray)
         assert len(X.shape) == 2
         
+        # checking if `X` has numeric data
+        _validate_numpy_dtype(X.dtype)
+        
         try:
             check_dtype(X, utils.DEFAULT_DATATYPE)
-            used_X = X
+            used_X = X.copy()
         except:
             used_X = cast(X, utils.DEFAULT_DATATYPE)
         
         nb_features_per_sample = X.shape[1] # = number of pixels per image
         assert nb_features_per_sample >= 2
-        if input_size_of_network is not None:
-            assert nb_features_per_sample == input_size_of_network
         
         # ------------------------------------------------------------------ #
         
-        # checking `y`
+        # checking `input_size_of_network`
+        assert isinstance(input_size_of_network, (type(None), int))
+        if input_size_of_network is not None:
+            assert input_size_of_network == nb_features_per_sample
+        
+        # ------------------------------------------------------------------ #
+        
+        # checking `y` (and `output_size_of_network`)
         
         assert isinstance(y, (type(None), np.ndarray))
         
         if y is not None:
             assert len(y.shape) in [1, 2]
+            
             if len(y.shape) == 1:
                 _validate_label_vector(y)
                 y_flat = y.copy()
-                y_categorical = vector_to_categorical(y_flat, utils.DEFAULT_DATATYPE)
+                y_categorical = vector_to_categorical(y_flat, dtype=utils.DEFAULT_DATATYPE)
             elif len(y.shape) == 2:
+                # checking if `y` has numeric data
+                _validate_numpy_dtype(y.dtype)
+                
                 try:
-                    check_dtype(y_categorical, utils.DEFAULT_DATATYPE)
-                    y_categorical = y
+                    check_dtype(y, utils.DEFAULT_DATATYPE)
+                    y_categorical = y.copy()
                 except:
                     y_categorical = cast(y, utils.DEFAULT_DATATYPE)
                 
+                _validate_one_hot_encoded_array(y_categorical)
                 y_flat = categorical_to_vector(y_categorical, enable_checks=True)
             
             nb_samples = X.shape[0]
@@ -507,8 +517,11 @@ class Network:
             nb_classes = y_categorical.shape[1]
             assert nb_classes >= 2
             assert np.unique(y_flat).size == nb_classes
+            
+            # checking `output_size_of_network`
+            assert isinstance(output_size_of_network, (type(None), int))
             if output_size_of_network is not None:
-                assert nb_classes == output_size_of_network
+                assert output_size_of_network == nb_classes
             
             return used_X, y_categorical, y_flat
         
@@ -522,6 +535,7 @@ class Network:
             nb_epochs,
             train_batch_size,
             learning_rate,
+            *,
             nb_shuffles_before_each_train_batch_split=10,
             seed_train_batch_splits=None,
             enable_checks=True,
@@ -544,7 +558,7 @@ class Network:
         
         used_X_train, used_y_train, _ = Network._validate_data(
             X_train,
-            y=y_train,
+            y_train,
             input_size_of_network=self._io_sizes[0][0],
             output_size_of_network=self._io_sizes[-1][1]
         )
@@ -567,10 +581,12 @@ class Network:
         
         if nb_shuffles_before_each_train_batch_split > 0:
             assert isinstance(seed_train_batch_splits, (type(None), int))
-            if isinstance(seed_train_batch_splits, int):
+            if seed_train_batch_splits is not None:
                 assert seed_train_batch_splits >= 0
         
         assert isinstance(enable_checks, bool)
+        if not(enable_checks):
+            print("\nNetwork.fit - WARNING - The `enable_checks` kwarg is set to `False`. Please make sure you know what you're doing !")
         
         # ------------------------------------------------------------------ #
         
@@ -584,7 +600,7 @@ class Network:
             
             used_X_val, used_y_val, _ = Network._validate_data(
                 X_val,
-                y=y_val,
+                y_val,
                 input_size_of_network=self._io_sizes[0][0],
                 output_size_of_network=self._io_sizes[-1][1]
             )
@@ -607,19 +623,19 @@ class Network:
         if self._is_trained:
             raise Exception("Network.fit - The network has already been trained once !")
         
-        if len(self.layers) == 0:
+        if len(self._layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
         
         # checking if the very last layer of the network is a softmax
         # or a sigmoid activation layer
         try:
-            last_layer = self.layers[-1]
+            last_layer = self._layers[-1]
             assert isinstance(last_layer, ActivationLayer)
             assert last_layer.activation_name in ["softmax", "sigmoid"]
         except:
             raise Exception("Network.fit - The very last layer of the network must be a softmax or a sigmoid activation layer !")
         
-        if (self.loss is None) or (self.loss_prime is None):
+        if (self._loss is None) or (self._loss_prime is None):
             raise Exception("Network.fit - Please set a loss function before training the network !")
         
         # ================================================================== #
@@ -646,8 +662,14 @@ class Network:
             self.history["val_accuracy"] = []
         
         nb_train_batches = (nb_train_samples + train_batch_size - 1) // train_batch_size
+        min_max_train_batch_indices = [1, nb_train_batches]
         
         if _has_validation_data:
+            # Splitting the validation data into batches. Here, you can set
+            # the `nb_shuffles` kwarg to any integer you want (or `None`). It's
+            # just that, since the order of the data/label batches of the
+            # validation set will NOT affect the resulting validation losses and
+            # accuracies, you might as well set `nb_shuffles` to zero (to save time)
             val_batches = split_data_into_batches(
                 used_X_val,
                 val_batch_size,
@@ -656,10 +678,10 @@ class Network:
                 enable_checks=True
             )
             
-            nb_val_batches = len(val_batches["data"])
-        
-        # for the backward propagation
-        reversed_layers = self.layers[::-1]
+            val_batches_data   = val_batches["data"]
+            val_batches_labels = val_batches["labels"]
+            
+            nb_val_batches = len(val_batches_data)
         
         # ================================================================== #
         
@@ -703,49 +725,58 @@ class Network:
         
         seed = seed_train_batch_splits
         
-        for epoch_index in range(nb_epochs):
+        # `epoch_index` doesn't need to be zero-indexed here
+        for epoch_index in range(1, nb_epochs + 1):
+            # for display purposes only
+            formatted_epoch_index = format(epoch_index, epoch_index_format)
+            epoch_header = f"{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  "
+            
+            # splitting the training data into batches (NB : here, `train_batches`
+            # is a generator)
             train_batches = split_data_into_batches(
                 used_X_train,
                 train_batch_size,
                 labels=used_y_train,
+                is_generator=True,
                 nb_shuffles=nb_shuffles_before_each_train_batch_split,
                 seed=seed,
                 enable_checks=enable_checks
             )
-            
-            if enable_checks:
-                assert len(train_batches["data"]) == nb_train_batches
             
             if seed is not None:
                 # updating the seed in order to make the shuffling of the
                 # training data different at each epoch
                 seed += 1
             
-            # for display purposes only
-            formatted_epoch_index = format(epoch_index + 1, epoch_index_format)
-            
+            # initializing the training loss and accuracy
             train_loss     = cast(0, utils.DEFAULT_DATATYPE)
             train_accuracy = 0
             
-            for train_batch_index in range(nb_train_batches):
-                X_train_batch = train_batches["data"][train_batch_index]
-                y_train_batch = train_batches["labels"][train_batch_index]
+            # initializing the index of the current batch of training data
+            train_batch_index = 0
+            
+            for X_train_batch, y_train_batch in train_batches:
+                # `train_batch_index` doesn't need to be zero-indexed here
+                train_batch_index += 1
+                assert train_batch_index <= nb_train_batches
                 
                 # forward propagation
                 train_output = X_train_batch
-                for layer in self.layers:
+                for layer in self._layers:
                     train_output = layer.forward_propagation(
                         train_output,
                         training=True,
                         enable_checks=enable_checks
                     )
                 
-                # computing the training loss and accuracy (for display purposes only)
-                train_loss += np.sum(self.loss(
+                # updating the (raw) training loss
+                train_loss += np.sum(self._loss(
                     y_train_batch,
                     train_output,
                     enable_checks=enable_checks
                 ))
+                
+                # updating the (raw) training accuracy
                 train_accuracy += accuracy_score(
                     categorical_to_vector(y_train_batch, enable_checks=enable_checks),
                     categorical_to_vector(train_output,  enable_checks=enable_checks),
@@ -754,31 +785,39 @@ class Network:
                 )
                 
                 # backward propagation
-                output_gradient = self.loss_prime(
+                output_gradient = self._loss_prime(
                     y_train_batch,
                     train_output,
                     enable_checks=enable_checks
                 )
-                for layer in reversed_layers:
+                for layer in reversed(self._layers):
                     output_gradient = layer.backward_propagation(
                         output_gradient,
                         learning_rate,
                         enable_checks=enable_checks
                     )
                 
-                if ((train_batch_index + 1) % train_batch_index_update_step == 0) or ((train_batch_index + 1) in [1, nb_train_batches]):
-                    formatted_batch_index = format(train_batch_index + 1, train_batch_index_format)
+                if (train_batch_index % train_batch_index_update_step == 0) or (train_batch_index in min_max_train_batch_indices):
+                    # displaying the progress bar related to the number of
+                    # processed batches (within the current epoch)
+                    
+                    formatted_batch_index = format(train_batch_index, train_batch_index_format)
                     
                     current_progress_bar = progress_bar(
-                        train_batch_index + 1,
+                        train_batch_index,
                         nb_train_batches,
-                        progress_bar_size=15 # by default
+                        progress_bar_size=15, # by default
+                        enable_checks=enable_checks
                     )
                     
-                    train_batch_progress_row = f"{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  {current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
+                    train_batch_progress_row = f"{epoch_header}{current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
                     
                     clear_currently_printed_row()
                     print(train_batch_progress_row, end="\r")
+            
+            # necessary check (to see if the correct number of batches were
+            # generated during the current epoch)
+            assert train_batch_index == nb_train_batches
             
             train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
             check_dtype(train_loss, utils.DEFAULT_DATATYPE)
@@ -789,28 +828,28 @@ class Network:
             # validation step for the current epoch
             
             if _has_validation_data:
+                # initializing the validation loss and accuracy
                 val_loss     = cast(0, utils.DEFAULT_DATATYPE)
                 val_accuracy = 0
                 
-                for val_batch_index in range(nb_val_batches):
-                    X_val_batch = val_batches["data"][val_batch_index]
-                    y_val_batch = val_batches["labels"][val_batch_index]
-                    
+                for X_val_batch, y_val_batch in zip(val_batches_data, val_batches_labels):
                     # forward propagation
                     val_output = X_val_batch
-                    for layer in self.layers:
+                    for layer in self._layers:
                         val_output = layer.forward_propagation(
                             val_output,
                             training=False,
                             enable_checks=enable_checks
                         )
                     
-                    # computing the validation loss and accuracy (for display purposes only)
-                    val_loss += np.sum(self.loss(
+                    # updating the (raw) validation loss
+                    val_loss += np.sum(self._loss(
                         y_val_batch,
                         val_output,
                         enable_checks=enable_checks
                     ))
+                    
+                    # updating the (raw) validation accuracy
                     val_accuracy += accuracy_score(
                         categorical_to_vector(y_val_batch, enable_checks=enable_checks),
                         categorical_to_vector(val_output,  enable_checks=enable_checks),
@@ -824,10 +863,10 @@ class Network:
             
             # -------------------------------------------------------------- #
             
-            # updating the network's history with the data of the
-            # current epoch
+            # updating the network's history with the losses and accuracies
+            # computed during the current epoch
             
-            self.history["epoch"].append(epoch_index + 1)
+            self.history["epoch"].append(epoch_index)
             self.history["train_loss"].append(train_loss)
             self.history["train_accuracy"].append(train_accuracy)
             
@@ -838,11 +877,10 @@ class Network:
             # -------------------------------------------------------------- #
             
             precision_epoch_history = 4 # by default
-            epoch_history = f"{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  "
             if _has_validation_data:
-                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
+                epoch_history = f"{epoch_header}train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             else:
-                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}"
+                epoch_history = f"{epoch_header}train_loss={train_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}"
             
             clear_currently_printed_row()
             print(epoch_history)
@@ -874,7 +912,7 @@ class Network:
     def _check_if_trained(self):
         """
         Checks if the network has already been trained or not (using the
-        `fit` method)
+        `Network.fit` method)
         """
         if not(self._is_trained):
             raise Exception("The network hasn't been trained yet !")
@@ -882,6 +920,7 @@ class Network:
     
     def plot_history(
             self,
+            *,
             save_plot_to_disk=False,
             saved_image_name="network_history"
         ):
@@ -902,6 +941,7 @@ class Network:
             assert len(saved_image_name) > 0
             assert len(saved_image_name.strip()) > 0
             saved_image_name = saved_image_name.strip()
+            saved_image_name = " ".join(saved_image_name.split())
         
         # ------------------------------------------------------------------ #
         
@@ -987,10 +1027,17 @@ class Network:
             if not(os.path.exists(DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
                 os.mkdir(DEFAULT_SAVED_IMAGES_FOLDER_NAME)
             
-            if saved_image_name[-4 : ] != ".png": 
-                saved_image_full_name = saved_image_name + ".png"
-            else:
-                saved_image_full_name = saved_image_name
+            default_extension = ".png"
+            extension_of_saved_image_name = os.path.splitext(saved_image_name)[1]
+            
+            # getting the corrected (full) basename of the saved plot
+            saved_image_full_name = saved_image_name
+            if extension_of_saved_image_name != default_extension:
+                if extension_of_saved_image_name.lower() == default_extension:
+                    root_of_saved_image_full_name = saved_image_full_name[ : len(saved_image_full_name) - len(default_extension)]
+                    saved_image_full_name = root_of_saved_image_full_name + default_extension
+                else:
+                    saved_image_full_name += default_extension
             
             # getting the absolute path of the saved plot
             saved_image_path = os.path.join(
@@ -1005,7 +1052,7 @@ class Network:
             plt.savefig(
                 saved_image_path,
                 dpi=300,
-                format="png"
+                format=default_extension[1 : ]
             )
             
             t_end_image_saving = perf_counter()
@@ -1018,10 +1065,17 @@ class Network:
         plt.show()
     
     
-    def predict(self, X_test, test_batch_size=32, return_logits=True):
+    def predict(
+            self,
+            X_test,
+            *,
+            test_batch_size=32,
+            return_logits=True
+        ):
         """
         Returns the network's raw prediction (i.e. the logits) for a given
-        test input
+        test input. If the `return_logits` kwarg is set to `False`, then
+        the integer predictions will be returned
         """
         # ------------------------------------------------------------------ #
         
@@ -1054,22 +1108,28 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
+        # Splitting the testing data into batches. Here, the `nb_shuffles` kwarg
+        # has to be set to zero, otherwise, to compute the testing loss and accuracy
+        # (in the `Network.evaluate` method), we would need the shuffled labels
+        # too. Yet, by design, this function doesn't take in any labels as inputs.
+        # Just like for the validation set, while it is true that the order of the
+        # data/label batches of the testing set will NOT affect the resulting
+        # testing losses and accuracies, this assumes that the generated testing
+        # batches contain the information of the label batches as well, which
+        # is NOT the case here (by design) !
         test_batches = split_data_into_batches(
             used_X_test,
             test_batch_size,
             nb_shuffles=0,
             enable_checks=True
         )
-        nb_test_batches = len(test_batches["data"])
         
         test_outputs = []
         
-        for test_batch_index in range(nb_test_batches):
-            X_test_batch = test_batches["data"][test_batch_index]
-            
+        for X_test_batch in test_batches["data"]:
             # forward propagation
             test_output = X_test_batch
-            for layer in self.layers:
+            for layer in self._layers:
                 test_output = layer.forward_propagation(
                     test_output,
                     training=False,
@@ -1093,6 +1153,7 @@ class Network:
             self,
             X_test,
             y_test,
+            *,
             top_N_accuracy=2,
             test_batch_size=32
         ):
@@ -1117,7 +1178,7 @@ class Network:
         
         used_X_test, y_test_categorical, y_test_flat = Network._validate_data(
             X_test,
-            y=y_test,
+            y_test,
             input_size_of_network=self._io_sizes[0][0],
             output_size_of_network=self._io_sizes[-1][1]
         )
@@ -1152,6 +1213,11 @@ class Network:
         
         # computing the testing loss and accuracy
         
+        # NB : For the testing accuracy, we could simply call :
+        #      `100 * accuracy_score(y_test_flat, y_pred_flat)`
+        #      but, to simulate
+        
+        # initializing the testing loss and accuracy
         test_loss     = cast(0, utils.DEFAULT_DATATYPE)
         test_accuracy = 0
         
@@ -1161,11 +1227,14 @@ class Network:
             y_test_batch = y_test_categorical[first_index_of_test_batch : last_index_of_test_batch, :]
             y_pred_batch = y_pred[first_index_of_test_batch : last_index_of_test_batch, :]
             
-            test_loss += np.sum(self.loss(
+            # updating the (raw) testing loss
+            test_loss += np.sum(self._loss(
                 y_test_batch,
                 y_pred_batch,
                 enable_checks=True
             ))
+            
+            # updating the (raw) testing accuracy
             test_accuracy += accuracy_score(
                 categorical_to_vector(y_test_batch, enable_checks=True), # NB : We could have also used `y_test_flat` here
                 categorical_to_vector(y_pred_batch, enable_checks=True), # NB : We could have also used `y_pred_flat` here
@@ -1216,6 +1285,7 @@ class Network:
             self,
             X_test,
             y_test,
+            *,
             selected_classes="all",
             dict_of_real_class_names=None,
             image_shape=None,
@@ -1260,7 +1330,7 @@ class Network:
         
         used_X_test, y_test_categorical, y_test_flat = Network._validate_data(
             X_test,
-            y=y_test,
+            y_test,
             input_size_of_network=self._io_sizes[0][0],
             output_size_of_network=self._io_sizes[-1][1]
         )
@@ -1274,7 +1344,7 @@ class Network:
         )
         
         assert isinstance(image_shape, (type(None), tuple))
-        if isinstance(image_shape, tuple):
+        if image_shape is not None:
             assert len(image_shape) in [2, 3]
             
             assert isinstance(image_shape[0], (int, np.int_))
@@ -1302,7 +1372,7 @@ class Network:
             default_image_shape = (sidelength_of_each_image, sidelength_of_each_image)
         
         assert isinstance(seed, (type(None), int))
-        if isinstance(seed, int):
+        if seed is not None:
             assert seed >= 0
         
         # ------------------------------------------------------------------ #
