@@ -130,7 +130,7 @@ class Layer(ABC):
 class InputLayer(Layer):
     """
     Input layer. The only purpose of this class is to be the very first layer
-    of the network
+    of the network, and signal to the next layers what the input size is
     """
     def __init__(self, input_size: int) -> None:
         super().__init__()

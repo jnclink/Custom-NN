@@ -41,6 +41,11 @@ from losses import (
     MSE, MSE_prime
 )
 
+from callbacks import (
+    Callback,
+    EarlyStoppingCallback
+)
+
 from layers import (
     Layer,
     InputLayer,
@@ -134,7 +139,7 @@ class Network:
         layer.build(input_size)
         
         if hasattr(layer, "output_size"):
-            # for now, only the Dense layer has an `output_size` attribute
+            # so far, only the Dense layer has an `output_size` attribute
             output_size = layer.output_size
         else:
             output_size = input_size
@@ -541,7 +546,8 @@ class Network:
             seed_train_batch_splits: Optional[int] = None,
             enable_checks: bool = True,
             validation_data: Optional[int] = None,
-            val_batch_size: int = 32
+            val_batch_size: int = 32,
+            training_callbacks: Optional[Union[list[Callback], tuple[Callback]]] = None
         ):
         """
         Trains the network on `nb_epochs` epochs
@@ -589,6 +595,38 @@ class Network:
         if not(enable_checks):
             print("\nNetwork.fit - WARNING - The `enable_checks` kwarg is set to `False`. Please make sure you know what you're doing !")
         
+        _early_stopping_callback = None
+        
+        # the check of the `training_callbacks` kwarg isn't optimized, but
+        # it's only going to be done once so it doesn't really matter (and it
+        # takes less than 0.1 seconds to do anyway)
+        assert isinstance(training_callbacks, (type(None), list, tuple))
+        if training_callbacks is not None:
+            if len(training_callbacks) > 0:
+                # checking that the specified callbacks all have a legitimate type
+                for callback in training_callbacks:
+                    assert issubclass(type(callback), Callback)
+                    assert type(callback) != Callback
+                
+                nb_callbacks = len(training_callbacks)
+                
+                # checking that the specified callbacks all have a DIFFERENT type
+                for callback_index, callback in enumerate(training_callbacks):
+                    type_current_callback = type(callback)
+                    for other_callback_index in range(callback_index + 1, nb_callbacks):
+                        other_callback = training_callbacks[other_callback_index]
+                        if type(other_callback) == type_current_callback:
+                            raise ValueError(f"Network.fit - The `training_callbacks` kwarg contains multiple instances of the same \"{type_current_callback.__name__}\" class !")
+                
+                # checking if the callbacks contain an `EarlyStoppingCallback` instance
+                for callback in training_callbacks:
+                    if isinstance(callback, EarlyStoppingCallback):
+                        if callback.patience < nb_epochs:
+                            _early_stopping_callback = callback
+                    
+                    # NB : Add an instance check here if you added another
+                    #      callback in the "callbacks" script
+        
         # ------------------------------------------------------------------ #
         
         # checking the `validation_data` and `val_batch_size` kwargs
@@ -616,6 +654,11 @@ class Network:
             _has_validation_data = True
         else:
             _has_validation_data = False
+            
+            if _early_stopping_callback is not None:
+                monitored_value = _early_stopping_callback.monitor
+                if monitored_value in ["val_loss", "val_accuracy"]:
+                    raise ValueError(f"Network.fit - The early stopping callback can't monitor \"{monitored_value}\" if there is no validation data !")
         
         # ================================================================== #
         
@@ -663,7 +706,6 @@ class Network:
             self.history["val_accuracy"] = []
         
         nb_train_batches = (nb_train_samples + train_batch_size - 1) // train_batch_size
-        min_max_train_batch_indices = [1, nb_train_batches]
         
         if _has_validation_data:
             # Splitting the validation data into batches. Here, you can set
@@ -686,13 +728,15 @@ class Network:
         
         # ================================================================== #
         
-        # initializing some variables that'll be used for display purposes only
+        # initializing some variables that'll ONLY be used for display purposes
         
         nb_digits_epoch_index = len(str(nb_epochs))
         epoch_index_format = f"0{nb_digits_epoch_index}d"
         
         nb_digits_train_batch_index = len(str(nb_train_batches))
         train_batch_index_format = f"0{nb_digits_train_batch_index}d"
+        
+        min_max_train_batch_indices = [1, nb_train_batches]
         
         # number of times the training batch indices are updated (per epoch)
         nb_train_batch_index_updates = 5
@@ -759,7 +803,7 @@ class Network:
             for X_train_batch, y_train_batch in train_batches:
                 # `train_batch_index` doesn't need to be zero-indexed here
                 train_batch_index += 1
-                assert train_batch_index <= nb_train_batches
+                assert train_batch_index <= nb_train_batches # necessary check
                 
                 # forward propagation
                 train_output = X_train_batch
@@ -826,7 +870,7 @@ class Network:
             
             # -------------------------------------------------------------- #
             
-            # validation step for the current epoch
+            # validation step for the current epoch (if requested)
             
             if _has_validation_data:
                 # initializing the validation loss and accuracy
@@ -885,6 +929,26 @@ class Network:
             
             clear_currently_printed_row()
             print(epoch_history)
+            
+            # -------------------------------------------------------------- #
+            
+            # Checking if there is an early stopping callback (if requested)
+            
+            if (_early_stopping_callback is not None) and (epoch_index != nb_epochs):
+                prematurely_stop_training_loop = _early_stopping_callback.stop_at_current_epoch(
+                    self.history,
+                    enable_checks=enable_checks
+                )
+                
+                if prematurely_stop_training_loop:
+                    callback_message = f"\n{offset_spacing}{str(_early_stopping_callback)} :"
+                    callback_message += f"\n{offset_spacing}Prematurely stopping the training loop after epoch n°{epoch_index}"
+                    print(callback_message)
+                    
+                    # updating the actual number of completed epochs
+                    nb_epochs = epoch_index
+                    
+                    break
         
         # ================================================================== #
         

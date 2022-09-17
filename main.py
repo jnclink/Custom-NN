@@ -17,6 +17,8 @@ from mnist_dataset import (
 
 from network import Network
 
+from callbacks import EarlyStoppingCallback
+
 from layers import (
     InputLayer,
     DenseLayer,
@@ -350,23 +352,64 @@ def main():
     
     # Training phase
     
-    # NB : Here, inputting validation data is optional. If you don't want to
-    #      use validation data, please (at least) set the `validation_data`
-    #      kwarg to `None` (or don't specify it at all)
+    # ---------------------------------------------------------------------- #
+    
+    # Setting the validation kwargs
+    
+    # Here, inputting validation data is optional. If you don't want to use
+    # validation data, please (at least) set the `validation_data` kwarg to
+    # `None` (or don't specify it at all)
     
     if (X_val is not None) and (y_val is not None):
         validation_kwargs = {
             "validation_data" : (X_val, y_val), # can be set to `None` if needed
-            "val_batch_size"  : 32              # default value
+            "val_batch_size"  : 32
         }
     else:
         validation_kwargs = {}
     
-    # If you set the `enable_checks` kwarg to `False` (to speed up the training),
-    # please first make sure your network runs a couple of epochs without errors
-    # when the same kwarg is set to `True`. This comment is only relevant to
-    # whoever wants to change some features of the project (or add some more !)
+    # ---------------------------------------------------------------------- #
     
+    # Setting the `training_callbacks` kwarg
+    
+    # So far, the only callback that has been implemented is the
+    # `EarlyStoppingCallback`. With the latter, you can monitor one of the
+    # following metrics : "train_loss", "train_accuracy", "val_loss" and
+    # "val_accuracy". Naturally, the two last metrics require that you input
+    # validation data to the `Network.fit` method
+    
+    if (X_val is not None) and (y_val is not None):
+        monitored_metric = "val_loss"
+    else:
+        monitored_metric = "train_loss"
+    
+    # The early stopping callback will check if the sequence formed by the 
+    # last `patience` monitored values (of the last `patience` epochs) is
+    # strictly monotonous (in the "wrong direction"). If that's the case, then
+    # the training loop is prematurely stopped. Basically :
+    #     - If a loss is being monitored : since the losses are meant to be
+    #       minimized, it'll check if the monitored loss has only been
+    #       increasing in the past `patience` epochs
+    #     - If an accuracy is being monitored : since the accuracies are meant
+    #       to be maximized, it'll check if the monitored accuracy has only been
+    #       decreasing in the past `patience` epochs
+    early_stopping_callback = EarlyStoppingCallback(
+        monitor=monitored_metric,
+        patience=3 # has to be >= 2
+    )
+    
+    # You can set `training_callbacks` to the empty list/tuple if needed
+    training_callbacks = [early_stopping_callback]
+    
+    # ---------------------------------------------------------------------- #
+    
+    # NB : If you set the `enable_checks` kwarg to `False` (to speed up the
+    #      training), please first make sure your network runs a couple of
+    #      epochs without errors when the same kwarg is set to `True`. This
+    #      comment is only relevant to whoever wants to change some features
+    #      of the project (or add some more !)
+    
+    # Actually training the network
     network.fit(
         X_train,
         y_train,
@@ -376,6 +419,7 @@ def main():
         nb_shuffles_before_each_train_batch_split=10,
         seed_train_batch_splits=seed_network,
         **validation_kwargs,
+        training_callbacks=training_callbacks,
         enable_checks=True
     )
     
