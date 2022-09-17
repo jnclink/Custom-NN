@@ -6,6 +6,7 @@ Script defining the main network class
 
 import os
 from time import perf_counter
+from typing import Union, Optional, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -59,7 +60,7 @@ class Network:
     """
     
     # class variable
-    AVAILABLE_LAYER_TYPES = (
+    AVAILABLE_LAYER_TYPES: tuple[Layer] = (
         InputLayer,
         DenseLayer,
         ActivationLayer,
@@ -68,30 +69,31 @@ class Network:
     )
     
     # class variable
-    AVAILABLE_LOSSES = {
+    AVAILABLE_LOSSES: dict[str, tuple[Callable, Callable]] = {
         "cce" : (CCE, CCE_prime), # CCE = Categorical Cross-Entropy
         "mse" : (MSE, MSE_prime)  # MSE = Mean Squared Error
     }
     
-    def __init__(self, *, standardize_input_data=True):
+    def __init__(self, *, standardize_input_data: bool = True) -> None:
         assert isinstance(standardize_input_data, bool)
-        self.__standardize_input_data = standardize_input_data
+        self.__standardize_input_data: bool = standardize_input_data
         
-        self._layers = []
+        self._layers: list[Layer] = []
         
         # list containing the input/output sizes of all the layers of the
         # network (it's a list of tuples of 2 integers)
-        self._io_sizes = []
+        self._io_sizes: list[tuple[int, int]] = []
         
-        self.loss_name = None
-        self._loss = None
-        self._loss_prime = None
+        self.loss_name: Union[None, str] = None
+        self._loss: Union[None, Callable] = None
+        self._loss_prime: Union[None, Callable] = None
         
-        self.history = None
-        self._is_trained = False
+        Number = Union[int, float, np.float32, np.float64] # generic number type
+        self.history: Union[None, dict[str, list[Number]]] = None
+        self._is_trained: bool = False
     
     
-    def __str__(self):
+    def __str__(self) -> str:
         if len(self._layers) == 0:
             return f"{self.__class__.__name__}()"
         
@@ -101,11 +103,11 @@ class Network:
         return self.summary(print_summary=False)
     
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
     
     
-    def add(self, layer):
+    def add(self, layer: Layer) -> None:
         """
         Adds a layer to the network
         """
@@ -141,7 +143,7 @@ class Network:
         self._io_sizes.append((input_size, output_size))
     
     
-    def _get_total_nb_of_trainable_params(self):
+    def _get_total_nb_of_trainable_params(self) -> int:
         """
         Returns the total number of trainable paramaters of the network
         """
@@ -159,7 +161,7 @@ class Network:
         return total_nb_of_trainable_params
     
     
-    def _get_summary_data(self):
+    def _get_summary_data(self) -> dict[str, list[str]]:
         """
         Returns the raw data that will be printed in the `Network.summary`
         method. The reason we retrieve the WHOLE summary data before printing
@@ -212,17 +214,17 @@ class Network:
     def summary(
             self,
             *,
-            print_summary=True,
-            column_separator="|",        # can be multiple characters long
-            row_separator="-",           # has to be a single character
-            bounding_box="*",            # has to be a single character
-            alignment="left",            # = "left" (default), "right" or "center"
-            transition_row_style="full", # = "full" (default) or "partial"
-            column_spacing=2,
-            horizontal_spacing=4,
-            vertical_spacing=1,
-            offset_spacing=1
-        ):
+            print_summary: bool = True,
+            column_separator: str = "|",        # can be multiple characters long
+            row_separator: str = "-",           # has to be a single character
+            bounding_box: str = "*",            # has to be a single character
+            alignment: str = "left",            # = "left" (default), "right" or "center"
+            transition_row_style: str = "full", # = "full" (default) or "partial"
+            column_spacing: int = 2,
+            horizontal_spacing: int = 4,
+            vertical_spacing: int = 1,
+            offset_spacing: int = 1
+        ) -> Union[None, str]:
         """
         Returns the summary of the network's architecture
         """
@@ -426,7 +428,7 @@ class Network:
         return str_summary
     
     
-    def set_loss_function(self, loss_name):
+    def set_loss_function(self, loss_name: str) -> None:
         """
         Sets the loss function of the network
         """
@@ -442,11 +444,11 @@ class Network:
     
     @staticmethod
     def _validate_data(
-            X,
-            y=None,
+            X: np.ndarray,
+            y: Optional[np.ndarray] = None,
             *,
-            input_size_of_network=None,
-            output_size_of_network=None,
+            input_size_of_network: Optional[int] = None,
+            output_size_of_network: Optional[int] = None,
         ):
         """
         Checks if the specified (training, validation or testing) data is
@@ -529,17 +531,17 @@ class Network:
     
     def fit(
             self,
-            X_train,
-            y_train,
-            nb_epochs,
-            train_batch_size,
-            learning_rate,
+            X_train: np.ndarray,
+            y_train: np.ndarray,
+            nb_epochs: int,
+            train_batch_size: int,
+            learning_rate: float,
             *,
-            nb_shuffles_before_each_train_batch_split=10,
-            seed_train_batch_splits=None,
-            enable_checks=True,
-            validation_data=None,
-            val_batch_size=32
+            nb_shuffles_before_each_train_batch_split: int = 10,
+            seed_train_batch_splits: Optional[int] = None,
+            enable_checks: bool = True,
+            validation_data: Optional[int] = None,
+            val_batch_size: int = 32
         ):
         """
         Trains the network on `nb_epochs` epochs
@@ -908,7 +910,7 @@ class Network:
         self._is_trained = True
     
     
-    def _check_if_trained(self):
+    def _check_if_trained(self) -> None:
         """
         Checks if the network has already been trained or not (using the
         `Network.fit` method)
@@ -920,9 +922,9 @@ class Network:
     def plot_history(
             self,
             *,
-            save_plot_to_disk=False,
-            saved_image_name="network_history"
-        ):
+            save_plot_to_disk: bool = False,
+            saved_image_name: str = "network_history"
+        ) -> None:
         """
         Plots the evolution of the losses and the accuracies of the network
         during the (last) training phase
@@ -1065,11 +1067,11 @@ class Network:
     
     def predict(
             self,
-            X_test,
+            X_test: np.ndarray,
             *,
-            test_batch_size=32,
-            return_logits=True
-        ):
+            test_batch_size: int = 32,
+            return_logits: bool = True
+        ) -> np.ndarray:
         """
         Returns the network's raw prediction (i.e. the logits) for a given
         test input. If the `return_logits` kwarg is set to `False`, then
@@ -1149,12 +1151,12 @@ class Network:
     
     def evaluate(
             self,
-            X_test,
-            y_test,
+            X_test: np.ndarray,
+            y_test: np.ndarray,
             *,
-            top_N_accuracy=2,
-            test_batch_size=32
-        ):
+            top_N_accuracy: int = 2,
+            test_batch_size: int = 32
+        ) -> tuple[float, float, Union[np.float32, np.float64], np.ndarray]:
         """
         Computes the network's prediction of `X_test` (i.e. `y_pred`), then
         returns the accuracy score and the raw confusion matrix of `y_test`
@@ -1281,14 +1283,14 @@ class Network:
     
     def display_some_predictions(
             self,
-            X_test,
-            y_test,
+            X_test: np.ndarray,
+            y_test: np.ndarray,
             *,
-            selected_classes="all",
-            dict_of_real_class_names=None,
-            image_shape=None,
-            seed=None
-        ):
+            selected_classes: Union[str, list, tuple, np.ndarray] = "all",
+            dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+            image_shape: Optional[tuple] = None,
+            seed: Optional[int] = None
+        ) -> None:
         """
         Displays some of the network's predictions (of random test samples)
         

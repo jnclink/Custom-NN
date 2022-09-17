@@ -8,6 +8,7 @@ import os
 from time import perf_counter
 from urllib.request import urlretrieve
 from hashlib import sha256
+from typing import Union, Optional
 
 try:
     from IPython.display import display
@@ -38,9 +39,8 @@ from colorama import init, Back, Style
 # Defining the datatype of ALL the data that will flow through the network
 # (i.e. we're defining the "global datatype")
 
-# global variables (these are the 2 only global variables of the entire project)
-DEFAULT_DATATYPE = "float32" # = "float32" or "float64"
-DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
+DEFAULT_DATATYPE = "float32"                             # = "float32" or "float64"
+DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution # = 1e-6 or 1e-15 (respectively)
 
 
 ##############################################################################
@@ -49,7 +49,7 @@ DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution
 # Function related to pure datatype checking (for numeric NumPy arrays)
 
 
-def _validate_numpy_dtype(dtype):
+def _validate_numpy_dtype(dtype: Union[str, type, np.dtype]) -> np.dtype:
     """
     Checks if the specified datatype is a valid (numeric) NumPy datatype or not
     """
@@ -77,7 +77,7 @@ def _validate_numpy_dtype(dtype):
 # Functions related to the checking and setting of the global datatype
 
 
-def _validate_global_datatype(datatype):
+def _validate_global_datatype(datatype: Union[str, type, np.dtype]) -> np.dtype:
     """
     Checks if the specified datatype can be the "global datatype" of the
     network (or not). For now, the only available datatypes are float32
@@ -96,7 +96,7 @@ def _validate_global_datatype(datatype):
     return datatype
 
 
-def set_global_datatype(datatype):
+def set_global_datatype(datatype: Union[str, type, np.dtype]) -> None:
     """
     Sets the global variable `DEFAULT_DATATYPE` to the specified datatype. The
     resolution of the global datatype (i.e. the global variable `DTYPE_RESOLUTION`)
@@ -127,7 +127,10 @@ def set_global_datatype(datatype):
 # NumPy arrays and scalars
 
 
-def check_dtype(x, dtype):
+def check_dtype(
+        x : Union[int, float, np.integer, np.floating, np.ndarray],
+        dtype: Union[str, type, np.dtype]
+    ) -> None:
     """
     Checks if the datatype of `x` is `dtype` or not. Here, `x` can either be
     a scalar or a vector/matrix. By design, in most cases, `dtype` will be
@@ -146,7 +149,10 @@ def check_dtype(x, dtype):
             raise TypeError(f"check_dtype (utils.py) - The datatype of the array `x` isn't \"{str(dtype)}\", it's \"{str(x.dtype)}\" !")
 
 
-def cast(x, dtype):
+def cast(
+        x : Union[int, float, np.integer, np.floating, np.ndarray],
+        dtype: Union[str, type, np.dtype]
+    ) -> Union[int, float, np.integer, np.floating, np.ndarray]:
     """
     Returns the cast version of `x` to `dtype`. Here, `x` can either be a
     scalar or a vector/matrix. By design, in most cases, `dtype` will be
@@ -172,7 +178,11 @@ def cast(x, dtype):
 # Generally useful functions
 
 
-def vector_to_categorical(y, *, dtype=int):
+def vector_to_categorical(
+        y: np.ndarray,
+        *,
+        dtype: Union[str, type, np.dtype] = int
+    ) -> np.ndarray:
     """
     Performs one-hot encoding on a 1D vector of INTEGER labels
     """
@@ -195,7 +205,11 @@ def vector_to_categorical(y, *, dtype=int):
     return y_categorical
 
 
-def categorical_to_vector(y_categorical, *, enable_checks=True):
+def categorical_to_vector(
+        y_categorical: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Converts a 2D categorical matrix (one-hot encoded matrix or logits) into
     its associated 1D vector of INTEGER labels
@@ -217,7 +231,7 @@ def categorical_to_vector(y_categorical, *, enable_checks=True):
     return y
 
 
-def list_to_string(L):
+def list_to_string(L : Union[list, tuple, np.ndarray]) -> str:
     """
     Converts the specified non-empty list (or tuple or 1D numpy array) into
     a string
@@ -258,7 +272,7 @@ def list_to_string(L):
     return str_L
 
 
-def clear_currently_printed_row(*, max_size_of_row=150):
+def clear_currently_printed_row(*, max_size_of_row: int = 150) -> None:
     """
     Clears the currently printed row, and sets the pointer of the `print`
     function at the very beginning of that same row
@@ -272,12 +286,12 @@ def clear_currently_printed_row(*, max_size_of_row=150):
 
 
 def progress_bar(
-        current_index,
-        total_nb_elements,
+        current_index: int,
+        total_nb_elements: int,
         *,
-        progress_bar_size=15,
-        enable_checks=True
-    ):
+        progress_bar_size: int = 15,
+        enable_checks: bool = True
+    ) -> str:
     """
     Returns a progress bar (as a string) corresponding to the progress of
     `current_index` relative to `total_nb_elements`. The value of the kwarg
@@ -320,7 +334,7 @@ def progress_bar(
     return str_progress_bar
 
 
-def standardize_data(data):
+def standardize_data(data: np.ndarray) -> np.ndarray:
     """
     Normalizes a matrix such that its mean is 0 and its standard deviation
     is 1 (i.e. it returns the standardized version of the matrix). By default,
@@ -351,7 +365,7 @@ def standardize_data(data):
     return standardized_data
 
 
-def is_being_run_on_jupyter_notebook():
+def is_being_run_on_jupyter_notebook() -> bool:
     """
     Returns a boolean indicating whether the code is currently being run on
     a Jupyter notebook or not
@@ -369,7 +383,11 @@ def is_being_run_on_jupyter_notebook():
         return False
 
 
-def count_nb_decimals_places(x, *, max_precision=6):
+def count_nb_decimals_places(
+        x: Union[int, float, np.integer, np.floating],
+        *,
+        max_precision: int = 6
+    ) -> int:
     """
     Returns the number of decimal places of the scalar `x`
     """
@@ -400,7 +418,7 @@ def count_nb_decimals_places(x, *, max_precision=6):
         return len(str(x - int(x))) - 2
 
 
-def get_dtype_of_array(array):
+def get_dtype_of_array(array: np.ndarray) -> str:
     """
     Returns the datatype of an array (as a string)
     """
@@ -409,7 +427,7 @@ def get_dtype_of_array(array):
     return str_dtype
 
 
-def get_range_of_array(array, *, precision=3):
+def get_range_of_array(array: np.ndarray, *, precision: int = 3) -> str:
     """
     Returns the range of an array (as a string)
     """
@@ -442,12 +460,12 @@ def get_range_of_array(array, *, precision=3):
 
 
 def display_class_distributions(
-        dict_of_label_vectors,
+        dict_of_label_vectors: dict[str, np.ndarray],
         *,
-        selected_classes="all",
-        dict_of_real_class_names=None,
-        precision=2
-    ):
+        selected_classes: Union[str, list, tuple, np.ndarray] = "all",
+        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+        precision: int = 2
+    ) -> None:
     """
     Prints the class distributions of the specified label vectors (i.e. the
     values of the dictionary `dict_of_label_vectors`). The keys of `dict_of_label_vectors`
@@ -536,7 +554,11 @@ def display_class_distributions(
 # Input validators
 
 
-def _validate_label_vector(y, *, is_whole_label_vector=True):
+def _validate_label_vector(
+        y: np.ndarray,
+        *,
+        is_whole_label_vector: bool = True
+    ) -> None:
     """
     Checks the validity of the label vector `y`
     
@@ -557,11 +579,11 @@ def _validate_label_vector(y, *, is_whole_label_vector=True):
 
 
 def _validate_selected_classes(
-        selected_classes,
-        max_nb_classes,
+        selected_classes: Union[str, list, tuple, np.ndarray],
+        max_nb_classes: int,
         *,
-        dict_of_real_class_names=None
-    ):
+        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None
+    ) -> tuple[Union[str, np.ndarray], list[str]]:
     """
     Checks the validity of the `selected_classes` argument, and returns the
     potentially corrected version of `selected_classes`
@@ -659,7 +681,7 @@ def _validate_selected_classes(
     return selected_classes, class_names
 
 
-def _validate_one_hot_encoded_array(array):
+def _validate_one_hot_encoded_array(array: np.ndarray) -> None:
     """
     Checks if the specified array is one-hot encoded or not
     
@@ -680,12 +702,12 @@ def _validate_one_hot_encoded_array(array):
 
 
 def _validate_split_data_into_batches_inputs(
-        data,
-        batch_size,
-        labels,
-        nb_shuffles,
-        seed
-    ):
+        data: np.ndarray,
+        batch_size: int,
+        labels: Union[None, np.ndarray],
+        nb_shuffles: int,
+        seed: Union[None, int]
+    ) -> None:
     """
     Checks the validity of the specified arguments (as inputs of the functions
     used to split the data into batches, defined in this script)
@@ -720,7 +742,7 @@ def _validate_split_data_into_batches_inputs(
             assert seed >= 0
 
 
-def _validate_activation_input(x):
+def _validate_activation_input(x: np.ndarray) -> None:
     """
     Checks the validity of `x` (as an input of an activation function)
     
@@ -733,7 +755,7 @@ def _validate_activation_input(x):
     check_dtype(x, DEFAULT_DATATYPE)
 
 
-def _validate_loss_inputs(y_true, y_pred):
+def _validate_loss_inputs(y_true: np.ndarray, y_pred: np.ndarray) -> None:
     """
     Checks if `y_true` and `y_pred` are valid or not (as inputs of a
     loss function)
@@ -747,7 +769,7 @@ def _validate_loss_inputs(y_true, y_pred):
     check_dtype(y_pred, DEFAULT_DATATYPE)
 
 
-def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff):
+def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff: float) -> Union[np.float32, np.float64]:
     """
     Checks if `leaky_ReLU_coeff` is valid or not, and returns it (cast
     to `DEFAULT_DATATYPE`)
@@ -771,9 +793,9 @@ def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff):
 
 
 def _validate_hash_of_downloaded_data(
-        path_of_downloaded_data,
-        hash_value
-    ):
+        path_of_downloaded_data: str,
+        hash_value: str
+    ) -> None:
     """
     Checks if the (SHA-256) hash of the data that was downloaded to the
     specified path is valid or not, i.e. if it's the same as the specified
@@ -818,10 +840,10 @@ def _validate_hash_of_downloaded_data(
 
 
 def _download_progress_bar(
-        block_index,
-        block_size_in_bytes,
-        total_size_of_data_in_bytes
-    ):
+        block_index: int,
+        block_size_in_bytes: int,
+        total_size_of_data_in_bytes: int
+    ) -> None:
     """
     Prints the progress bar related to the online downloading of data, using
     the `urllib.request.urlretrieve` method
@@ -899,11 +921,11 @@ def _download_progress_bar(
 
 
 def _download_data(
-        data_URL,
-        path_of_downloaded_data,
+        data_URL: str,
+        path_of_downloaded_data: str,
         *,
-        hash_value=None
-    ):
+        hash_value: Optional[str] = None
+    ) -> None:
     """
     Automatically downloads the data located at the specified URL, and saves
     it to the specified path. If the data already exists on your disk, then
@@ -982,7 +1004,11 @@ def _download_data(
 # Functions related to the display of the styled confusion matrix
 
 
-def highlight_diagonal(conf_matrix_as_dataframe, *, color_of_diagonal="green"):
+def highlight_diagonal(
+        conf_matrix_as_dataframe: DataFrame,
+        *,
+        color_of_diagonal: str = "green"
+    ) -> DataFrame:
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script) if the latter is being run from a Jupyter notebook, and
@@ -1026,7 +1052,11 @@ def highlight_diagonal(conf_matrix_as_dataframe, *, color_of_diagonal="green"):
     return diagonal_mask_as_dataframe
 
 
-def highlight_all_cells(value, *, colormap=cm.Greens):
+def highlight_all_cells(
+        value: Union[str, np.str_, float, np.float_],
+        *,
+        colormap: Colormap = cm.Greens
+    ) -> str:
     """
     Function that is only used by the `print_confusion_matrix` function
     (of this script) if the latter is being run from a Jupyter notebook, and
@@ -1065,16 +1095,16 @@ def highlight_all_cells(value, *, colormap=cm.Greens):
 
 
 def print_confusion_matrix(
-        conf_matrix,
+        conf_matrix: np.ndarray,
         *,
-        selected_classes="all",
-        dict_of_real_class_names=None,
-        normalize="no",
-        precision=1,
-        color="green",
-        offset_spacing=1,
-        display_with_line_breaks=False
-    ):
+        selected_classes: Union[str, list, tuple, np.ndarray] = "all",
+        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+        normalize: str = "no",
+        precision: int = 1,
+        color: str = "green",
+        offset_spacing: int = 1,
+        display_with_line_breaks: bool = False
+    ) -> None:
     """
     Prints the styled confusion matrix. The result won't be the same depending
     on whether you're running the program on a Jupyter notebook or not !

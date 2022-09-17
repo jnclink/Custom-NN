@@ -21,7 +21,11 @@ from utils import (
 # Defining the Rectified Linear Unit (ReLU) activation function and its derivative
 
 
-def ReLU(x, *, enable_checks=True):
+def ReLU(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Rectified Linear Unit (ReLU) activation function
     
@@ -39,7 +43,11 @@ def ReLU(x, *, enable_checks=True):
     return ReLU_output
 
 
-def ReLU_prime(x, *, enable_checks=True):
+def ReLU_prime(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the Rectified Linear Unit (ReLU) activation function
     
@@ -65,7 +73,12 @@ def ReLU_prime(x, *, enable_checks=True):
 # and its derivative
 
 
-def leaky_ReLU(x, *, leaky_ReLU_coeff=0.01, enable_checks=True):
+def leaky_ReLU(
+        x: np.ndarray,
+        *,
+        leaky_ReLU_coeff: float = 0.01,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Leaky Rectified Linear Unit (leaky ReLU) activation function
     
@@ -87,7 +100,12 @@ def leaky_ReLU(x, *, leaky_ReLU_coeff=0.01, enable_checks=True):
     return leaky_ReLU_output
 
 
-def leaky_ReLU_prime(x, *, leaky_ReLU_coeff=0.01, enable_checks=True):
+def leaky_ReLU_prime(
+        x: np.ndarray,
+        *,
+        leaky_ReLU_coeff: float = 0.01,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the leaky Rectified Linear Unit (leaky ReLU) activation function
     
@@ -116,7 +134,11 @@ def leaky_ReLU_prime(x, *, leaky_ReLU_coeff=0.01, enable_checks=True):
 # Defining the hyperbolic tangent (tanh) activation function and its derivative
 
 
-def tanh(x, *, enable_checks=True):
+def tanh(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Hyperbolic tangent (tanh) activation function
     
@@ -134,7 +156,11 @@ def tanh(x, *, enable_checks=True):
     return tanh_output
 
 
-def tanh_prime(x, *, enable_checks=True):
+def tanh_prime(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the hyperbolic tangent (tanh) activation function
     
@@ -159,7 +185,12 @@ def tanh_prime(x, *, enable_checks=True):
 # Defining the softmax activation function and its derivative
 
 
-def softmax(x, *, enable_checks=True, replace_illegal_output_values=True):
+def softmax(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True,
+        replace_illegal_output_values: bool = True
+    ) -> np.ndarray:
     """
     Softmax activation function
     
@@ -211,7 +242,11 @@ def softmax(x, *, enable_checks=True, replace_illegal_output_values=True):
     return softmax_output
 
 
-def softmax_prime(x, *, enable_checks=True):
+def softmax_prime(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the softmax activation function
     
@@ -244,7 +279,12 @@ def softmax_prime(x, *, enable_checks=True):
 # Defining the sigmoid activation function and its derivative
 
 
-def sigmoid(x, *, enable_checks=True, replace_illegal_output_values=True):
+def sigmoid(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True,
+        replace_illegal_output_values: bool = True
+    ) -> np.ndarray:
     """
     Sigmoid activation function
     
@@ -290,7 +330,11 @@ def sigmoid(x, *, enable_checks=True, replace_illegal_output_values=True):
     return sigmoid_output
 
 
-def sigmoid_prime(x, *, enable_checks=True):
+def sigmoid_prime(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the sigmoid activation function
     

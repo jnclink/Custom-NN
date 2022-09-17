@@ -21,7 +21,12 @@ from utils import (
 # Defining the Categorical Cross-Entropy (CCE) loss function and its derivative
 
 
-def CCE(y_true, y_pred, *, enable_checks=True):
+def CCE(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Categorical Cross-Entropy (CCE) loss function
     
@@ -67,7 +72,12 @@ def CCE(y_true, y_pred, *, enable_checks=True):
     return CCE_output
 
 
-def CCE_prime(y_true, y_pred, *, enable_checks=True):
+def CCE_prime(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the Categorical Cross-Entropy (CCE) loss function
     
@@ -100,7 +110,12 @@ def CCE_prime(y_true, y_pred, *, enable_checks=True):
 # Defining the Mean Squared Error (MSE) loss function and its derivative
 
 
-def MSE(y_true, y_pred, *, enable_checks=True):
+def MSE(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Mean Squared Error (MSE) loss function
     
@@ -121,7 +136,12 @@ def MSE(y_true, y_pred, *, enable_checks=True):
     return MSE_output
 
 
-def MSE_prime(y_true, y_pred, *, enable_checks=True):
+def MSE_prime(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
     """
     Derivative of the Mean Squared Error (MSE) loss function
     

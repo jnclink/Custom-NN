@@ -6,6 +6,7 @@ Script defining all the functions that are specific to the MNIST dataset
 
 import os
 from time import perf_counter
+from typing import Union, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -122,10 +123,10 @@ def _download_raw_MNIST_dataset():
 
 
 def _validate_raw_MNIST_dataset(
-        raw_X_train,
-        raw_y_train,
-        raw_X_test,
-        raw_y_test
+        raw_X_train: np.ndarray,
+        raw_y_train: np.ndarray,
+        raw_X_test:  np.ndarray,
+        raw_y_test:  np.ndarray
     ):
     """
     Checks if the specified raw MNIST data is valid or not. By design, the
@@ -158,7 +159,7 @@ def _validate_raw_MNIST_dataset(
 ##############################################################################
 
 
-def load_raw_MNIST_dataset_from_disk(*, verbose=False):
+def load_raw_MNIST_dataset_from_disk(*, verbose: bool = False):
     """
     Loads the raw MNIST data from the disk
     """
@@ -232,12 +233,12 @@ def load_raw_MNIST_dataset_from_disk(*, verbose=False):
 
 
 def plot_random_images_from_raw_MNIST_dataset(
-        raw_X_train,
-        raw_y_train,
-        raw_X_test,
-        raw_y_test,
+        raw_X_train: np.ndarray,
+        raw_y_train: np.ndarray,
+        raw_X_test:  np.ndarray,
+        raw_y_test:  np.ndarray,
         *,
-        seed=None
+        seed: Optional[int] = None
     ):
     """
     Plots a random sample of each of the 10 digits (from the raw MNIST data).
@@ -307,19 +308,19 @@ def plot_random_images_from_raw_MNIST_dataset(
 
 
 def format_raw_MNIST_dataset(
-        raw_X_train,
-        raw_y_train,
-        raw_X_test,
-        raw_y_test,
-        nb_train_samples,
-        nb_val_samples,
-        nb_test_samples,
+        raw_X_train: np.ndarray,
+        raw_y_train: np.ndarray,
+        raw_X_test:  np.ndarray,
+        raw_y_test:  np.ndarray,
+        nb_train_samples: int,
+        nb_val_samples:   int,
+        nb_test_samples:  int,
         *,
-        selected_classes="all",
-        dict_of_real_class_names=None,
-        nb_shuffles=20,
-        seed=None,
-        verbose=False
+        selected_classes: Union[str, list, tuple, np.ndarray] = "all",
+        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+        nb_shuffles: int = 20,
+        seed: Optional[int] = None,
+        verbose: bool = False
     ):
     """
     Formats the raw MNIST data so that it can be directly interpreted by a

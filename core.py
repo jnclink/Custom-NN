@@ -4,6 +4,8 @@
 Script containing some core functions of the project
 """
 
+from typing import Union, Optional, Iterator
+
 import numpy as np
 
 from utils import (
@@ -19,13 +21,16 @@ from utils import (
 
 
 def split_data_into_batches_as_generator_function(
-        data,
-        batch_size,
-        labels=None,
-        nb_shuffles=10,
-        seed=None,
-        enable_checks=True
-    ):
+        data: np.ndarray,
+        batch_size: int,
+        labels: Optional[np.ndarray] = None,
+        nb_shuffles: int = 10,
+        seed: Optional[int] = None,
+        enable_checks: bool = True
+    ) -> Union[
+        Iterator[np.ndarray],                   # if `labels` is `None`
+        Iterator[tuple[np.ndarray, np.ndarray]] # if `labels` is not `None`
+    ]:
     """
     Generator function counterpart of the `split_data_into_batches` function
     of this script. This function has to be defined separately, as the Python
@@ -102,14 +107,20 @@ def split_data_into_batches_as_generator_function(
 
 
 def split_data_into_batches(
-        data,
-        batch_size,
-        labels=None,
-        is_generator=False,
-        nb_shuffles=10,
-        seed=None,
-        enable_checks=True
-    ):
+        data: np.ndarray,
+        batch_size: int,
+        labels: Optional[np.ndarray] = None,
+        is_generator: bool = False,
+        nb_shuffles: int = 10,
+        seed: Optional[int] = None,
+        enable_checks: bool = True
+    ) -> Union[
+        dict[str, list[np.ndarray]],                # if `is_generator` is `False`
+        Union[
+            Iterator[np.ndarray],                   # if `is_generator` is `True` and `labels` is `None`
+            Iterator[tuple[np.ndarray, np.ndarray]] # if `is_generator` is `True` and `labels` is not `None`
+        ]
+    ]:
     """
     Splits the input data and/or labels into batches with `batch_size` samples
     each. If `batch_size` doesn't divide the number of samples, then the very
@@ -233,7 +244,15 @@ def split_data_into_batches(
 # same output as the associated functions of the `sklearn.metrics` module)
 
 
-def accuracy_score(y_true, y_pred, normalize=True, enable_checks=True):
+def accuracy_score(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        normalize: bool = True,
+        enable_checks: bool = True
+    ) -> Union[
+        float, # if `normalize` is `True`
+        int    # if `normalize` is `False`
+    ]:
     """
     Returns the proportion of the correctly predicted samples. The returned
     proportion lies between 0 and 1
@@ -255,7 +274,7 @@ def accuracy_score(y_true, y_pred, normalize=True, enable_checks=True):
     
     # ---------------------------------------------------------------------- #
     
-    acc_score = np.where(y_true == y_pred)[0].size
+    acc_score = int(np.where(y_true == y_pred)[0].size) # we want it to be an `int`, not a `np.int_`
     
     if normalize:
         nb_samples = y_true.size
@@ -264,7 +283,7 @@ def accuracy_score(y_true, y_pred, normalize=True, enable_checks=True):
     return acc_score
 
 
-def confusion_matrix(y_true, y_pred):
+def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
     """
     Returns the raw confusion matrix of `y_true` and `y_pred`. Its shape will
     be `(nb_classes, nb_classes)`, and, for all integers `i` and `j` in the

@@ -5,6 +5,7 @@ Script defining the main layer classes
 """
 
 from abc import ABC, abstractmethod
+from typing import Union, Optional, Callable
 
 import numpy as np
 
@@ -35,26 +36,26 @@ class Layer(ABC):
     Base (abstract) layer class
     """
     
-    def __init__(self):
-        self.input  = None
-        self.output = None
-        self.nb_trainable_params = None
+    def __init__(self) -> None:
+        self.input:  Union[None, np.ndarray] = None
+        self.output: Union[None, np.ndarray] = None
+        self.nb_trainable_params: Union[None, int] = None
     
-    def __str__(self):
+    def __str__(self) -> str:
         # default string representation of the layer classes (most of the
         # time their `__str__` method will override this one)
         return f"{self.__class__.__name__}()"
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
     
     @abstractmethod
     def forward_propagation(
             self,
-            input_data,
-            training=True,
-            enable_checks=True
-        ):
+            input_data: np.ndarray,
+            training: bool = True,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Computes the output Y of a layer for a given input X. The `training`
         kwarg indicates whether we're currently in the training phase or not
@@ -65,9 +66,9 @@ class Layer(ABC):
     
     def _validate_forward_propagation_inputs(
             self,
-            input_data,
-            training
-        ):
+            input_data: np.ndarray,
+            training: bool
+        ) -> None:
         """
         Checks if `input_data` and `training` are valid or not
         """
@@ -77,7 +78,7 @@ class Layer(ABC):
         
         assert isinstance(training, bool)
     
-    def build(self, input_size):
+    def build(self, input_size: int) -> None:
         """
         Now that we know the input size of the layer, we can actually
         initialize/build the latter (if needed). The layer will be built when
@@ -92,10 +93,10 @@ class Layer(ABC):
     @abstractmethod
     def backward_propagation(
             self,
-            output_gradient,
-            learning_rate,
-            enable_checks=True
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Computes dE/dX for a given dE/dY, and updates the trainable parameters
         if there are any (using gradient descent)
@@ -104,9 +105,9 @@ class Layer(ABC):
     
     def _validate_backward_propagation_inputs(
             self,
-            output_gradient,
-            learning_rate
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float
+        ) -> None:
         """
         Checks if `output_gradient` and `learning_rate` are valid or not
         """
@@ -131,24 +132,24 @@ class InputLayer(Layer):
     Input layer. The only purpose of this class is to be the very first layer
     of the network
     """
-    def __init__(self, input_size):
+    def __init__(self, input_size: int) -> None:
         super().__init__()
         
         assert isinstance(input_size, int)
         assert input_size >= 2
-        self.input_size = input_size
+        self.input_size: int = input_size
         
-        self.nb_trainable_params = 0
+        self.nb_trainable_params: int = 0
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.input_size})"
     
     def forward_propagation(
             self,
-            input_data,
-            training=True,
-            enable_checks=True
-        ):
+            input_data: np.ndarray,
+            training: bool = True,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Forward propagation of the Input layer
         
@@ -168,10 +169,10 @@ class InputLayer(Layer):
     
     def backward_propagation(
             self,
-            output_gradient,
-            learning_rate,
-            enable_checks=True
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Backward propagation of the Input layer
         
@@ -197,29 +198,29 @@ class DenseLayer(Layer):
     """
     Dense (i.e. fully connected) layer
     """
-    def __init__(self, nb_neurons, seed=None):
+    def __init__(self, nb_neurons: int, seed: Optional[int] = None) -> None:
         super().__init__()
         
         assert isinstance(nb_neurons, int)
         assert nb_neurons >= 2
-        self.output_size = nb_neurons
+        self.output_size: int = nb_neurons
         
         assert isinstance(seed, (type(None), int))
         if seed is not None:
             assert seed >= 0
-        self.seed = seed
+        self.seed: Union[None, int] = seed
         
         # will be initialized in the `build` method (along with
         # `self.nb_trainable_params`, that was initialized to `None` via
         # `super().__init__()`)
-        self.input_size = None
-        self.weights = None
-        self.biases = None
+        self.input_size: Union[None, int] = None
+        self.weights: Union[None, np.ndarray] = None
+        self.biases:  Union[None, np.ndarray] = None
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.output_size})"
     
-    def build(self, input_size):
+    def build(self, input_size: int) -> None:
         """
         Now that we know the input size of the layer, we can actually
         initialize/build the latter. This layer is built when it is added
@@ -247,14 +248,14 @@ class DenseLayer(Layer):
         
         # = self.input_size * self.output_size + self.output_size
         # = (self.input_size + 1) * self.output_size
-        self.nb_trainable_params = self.weights.size + self.biases.size
+        self.nb_trainable_params = int(self.weights.size + self.biases.size) # we want it to be an `int`, not a `np.int_`
     
     def forward_propagation(
             self,
-            input_data,
-            training=True,
-            enable_checks=True
-        ):
+            input_data: np.ndarray,
+            training: bool = True,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Forward propagation of the Dense layer
         
@@ -275,10 +276,10 @@ class DenseLayer(Layer):
     
     def backward_propagation(
             self,
-            output_gradient,
-            learning_rate,
-            enable_checks=True
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Backward propagation of the Dense layer
         
@@ -329,7 +330,7 @@ class ActivationLayer(Layer):
     """
     
     # class variable
-    AVAILABLE_ACTIVATIONS = {
+    AVAILABLE_ACTIVATIONS: dict[str, tuple[Callable, Callable]] = {
         "relu"       : (ReLU,       ReLU_prime),
         "leaky_relu" : (leaky_ReLU, leaky_ReLU_prime),
         "tanh"       : (tanh,       tanh_prime),
@@ -337,7 +338,12 @@ class ActivationLayer(Layer):
         "sigmoid"    : (sigmoid,    sigmoid_prime)
     }
     
-    def __init__(self, activation_name, **kwargs):
+    def __init__(
+            self,
+            activation_name: str,
+            **kwargs: float # for `leaky_ReLU_coeff`
+        ) -> None:
+        
         super().__init__()
         
         # checking the validity of the specified activation name
@@ -346,8 +352,10 @@ class ActivationLayer(Layer):
         if activation_name not in ActivationLayer.AVAILABLE_ACTIVATIONS:
             raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\" (possible activation names : {list_to_string(list(ActivationLayer.AVAILABLE_ACTIVATIONS))})")
         
-        self.activation_name = activation_name
-        self.activation, self.activation_prime = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
+        self.activation_name: str = activation_name
+        activations: tuple[Callable, Callable] = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
+        self.activation:       Callable = activations[0]
+        self.activation_prime: Callable = activations[1]
         
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
@@ -355,21 +363,21 @@ class ActivationLayer(Layer):
             
             _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
             
-            self.activation_kwargs = {
+            self.activation_kwargs: dict[str, float] = {
                 "leaky_ReLU_coeff" : leaky_ReLU_coeff
             }
         else:
-            self.activation_kwargs = {}
+            self.activation_kwargs: dict[str, float] = {}
         
         # NB : Since the softmax activation only applies to VECTORS (and not
         #      scalars), the backpropagation formula won't be the same as the other
         #      activations. Essentially, the element-wise multiplication becomes
         #      an actual matrix multiplication (cf. the `backward_propagation` method)
-        self._is_softmax = (self.activation_name == "softmax")
+        self._is_softmax: bool = (self.activation_name == "softmax")
         
-        self.nb_trainable_params = 0
+        self.nb_trainable_params: int = 0
     
-    def __str__(self):
+    def __str__(self) -> str:
         if self.activation_name == "leaky_relu":
             leaky_ReLU_coeff = self.activation_kwargs["leaky_ReLU_coeff"]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
@@ -380,10 +388,10 @@ class ActivationLayer(Layer):
     
     def forward_propagation(
             self,
-            input_data,
-            training=True,
-            enable_checks=True
-        ):
+            input_data: np.ndarray,
+            training: bool = True,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Forward propagation of the Activation layer
         
@@ -407,10 +415,10 @@ class ActivationLayer(Layer):
     
     def backward_propagation(
             self,
-            output_gradient,
-            learning_rate,
-            enable_checks=True
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Backward propagation of the Activation layer
         
@@ -460,42 +468,45 @@ class BatchNormLayer(Layer):
     """
     BatchNorm regularization layer
     """
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         
-        # initializing the trainable parameters
-        self.gamma = cast(1, utils.DEFAULT_DATATYPE)
-        self.beta  = cast(0, utils.DEFAULT_DATATYPE)
+        # generic type representing the global datatype
+        Float = np.dtype(utils.DEFAULT_DATATYPE).type
         
-        self.nb_trainable_params = 2
+        # initializing the trainable parameters
+        self.gamma: Float = cast(1, utils.DEFAULT_DATATYPE)
+        self.beta:  Float = cast(0, utils.DEFAULT_DATATYPE)
+        
+        self.nb_trainable_params: int = 2
         
         # initializing the non-trainable parameters
-        self.moving_mean = cast(0, utils.DEFAULT_DATATYPE)
-        self.moving_var  = cast(1, utils.DEFAULT_DATATYPE)
-        self.moving_std  = None
+        self.moving_mean: Float = cast(0, utils.DEFAULT_DATATYPE)
+        self.moving_var:  Float = cast(1, utils.DEFAULT_DATATYPE)
+        self.moving_std: Union[None, Float] = None
         
         # by default
-        self.momentum = cast(0.99, utils.DEFAULT_DATATYPE)
+        self.momentum: Float = cast(0.99, utils.DEFAULT_DATATYPE)
         assert (self.momentum > 0) and (self.momentum < 1)
         
-        one = cast(1, utils.DEFAULT_DATATYPE)
-        self.inverse_momentum = one - self.momentum
+        one: Float = cast(1, utils.DEFAULT_DATATYPE)
+        self.inverse_momentum: Float = one - self.momentum
         check_dtype(self.inverse_momentum, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
-        self.epsilon = cast(1e-5, utils.DEFAULT_DATATYPE)
+        self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
         # initializing the cached input data (to speed up the backward propagation)
-        self.input_std = None
-        self.normalized_input = None
+        self.input_std:        Union[None, np.ndarray] = None
+        self.normalized_input: Union[None, np.ndarray] = None
     
     def forward_propagation(
             self,
-            input_data,
-            training=True,
-            enable_checks=True
-        ):
+            input_data: np.ndarray,
+            training: bool = True,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Forward propagation of the BatchNorm layer
         
@@ -543,10 +554,10 @@ class BatchNormLayer(Layer):
     
     def backward_propagation(
             self,
-            output_gradient,
-            learning_rate,
-            enable_checks=True
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Backward propagation of the BatchNorm layer
         
@@ -600,40 +611,40 @@ class DropoutLayer(Layer):
     """
     Dropout regularization layer
     """
-    def __init__(self, dropout_rate, seed=None):
+    def __init__(self, dropout_rate: float, seed: Optional[int] = None) -> None:
         super().__init__()
         
         assert isinstance(dropout_rate, float)
         assert (dropout_rate > 0) and (dropout_rate < 1)
-        self.dropout_rate = dropout_rate
+        self.dropout_rate: float = dropout_rate
         
         assert isinstance(seed, (type(None), int))
         if seed is not None:
             assert seed >= 0
-        self.seed = seed
+        self.seed: Union[None, int] = seed
         
-        # all the deactivated values will be set to this value (by default)
-        self.deactivated_value = 0
+        # generic type representing the global datatype
+        Float = np.dtype(utils.DEFAULT_DATATYPE).type
         
         # all the non-deactivated values will be scaled up by this factor (by default)
-        one = cast(1, utils.DEFAULT_DATATYPE)
-        self.scaling_factor = one / (one - cast(self.dropout_rate, utils.DEFAULT_DATATYPE))
+        one: Float = cast(1, utils.DEFAULT_DATATYPE)
+        self.scaling_factor: Float = one / (one - cast(self.dropout_rate, utils.DEFAULT_DATATYPE))
         check_dtype(self.scaling_factor, utils.DEFAULT_DATATYPE)
         
         self.nb_trainable_params = 0
         
         # initializing the dropout matrix
-        self.dropout_matrix = None
+        self.dropout_matrix: Union[None, np.ndarray] = None
     
-    def __str__(self):
+    def __str__(self) -> str:
         precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
         return f"{self.__class__.__name__}({self.dropout_rate:.{precision_dropout_rate}f})"
     
     def generate_random_dropout_matrix(
             self,
-            shape,
-            dtype,
-            enable_checks=True
+            shape: tuple[int, int],
+            dtype: Union[str, type, np.dtype],
+            enable_checks: bool = True
         ):
         """
         Returns a "dropout matrix" with the specified shape and datatype. For each
@@ -663,7 +674,7 @@ class DropoutLayer(Layer):
                     size=(nb_of_values_to_drop_per_input_sample, ),
                     replace=False
                 )
-                dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = self.deactivated_value
+                dropout_matrix[batch_sample_index, indices_of_randomly_dropped_values] = 0
             np.random.seed(None) # resetting the seed
             
             # updating the value of the seed such that the generated dropout
@@ -676,10 +687,10 @@ class DropoutLayer(Layer):
     
     def forward_propagation(
             self,
-            input_data,
-            training=True,
-            enable_checks=True
-        ):
+            input_data: np.ndarray,
+            training: bool = True,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Forward propagation of the Dropout layer
         
@@ -712,10 +723,10 @@ class DropoutLayer(Layer):
     
     def backward_propagation(
             self,
-            output_gradient,
-            learning_rate,
-            enable_checks=True
-        ):
+            output_gradient: np.ndarray,
+            learning_rate: float,
+            enable_checks: bool = True
+        ) -> np.ndarray:
         """
         Backward propagation of the Dropout layer
         
