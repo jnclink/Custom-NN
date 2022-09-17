@@ -11,8 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # The Scikit-Learn (or "sklearn") module is ONLY used to split the data, such
-# that the class distributions of the split data is (roughly) the same as the
-# class distributions of the initial raw data. This is done using the VERY
+# that the class distribution of the split data is (roughly) the same as the
+# class distribution of the initial raw data. This is done using the VERY
 # HANDY `stratify` kwarg of the `train_test_split` method
 from sklearn.model_selection import train_test_split
 
@@ -30,6 +30,9 @@ from utils import (
     display_class_distributions
 )
 
+# TODO
+#from core import train_test_split
+
 
 ##############################################################################
 
@@ -40,6 +43,9 @@ def _download_raw_MNIST_dataset():
     it to the following location on your disk :
         - on Windows : "C:\Users\YourUsername\.Custom-MLP\datasets\MNIST\raw_MNIST_data.npz"
         - on Linux   : "/home/YourUsername/.Custom-MLP/datasets/MNIST/raw_MNIST_data.npz"
+    
+    This function is basically a wrapper of the `_download_data` function of
+    the "utils.py" script
     
     Naturally, if this is the very first time you call this function, you'll
     need to have an internet connection !
@@ -63,12 +69,16 @@ def _download_raw_MNIST_dataset():
         - on Windows : "C:\Users\YourUsername\.keras\datasets\mnist.npz"
         - on Linux   : "/home/YourUsername/.keras/datasets/mnist.npz"
     """
+    # ---------------------------------------------------------------------- #
     
     # the raw MNIST data will be downloaded from this URL (by default)
+    
     data_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
     
-    # creating the folder that will contain the raw MNIST data (if it doesn't
-    # already exist)
+    # ---------------------------------------------------------------------- #
+    
+    # creating the default folder that will contain the raw MNIST data (if it
+    # doesn't already exist)
     default_data_directory = os.path.join(
         os.path.expanduser("~"),
         ".Custom-MLP",
@@ -87,15 +97,23 @@ def _download_raw_MNIST_dataset():
         default_data_filename
     )
     
-    # default SHA-256 hash value of the raw MNIST data 
+    # ---------------------------------------------------------------------- #
+    
+    # default SHA-256 hash value of the raw MNIST data
+    
     hash_value = "731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1"
     
+    # ---------------------------------------------------------------------- #
+    
     # actually downloading the raw MNIST data
+    
     _download_data(
         data_URL,
         path_of_downloaded_data,
         hash_value=hash_value
     )
+    
+    # ---------------------------------------------------------------------- #
     
     return path_of_downloaded_data
 
@@ -132,7 +150,7 @@ def _validate_raw_MNIST_dataset(
     check_dtype(raw_y_test, np.uint8)
     
     DEFAULT_NB_CLASSES = 10
-    expected_classes = np.arange(DEFAULT_NB_CLASSES)
+    expected_classes = np.arange(DEFAULT_NB_CLASSES).astype(np.uint8)
     assert np.allclose(np.unique(raw_y_train), expected_classes)
     assert np.allclose(np.unique(raw_y_test),  expected_classes)
 
@@ -148,8 +166,9 @@ def load_raw_MNIST_dataset_from_disk(*, verbose=False):
     
     # ---------------------------------------------------------------------- #
     
-    # downloading the raw MNIST data to the (default) location `path_of_downloaded_data`,
-    # if it hasn't already been done
+    # downloading the raw MNIST data to the (default) location `path_of_downloaded_data`
+    # (cf. the "_download_raw_MNIST_dataset" function of this script), if it
+    # hasn't already been done
     path_of_downloaded_data = _download_raw_MNIST_dataset()
     
     t_beginning_loading = perf_counter()
@@ -201,7 +220,6 @@ def load_raw_MNIST_dataset_from_disk(*, verbose=False):
         }
         display_class_distributions(
             dict_of_label_vectors,
-            selected_classes="all",
             precision=2
         )
     

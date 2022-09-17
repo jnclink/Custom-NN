@@ -54,7 +54,8 @@ def main():
     
     if samples_are_images:
         # Format : (height, width), (height, width, 1) or (height, width, 3)
-        #          (or `None` if the images are 2D/grayscale and square-shaped)
+        #          (or `None` if the images are square-shaped, i.e. if their
+        #          shape is either NxN, NxNx1 or NxNx3)
         default_image_shape = None
     
     # ====================================================================== #
@@ -225,7 +226,7 @@ def main():
     # activation name is case insensitive
     main_activation_name = "ReLU"
     
-    if main_activation_name.lower() == "leaky_relu":
+    if main_activation_name.strip().lower() == "leaky_relu":
         # Defining the "leaky ReLU coefficient" (default value : 0.01). It has
         # to lie in the range ]0, 1[
         activation_kwargs = {

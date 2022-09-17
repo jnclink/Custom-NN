@@ -602,7 +602,7 @@ def _validate_selected_classes(
     class_indices = np.arange(max_nb_classes)
     
     if isinstance(selected_classes, str):
-        selected_classes = selected_classes.lower()
+        selected_classes = selected_classes.strip().lower()
         if selected_classes != "all":
             raise ValueError(f"_validate_selected_classes (utils.py) - Invalid value for the argument `selected_classes` : \"{selected_classes}\" (expected : \"all\", or the specific list of selected classes)")
     else:
@@ -859,7 +859,7 @@ def _download_progress_bar(
     
     # defining the number of times the progress bar will be updated during
     # the entire download
-    nb_progress_bar_updates = 10
+    nb_progress_bar_updates = 20
     
     block_index_update_step = total_nb_blocks // nb_progress_bar_updates
     
@@ -873,7 +873,8 @@ def _download_progress_bar(
         current_progress_bar = progress_bar(
             size_of_already_downloaded_data_in_bytes,
             total_size_of_data_in_bytes,
-            progress_bar_size=50 # by default
+            progress_bar_size=50, # by default
+            enable_checks=False
         )
         
         # by definition of a megabyte
@@ -908,8 +909,11 @@ def _download_data(
     it to the specified path. If the data already exists on your disk, then
     nothing is done
     
+    This function is basically a wrapper of the `urlretrieve` method (of the
+    `urllib.request` module)
+    
     Naturally, assuming the data doesn't already exist on your disk, an
-    internet connection is required to run this function
+    internet connection is required to run this function !
     
     For security purposes, you can also input the (SHA-256) hash value of the
     downloaded data (assuming you know it before downloading the data). In that
@@ -1002,9 +1006,9 @@ def highlight_diagonal(conf_matrix_as_dataframe, *, color_of_diagonal="green"):
     
     # checking `color_of_diagonal`
     assert isinstance(color_of_diagonal, str)
-    assert len(color_of_diagonal) > 0
+    assert len(color_of_diagonal.strip()) > 0
+    color_of_diagonal = color_of_diagonal.strip().lower()
     assert " " not in color_of_diagonal
-    color_of_diagonal = color_of_diagonal.lower()
     
     # ---------------------------------------------------------------------- #
     
@@ -1119,7 +1123,7 @@ def print_confusion_matrix(
     assert len(class_names) == nb_classes
     
     assert isinstance(normalize, str)
-    normalize = normalize.lower()
+    normalize = normalize.strip().lower()
     possible_values_for_normalize_kwarg = ["no", "columns", "rows"]
     if normalize not in possible_values_for_normalize_kwarg:
         raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
@@ -1129,9 +1133,9 @@ def print_confusion_matrix(
         assert precision >= 0
     
     assert isinstance(color, str)
-    assert len(color) > 0
+    assert len(color.strip()) > 0
+    color = color.strip().lower()
     assert " " not in color
-    color = color.lower()
     
     # keys   : generic color names
     # values : (
@@ -1148,7 +1152,7 @@ def print_confusion_matrix(
     }
     
     if color not in COLORS_AND_COLORMAPS:
-        raise ValueError(f"print_confusion_matrix (utils.py) - Unrecognized value for the `color` kwarg : \"{color}\" (possible color names : {list_to_string(list(COLORS_AND_COLORMAPS.keys()))})")
+        raise ValueError(f"print_confusion_matrix (utils.py) - Unrecognized value for the `color` kwarg : \"{color}\" (possible color names : {list_to_string(list(COLORS_AND_COLORMAPS))})")
     
     jupyter_notebook = is_being_run_on_jupyter_notebook()
     

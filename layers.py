@@ -342,9 +342,9 @@ class ActivationLayer(Layer):
         
         # checking the validity of the specified activation name
         assert isinstance(activation_name, str)
-        activation_name = activation_name.lower()
+        activation_name = activation_name.strip().lower()
         if activation_name not in ActivationLayer.AVAILABLE_ACTIVATIONS:
-            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\" (possible activation names : {list_to_string(list(ActivationLayer.AVAILABLE_ACTIVATIONS.keys()))})")
+            raise ValueError(f"ActivationLayer.__init__ - Unrecognized activation name : \"{activation_name}\" (possible activation names : {list_to_string(list(ActivationLayer.AVAILABLE_ACTIVATIONS))})")
         
         self.activation_name = activation_name
         self.activation, self.activation_prime = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]

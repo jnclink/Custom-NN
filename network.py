@@ -233,7 +233,6 @@ class Network:
         assert isinstance(print_summary, bool)
         
         assert isinstance(column_separator, str)
-        assert len(column_separator) >= 1
         assert len(column_separator.strip()) >= 1
         column_separator = column_separator.strip()
         
@@ -246,13 +245,13 @@ class Network:
         assert bounding_box != " "
         
         assert isinstance(alignment, str)
-        alignment = alignment.lower()
+        alignment = alignment.strip().lower()
         possible_alignments = ["left", "right", "center"]
         if alignment not in possible_alignments:
             raise ValueError(f"Network.summary - Unrecognized value for the `alignment` kwarg : \"{alignment}\" (possible alignments : {list_to_string(possible_alignments)})")
         
         assert isinstance(transition_row_style, str)
-        transition_row_style = transition_row_style.lower()
+        transition_row_style = transition_row_style.strip().lower()
         possible_transition_row_styles = ["full", "partial"]
         if transition_row_style not in possible_transition_row_styles:
             raise ValueError(f"Network.summary - Unrecognized value for the `transition_row_style` kwarg : \"{transition_row_style}\" (possible styles for the transition row : {list_to_string(possible_transition_row_styles)})")
@@ -433,9 +432,9 @@ class Network:
         """
         # checking the validity of the specified loss function name
         assert isinstance(loss_name, str)
-        loss_name = loss_name.lower()
+        loss_name = loss_name.strip().lower()
         if loss_name not in Network.AVAILABLE_LOSSES:
-            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES.keys()))})")
+            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES))})")
         
         self.loss_name = loss_name
         self._loss, self._loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
@@ -938,7 +937,6 @@ class Network:
             # the `saved_image_name` kwarg will not be used if
             # `save_plot_to_disk` is set to `False`
             assert isinstance(saved_image_name, str)
-            assert len(saved_image_name) > 0
             assert len(saved_image_name.strip()) > 0
             saved_image_name = saved_image_name.strip()
             saved_image_name = " ".join(saved_image_name.split())
@@ -1322,7 +1320,8 @@ class Network:
         class indices
         
         If `image_shape` is `None`, then it's automatically assumed that
-        the images are 2D and square-shaped
+        the images are square-shaped, i.e. it is assumed that their shape
+        is either NxN, NxNx1 or NxNx3
         """
         # ------------------------------------------------------------------ #
         
@@ -1343,7 +1342,9 @@ class Network:
             dict_of_real_class_names=dict_of_real_class_names
         )
         
-        assert isinstance(image_shape, (type(None), tuple))
+        # checking the validity of the `image_shape` kwarg
+        assert isinstance(image_shape, (type(None), tuple, list))
+        nb_pixels_per_image = used_X_test.shape[1]
         if image_shape is not None:
             assert len(image_shape) in [2, 3]
             
@@ -1363,13 +1364,31 @@ class Network:
                 elif image_shape[2] == 3:
                     default_image_shape = image_shape
             
-            assert used_X_test.shape[1] == np.prod(default_image_shape)
+            # NB : `np.prod(image_shape)` is equal to `np.prod(default_image_shape)`
+            assert np.prod(image_shape) == nb_pixels_per_image
         else:
-            # here we're assuming that the images are square-shaped
-            nb_pixels_per_image = used_X_test.shape[1]
-            sidelength_of_each_image = int(round(np.sqrt(nb_pixels_per_image)))
-            assert sidelength_of_each_image**2 == nb_pixels_per_image
-            default_image_shape = (sidelength_of_each_image, sidelength_of_each_image)
+            # here we're assuming that the images are square-shaped, i.e. we're
+            # assuming that their shape is either NxN, NxNx1 or NxNx3
+            
+            sidelength_of_each_image_if_2D = int(round(np.sqrt(nb_pixels_per_image)))
+            images_are_2D = (sidelength_of_each_image_if_2D**2 == nb_pixels_per_image)
+            
+            if images_are_2D:
+                # in this case, the images either have a shape of NxN or NxNx1
+                default_image_shape = (sidelength_of_each_image_if_2D, sidelength_of_each_image_if_2D)
+            else:
+                # in this case, the images should have a shape of NxNx3
+                
+                potential_error_message = "Network.display_some_predictions - The `image_shape` kwarg was set to `None`, but the images in the data aren't square-shaped ! Please set the `image_shape` kwarg manually"
+                
+                assert nb_pixels_per_image % 3 == 0, potential_error_message
+                sidelength_of_each_image_if_3D = int(round(np.sqrt(nb_pixels_per_image // 3)))
+                images_are_3D = (3 * sidelength_of_each_image_if_3D**2 == nb_pixels_per_image)
+                
+                if images_are_3D:
+                    default_image_shape = (sidelength_of_each_image_if_3D, sidelength_of_each_image_if_3D, 3)
+                else:
+                    raise ValueError(potential_error_message)
         
         assert isinstance(seed, (type(None), int))
         if seed is not None:
