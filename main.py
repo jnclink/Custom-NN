@@ -274,10 +274,10 @@ def main():
     # Initializing the network
     
     # If you set the `standardize_input_data` kwarg to `True`, the training,
-    # validation AND testing sets will be normalized such that their mean is 0
-    # and their standard deviation is 1 (i.e. they will be standardized). It's
-    # HIGHLY recommended to set `normalize_input_data` to `True` here, in order
-    # to obtain better results
+    # testing and/or validation sets will be normalized such that their mean
+    # is 0 and their standard deviation is 1 (i.e. they will be standardized).
+    # It's highly recommended to set `normalize_input_data` to `True`, in order
+    # to get better results
     network = Network(standardize_input_data=True)
     
     # Input layer
@@ -363,7 +363,7 @@ def main():
     if (X_val is not None) and (y_val is not None):
         validation_kwargs = {
             "validation_data" : (X_val, y_val), # can be set to `None` if needed
-            "val_batch_size"  : 32
+            "val_batch_size"  : 32              # default value
         }
     else:
         validation_kwargs = {}
@@ -407,7 +407,7 @@ def main():
     #      training), please first make sure your network runs a couple of
     #      epochs without errors when the same kwarg is set to `True`. This
     #      comment is only relevant to whoever wants to change some features
-    #      of the project (or add some more !)
+    #      of the project (and/or add some more !)
     
     # Actually training the network
     network.fit(
