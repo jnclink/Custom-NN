@@ -14,6 +14,8 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 The main purpose of this repo is to experiment with a [Multi-Layer Perceptron (MLP)](https://en.wikipedia.org/wiki/Multilayer_perceptron) made **from scratch**, almost only using the **NumPy** module.
 
+Main task of the MLP network : **Data classification**
+
 Default dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database)
 
 Language used : **Python**
