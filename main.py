@@ -50,7 +50,7 @@ def main():
     # These variables have to be set manually (because they depend on the used data)
     
     # These variables are only related to the `Network.display_some_predictions`
-    # method, called at the very end of this function
+    # method, which is called at the very end of this function
     
     samples_are_images = True
     
