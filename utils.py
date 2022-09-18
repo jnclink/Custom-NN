@@ -879,13 +879,13 @@ def _download_progress_bar(
     
     # ---------------------------------------------------------------------- #
     
-    # defining the number of times the progress bar will be updated during
-    # the entire download
-    nb_progress_bar_updates = 20
+    # defining the (default) number of times the progress bar will be updated
+    # during the entire download
+    nb_progress_bar_updates = 15
     
     block_index_update_step = total_nb_blocks // nb_progress_bar_updates
     
-    if (block_index % block_index_update_step == 0) or (block_index in [1, total_nb_blocks]):
+    if (block_index % block_index_update_step == 0) or (block_index == 1) or (block_index == total_nb_blocks):
         size_of_already_downloaded_data_in_bytes = block_index * block_size_in_bytes
         
         if block_index == total_nb_blocks:
@@ -910,9 +910,13 @@ def _download_progress_bar(
         precision_sizes = 2
         
         str_size_of_already_downloaded_data_in_megabytes = f"{size_of_already_downloaded_data_in_megabytes:.{precision_sizes}f}"
-        if size_of_already_downloaded_data_in_megabytes < 10:
-            str_size_of_already_downloaded_data_in_megabytes = "0" + str_size_of_already_downloaded_data_in_megabytes
         str_total_size_of_data_in_megabytes = f"{total_size_of_data_in_megabytes:.{precision_sizes}f}"
+        
+        nb_additional_zeros = len(str_total_size_of_data_in_megabytes) - len(str_size_of_already_downloaded_data_in_megabytes)
+        assert nb_additional_zeros >= 0
+        if nb_additional_zeros != 0:
+            additional_zeros = "0" * nb_additional_zeros
+            str_size_of_already_downloaded_data_in_megabytes = additional_zeros + str_size_of_already_downloaded_data_in_megabytes
         
         current_progress_bar += f" Downloaded {str_size_of_already_downloaded_data_in_megabytes}/{str_total_size_of_data_in_megabytes} MB"
         

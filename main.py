@@ -398,7 +398,7 @@ def main():
         patience=3 # has to be >= 2
     )
     
-    # You can set `training_callbacks` to the empty list/tuple if needed
+    # You can set `training_callbacks` to `None` if needed
     training_callbacks = [early_stopping_callback]
     
     # ---------------------------------------------------------------------- #

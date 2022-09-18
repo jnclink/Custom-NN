@@ -85,7 +85,7 @@ class Layer(ABC):
         it is added to the network (with the `Network.add` method of the
         "network.py" script)
         
-        This method doesn't have to be overridden by any child classes,
+        This method doesn't have to be overridden by any subclasses,
         therefore it won't be defined as an abstract method
         """
         pass
@@ -129,8 +129,9 @@ class Layer(ABC):
 
 class InputLayer(Layer):
     """
-    Input layer. The only purpose of this class is to be the very first layer
-    of the network, and signal to the next layers what the input size is
+    Input layer class. The only purpose of this class is to be the very first
+    layer of the network, so that it can signal to the next layer what the
+    input size of the network is
     """
     def __init__(self, input_size: int) -> None:
         super().__init__()
@@ -196,7 +197,7 @@ class InputLayer(Layer):
 
 class DenseLayer(Layer):
     """
-    Dense (i.e. fully connected) layer
+    Dense (i.e. fully connected) layer class
     """
     def __init__(self, nb_neurons: int, seed: Optional[int] = None) -> None:
         super().__init__()
@@ -326,7 +327,7 @@ class DenseLayer(Layer):
 
 class ActivationLayer(Layer):
     """
-    Activation layer
+    Activation layer class
     """
     
     # class variable
@@ -466,7 +467,7 @@ class ActivationLayer(Layer):
 
 class BatchNormLayer(Layer):
     """
-    BatchNorm regularization layer
+    BatchNorm regularization layer class
     """
     def __init__(self) -> None:
         super().__init__()
@@ -609,7 +610,7 @@ class BatchNormLayer(Layer):
 
 class DropoutLayer(Layer):
     """
-    Dropout regularization layer
+    Dropout regularization layer class
     """
     def __init__(self, dropout_rate: float, seed: Optional[int] = None) -> None:
         super().__init__()

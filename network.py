@@ -713,6 +713,8 @@ class Network:
             # just that, since the order of the data/label batches of the
             # validation set will NOT affect the resulting validation losses and
             # accuracies, you might as well set `nb_shuffles` to zero (to save time)
+            # NB : Since the validation batches can (and will) be reused as
+            #      they are, here `val_batches` doesn't have to be a generator
             val_batches = split_data_into_batches(
                 used_X_val,
                 val_batch_size,
@@ -728,15 +730,13 @@ class Network:
         
         # ================================================================== #
         
-        # initializing some variables that'll ONLY be used for display purposes
+        # initializing some variables that'll only be used for display purposes
         
         nb_digits_epoch_index = len(str(nb_epochs))
         epoch_index_format = f"0{nb_digits_epoch_index}d"
         
         nb_digits_train_batch_index = len(str(nb_train_batches))
         train_batch_index_format = f"0{nb_digits_train_batch_index}d"
-        
-        min_max_train_batch_indices = [1, nb_train_batches]
         
         # number of times the training batch indices are updated (per epoch)
         nb_train_batch_index_updates = 5
@@ -842,7 +842,7 @@ class Network:
                         enable_checks=enable_checks
                     )
                 
-                if (train_batch_index % train_batch_index_update_step == 0) or (train_batch_index in min_max_train_batch_indices):
+                if (train_batch_index % train_batch_index_update_step == 0) or (train_batch_index == 1) or (train_batch_index == nb_train_batches):
                     # displaying the progress bar related to the number of
                     # processed batches (within the current epoch)
                     
@@ -957,7 +957,7 @@ class Network:
         
         # ================================================================== #
         
-        # termination of the training and validation phases
+        # termination of the training loop
         
         average_epoch_duration = duration_training / nb_epochs
         if _has_validation_data:
@@ -1181,16 +1181,18 @@ class Network:
         # testing losses and accuracies, this assumes that the generated testing
         # batches contain the information of the label batches as well, which
         # is NOT the case here (by design) !
+        # NB : Here, `test_batches` is a generator
         test_batches = split_data_into_batches(
             used_X_test,
             test_batch_size,
+            is_generator=True,
             nb_shuffles=0,
             enable_checks=True
         )
         
         test_outputs = []
         
-        for X_test_batch in test_batches["data"]:
+        for X_test_batch in test_batches:
             # forward propagation
             test_output = X_test_batch
             for layer in self._layers:

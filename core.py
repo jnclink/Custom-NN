@@ -45,7 +45,7 @@ def split_data_into_batches_as_generator_function(
     INTEGER labels or its one-hot encoded equivalent (in that case, `labels`
     will be a 2D matrix)
     
-    This function will essentially be used during the training phase
+    This function will essentially be used for the training and testing data
     """
     # ---------------------------------------------------------------------- #
     
@@ -129,6 +129,9 @@ def split_data_into_batches(
     Here, if `labels` is not equal to `None`, it can either be a 1D vector of
     INTEGER labels or its one-hot encoded equivalent (in that case, `labels`
     will be a 2D matrix)
+    
+    The "non-generator" form of this function will essentially only be used
+    for the validation data
     """
     # ---------------------------------------------------------------------- #
     

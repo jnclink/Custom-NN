@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Script defining some callback classes that can be used during the training phase
+Script defining some callback classes that can be used during the training loop
 """
 
 from typing import Union
@@ -23,6 +23,8 @@ class Callback:
         pass
     
     def __str__(self) -> str:
+        # default string representation of the callback classes (most of the
+        # time their `__str__` method will override this one)
         return f"{self.__class__.__name__}()"
     
     def __repr__(self) -> str:
@@ -34,7 +36,7 @@ class Callback:
 
 class EarlyStoppingCallback(Callback):
     """
-    Early stopping callback
+    Early stopping callback class
     """
     
     # class variable
@@ -112,11 +114,11 @@ class EarlyStoppingCallback(Callback):
         # ------------------------------------------------------------------ #
         
         monitored_values = history[self.monitor]
-        nb_epochs = len(monitored_values)
+        nb_completed_epochs = len(monitored_values)
         
-        if nb_epochs >= self.patience:
+        if nb_completed_epochs >= self.patience:
             # we're only interest in the last `self.patience` epochs
-            values_of_interest = monitored_values[nb_epochs - self.patience : ]
+            values_of_interest = monitored_values[-self.patience : ]
             assert len(values_of_interest) == self.patience # necessary check
             
             # checking if the values of interest form a strictly monotonous
@@ -128,7 +130,7 @@ class EarlyStoppingCallback(Callback):
                 if np.allclose(value_of_interest, next_value_of_interest):
                     return False
                 
-                if self.comparison_function(value_of_interest, next_value_of_interest) == value_of_interest:
+                if np.allclose(self.comparison_function(value_of_interest, next_value_of_interest), value_of_interest):
                     return False
             
             # if we made it to this point, then the sequence defined by the
