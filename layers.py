@@ -662,10 +662,12 @@ class DropoutLayer(Layer):
         
         batch_size, output_size = shape
         
-        dropout_matrix = self.scaling_factor * np.ones(shape, dtype=dtype)
+        dropout_matrix = np.ones(shape, dtype=dtype)
         nb_of_values_to_drop_per_input_sample = int(round(self.dropout_rate * output_size))
         
         if nb_of_values_to_drop_per_input_sample > 0:
+            dropout_matrix *= self.scaling_factor
+            
             choices_for_dropped_indices = np.arange(output_size)
             
             np.random.seed(self.seed)

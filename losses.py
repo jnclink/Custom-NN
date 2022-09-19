@@ -51,21 +51,7 @@ def CCE(
         nb_illegal_values_in_y_pred = np.where(y_pred <= 0)[0].size + np.where(y_pred > 1)[0].size
         assert nb_illegal_values_in_y_pred == 0
     
-    if len(y_true.shape) == 1:
-        CCE_output = - np.sum(y_true * np.log(y_pred))
-    elif len(y_true.shape) == 2:
-        batch_size = y_true.shape[0]
-        CCE_output = np.zeros((batch_size, ), dtype=y_true.dtype)
-        
-        for batch_sample_index in range(batch_size):
-            y_true_sample = y_true[batch_sample_index, :]
-            y_pred_sample = y_pred[batch_sample_index, :]
-            
-            CCE_output[batch_sample_index] = CCE(
-                y_true_sample,
-                y_pred_sample,
-                enable_checks=False
-            )
+    CCE_output = - np.sum(y_true * np.log(y_pred), axis=-1)
     
     if enable_checks:
         check_dtype(CCE_output, utils.DEFAULT_DATATYPE)

@@ -59,7 +59,7 @@ def ReLU_prime(
         _validate_activation_input(x)
     
     ReLU_prime_output = np.zeros(x.shape, dtype=x.dtype)
-    ReLU_prime_output[x >= 0] = 1
+    ReLU_prime_output[x > 0] = 1
     
     if enable_checks:
         check_dtype(ReLU_prime_output, utils.DEFAULT_DATATYPE)
@@ -121,7 +121,7 @@ def leaky_ReLU_prime(
         leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
     
     leaky_ReLU_prime_output = np.ones(x.shape, dtype=x.dtype)
-    leaky_ReLU_prime_output[x < 0] = leaky_ReLU_coeff
+    leaky_ReLU_prime_output[x <= 0] = leaky_ReLU_coeff
     
     if enable_checks:
         check_dtype(leaky_ReLU_prime_output, utils.DEFAULT_DATATYPE)
@@ -206,25 +206,14 @@ def softmax(
         _validate_activation_input(x)
         assert isinstance(replace_illegal_output_values, bool)
     
-    if len(x.shape) == 1:
-        # NB : The softmax function is translationally invariant, i.e., for any
-        #      scalar `t`, we will have : `softmax(x) = softmax(x - t)`.
-        #      Therefore, in order to prevent potential overflow errors, we can
-        #      simply set `t = max(x)`. Indeed, in that case, `x - t` will have
-        #      negative values, and therefore `exp(x - t)` (and `sum(exp(x - t))`)
-        #      will never raise overflow errors !
-        exps = np.exp(x - np.max(x))
-        softmax_output = exps / np.sum(exps)
-    elif len(x.shape) == 2:
-        batch_size = x.shape[0]
-        softmax_output = np.zeros(x.shape, dtype=x.dtype)
-        for batch_sample_index in range(batch_size):
-            x_sample = x[batch_sample_index, :]
-            softmax_output[batch_sample_index, :] = softmax(
-                x_sample,
-                replace_illegal_output_values=False,
-                enable_checks=False
-            )
+    # NB : The softmax function is translationally invariant, i.e., for any
+    #      scalar `t`, we will have : `softmax(x) = softmax(x - t)`.
+    #      Therefore, in order to prevent potential overflow errors, we can
+    #      simply set `t = max(x)`. Indeed, in that case, `x - t` will have
+    #      negative values, and therefore `exp(x - t)` (and `sum(exp(x - t))`)
+    #      will never raise overflow errors !
+    exps = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    softmax_output = exps / np.sum(exps, axis=-1, keepdims=True)
     
     if replace_illegal_output_values:
         # replacing the softmax output values that are *very close* to zero
@@ -251,6 +240,9 @@ def softmax_prime(
     Derivative of the softmax activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
+    
+    NB : If `x` is 1D, the output will be 2D, and if `x` is 2D, then the
+         output will be 3D
     """
     assert isinstance(enable_checks, bool)
     
@@ -258,15 +250,15 @@ def softmax_prime(
         _validate_activation_input(x)
     
     if len(x.shape) == 1:
-        softmax_output = softmax(x).reshape((1, x.shape[0]))
+        softmax_output = softmax(x, enable_checks=False).reshape((1, x.shape[0]))
         softmax_prime_output = np.diagflat(softmax_output) - softmax_output.T @ softmax_output
         return softmax_prime_output
     elif len(x.shape) == 2:
-        batch_size = x.shape[0]
-        softmax_prime_output = np.zeros((batch_size, x.shape[1], x.shape[1]), dtype=x.dtype)
+        batch_size, output_size = x.shape
+        softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
         for batch_sample_index in range(batch_size):
             x_sample = x[batch_sample_index, :]
-            softmax_prime_output[batch_sample_index] = softmax_prime(x_sample)
+            softmax_prime_output[batch_sample_index] = softmax_prime(x_sample, enable_checks=False)
     
     if enable_checks:
         check_dtype(softmax_prime_output, utils.DEFAULT_DATATYPE)
@@ -300,19 +292,8 @@ def sigmoid(
         _validate_activation_input(x)
         assert isinstance(replace_illegal_output_values, bool)
     
-    if len(x.shape) == 1:
-        one = cast(1, utils.DEFAULT_DATATYPE)
-        sigmoid_output = one / (one + np.exp(-x))
-    elif len(x.shape) == 2:
-        sigmoid_output = np.zeros(x.shape, dtype=x.dtype)
-        batch_size = x.shape[0]
-        for batch_sample_index in range(batch_size):
-            x_sample = x[batch_sample_index, :]
-            sigmoid_output[batch_sample_index, :] = sigmoid(
-                x_sample,
-                replace_illegal_output_values=False,
-                enable_checks=False
-            )
+    one = cast(1, utils.DEFAULT_DATATYPE)
+    sigmoid_output = one / (one + np.exp(-x))
     
     if replace_illegal_output_values:
         # replacing the sigmoid output values that are *very close* to zero
@@ -345,16 +326,9 @@ def sigmoid_prime(
     if enable_checks:
         _validate_activation_input(x)
     
-    if len(x.shape) == 1:
-        sigmoid_output = sigmoid(x)
-        one = cast(1, utils.DEFAULT_DATATYPE)
-        sigmoid_prime_output = sigmoid_output * (one - sigmoid_output)
-    elif len(x.shape) == 2:
-        sigmoid_prime_output = np.zeros(x.shape, dtype=x.dtype)
-        batch_size = x.shape[0]
-        for batch_sample_index in range(batch_size):
-            x_sample = x[batch_sample_index, :]
-            sigmoid_prime_output[batch_sample_index, :] = sigmoid_prime(x_sample)
+    sigmoid_output = sigmoid(x, enable_checks=False)
+    one = cast(1, utils.DEFAULT_DATATYPE)
+    sigmoid_prime_output = sigmoid_output * (one - sigmoid_output)
     
     if enable_checks:
         check_dtype(sigmoid_prime_output, utils.DEFAULT_DATATYPE)
