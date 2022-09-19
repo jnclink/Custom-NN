@@ -19,6 +19,13 @@ from utils import (
     count_nb_decimals_places
 )
 
+from optimizers import (
+    Optimizer,
+    SgdOptimizer,
+    AdamOptimizer,
+    RMSpropOptimizer
+)
+
 from activations import (
     ReLU,       ReLU_prime,
     leaky_ReLU, leaky_ReLU_prime,
@@ -36,10 +43,22 @@ class Layer(ABC):
     Base (abstract) layer class
     """
     
+    # class variable
+    AVAILABLE_OPTIMIZERS: dict[str, Optimizer] = {
+        "sgd"     : SgdOptimizer,
+        "adam"    : AdamOptimizer,
+        "rmsprop" : RMSpropOptimizer
+    }
+    
     def __init__(self) -> None:
         self.input:  Union[None, np.ndarray] = None
         self.output: Union[None, np.ndarray] = None
+        
         self.nb_trainable_params: Union[None, int] = None
+        
+        self.optimizer_name: Union[None, str] = None
+        self._optimizer: Union[None, Optimizer] = None
+        self._optimize_weights: Union[None, Callable] = None
     
     def __str__(self) -> str:
         # default string representation of the layer classes (most of the
@@ -49,11 +68,63 @@ class Layer(ABC):
     def __repr__(self) -> str:
         return str(self)
     
+    def build(self, input_size: int) -> None:
+        """
+        Now that we know the input size of the layer, we can actually
+        initialize/build the latter (if needed). The layer will be built when
+        it is added to the network (with the `Network.add` method of the
+        "network.py" script)
+        
+        This method doesn't have to be overridden by any subclasses,
+        therefore it won't be defined as an abstract method
+        """
+        pass
+    
+    def set_optimizer(
+            self,
+            optimizer_name: str,
+            *,
+            learning_rate: float = 0.001
+        ) -> None:
+        """
+        Sets the optimizer of the current layer to the specified optimizer.
+        The optimizer name is case insensitive
+        """
+        # ------------------------------------------------------------------- #
+        
+        # checking the specified arguments
+        
+        assert isinstance(optimizer_name, str)
+        assert len(optimizer_name.strip()) > 0
+        optimizer_name = optimizer_name.strip().lower()
+        
+        if optimizer_name not in Layer.AVAILABLE_OPTIMIZERS:
+            raise Exception(f"{self.__class__.__name__}.set_optimizer - Unrecognized optimizer name : \"{optimizer_name}\" (available optimizer names : {list_to_string(list(Layer.AVAILABLE_OPTIMIZERS))})")
+        
+        assert isinstance(learning_rate, float)
+        assert (learning_rate > 0) and (learning_rate < 1)
+        
+        # ------------------------------------------------------------------- #
+        
+        self.optimizer_name = optimizer_name
+        
+        optimizer_class = Layer.AVAILABLE_OPTIMIZERS[self.optimizer_name]
+        self._optimizer = optimizer_class(learning_rate)
+        
+        self._optimize_weights = self._optimizer.optimize_weights
+    
+    def _check_if_optimizer_is_set(self) -> None:
+        """
+        Simply checks if an optimizer has been set or not (on the called layer)
+        """
+        assert self.optimizer_name is not None
+    
     @abstractmethod
     def forward_propagation(
             self,
             input_data: np.ndarray,
-            training: bool = True,
+            *,
+            training: bool = False,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -78,50 +149,29 @@ class Layer(ABC):
         
         assert isinstance(training, bool)
     
-    def build(self, input_size: int) -> None:
-        """
-        Now that we know the input size of the layer, we can actually
-        initialize/build the latter (if needed). The layer will be built when
-        it is added to the network (with the `Network.add` method of the
-        "network.py" script)
-        
-        This method doesn't have to be overridden by any subclasses,
-        therefore it won't be defined as an abstract method
-        """
-        pass
-    
     @abstractmethod
     def backward_propagation(
             self,
             output_gradient: np.ndarray,
-            learning_rate: float,
+            *,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
         Computes dE/dX for a given dE/dY, and updates the trainable parameters
-        if there are any (using gradient descent)
+        if there are any
         """
         pass
     
-    def _validate_backward_propagation_inputs(
+    def _validate_backward_propagation_input(
             self,
-            output_gradient: np.ndarray,
-            learning_rate: float
+            output_gradient: np.ndarray
         ) -> None:
         """
-        Checks if `output_gradient` and `learning_rate` are valid or not
+        Checks if `output_gradient` is valid or not
         """
         assert isinstance(output_gradient, np.ndarray)
         assert len(output_gradient.shape) == 2
         check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
-        
-        assert isinstance(learning_rate, float)
-        learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
-        
-        learning_rate = max(learning_rate, utils.DTYPE_RESOLUTION)
-        assert (learning_rate > 0) and (learning_rate < 1)
-        
-        return learning_rate
 
 
 ##############################################################################
@@ -148,7 +198,8 @@ class InputLayer(Layer):
     def forward_propagation(
             self,
             input_data: np.ndarray,
-            training: bool = True,
+            *,
+            training: bool = False,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -171,19 +222,17 @@ class InputLayer(Layer):
     def backward_propagation(
             self,
             output_gradient: np.ndarray,
-            learning_rate: float,
+            *,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
         Backward propagation of the Input layer
-        
-        NB : Here, `learning_rate` is not used because there are no trainable
-             parameters
         """
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+            self._check_if_optimizer_is_set()
+            self._validate_backward_propagation_input(output_gradient)
         
         input_gradient = output_gradient
         
@@ -254,7 +303,8 @@ class DenseLayer(Layer):
     def forward_propagation(
             self,
             input_data: np.ndarray,
-            training: bool = True,
+            *,
+            training: bool = False,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -278,7 +328,7 @@ class DenseLayer(Layer):
     def backward_propagation(
             self,
             output_gradient: np.ndarray,
-            learning_rate: float,
+            *,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -290,12 +340,8 @@ class DenseLayer(Layer):
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            learning_rate = self._validate_backward_propagation_inputs(
-                output_gradient,
-                learning_rate
-            )
-        else:
-            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
+            self._check_if_optimizer_is_set()
+            self._validate_backward_propagation_input(output_gradient)
         
         input_gradient = output_gradient @ self.weights.T # = dE/dX
         check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
@@ -307,17 +353,12 @@ class DenseLayer(Layer):
         weights_gradient = averaging_factor * self.input.T @ output_gradient # = dE/dW
         biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)    # = dE/dB
         
-        if enable_checks:
-            check_dtype(weights_gradient, utils.DEFAULT_DATATYPE)
-            check_dtype(biases_gradient,  utils.DEFAULT_DATATYPE)
-        
-        # updating the trainable parameters (using gradient descent)
-        self.weights -= learning_rate * weights_gradient
-        self.biases  -= learning_rate * biases_gradient
-        
-        if enable_checks:
-            check_dtype(self.weights, utils.DEFAULT_DATATYPE)
-            check_dtype(self.biases,  utils.DEFAULT_DATATYPE)
+        # updating the trainable parameters
+        self.weights, self.biases = self._optimize_weights(
+            weights=(self.weights, self.biases),
+            weight_gradients=(weights_gradient, biases_gradient),
+            enable_checks=enable_checks
+        )
         
         return input_gradient
 
@@ -390,7 +431,8 @@ class ActivationLayer(Layer):
     def forward_propagation(
             self,
             input_data: np.ndarray,
-            training: bool = True,
+            *,
+            training: bool = False,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -417,19 +459,17 @@ class ActivationLayer(Layer):
     def backward_propagation(
             self,
             output_gradient: np.ndarray,
-            learning_rate: float,
+            *,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
         Backward propagation of the Activation layer
-        
-        NB : Here, `learning_rate` is not used because there are no trainable
-             parameters
         """
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+            self._check_if_optimizer_is_set()
+            self._validate_backward_propagation_input(output_gradient)
         
         activation_prime_of_input = self.activation_prime(
             self.input,
@@ -491,27 +531,29 @@ class BatchNormLayer(Layer):
         assert (self.momentum > 0) and (self.momentum < 1)
         
         one: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self.inverse_momentum: Float = one - self.momentum
-        check_dtype(self.inverse_momentum, utils.DEFAULT_DATATYPE)
+        self._inverse_momentum: Float = one - self.momentum
+        check_dtype(self._inverse_momentum, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
         self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
-        # initializing the cached input data (to speed up the backward propagation)
+        # initializing the cached input data (which is used to slightly speed
+        # up the backward propagation)
         self.input_std:        Union[None, np.ndarray] = None
         self.normalized_input: Union[None, np.ndarray] = None
     
     def forward_propagation(
             self,
             input_data: np.ndarray,
-            training: bool = True,
+            *,
+            training: bool = False,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
         Forward propagation of the BatchNorm layer
         
-        Returns the normalized (and rescaled) input along the 1st axis, i.e.
+        Returns the standardized (and rescaled) input along the 1st axis, i.e.
         along the batches/rows
         """
         assert isinstance(enable_checks, bool)
@@ -530,8 +572,8 @@ class BatchNormLayer(Layer):
             self.normalized_input = centered_input / self.input_std
             
             # updating the non-trainable parameters
-            self.moving_mean = self.momentum * self.moving_mean + self.inverse_momentum * np.mean(input_mean)
-            self.moving_var  = self.momentum * self.moving_var  + self.inverse_momentum * np.mean(input_variance)
+            self.moving_mean = self.momentum * self.moving_mean + self._inverse_momentum * np.mean(input_mean)
+            self.moving_var  = self.momentum * self.moving_var  + self._inverse_momentum * np.mean(input_variance)
             
             if enable_checks:
                 check_dtype(self.moving_mean, utils.DEFAULT_DATATYPE)
@@ -556,7 +598,7 @@ class BatchNormLayer(Layer):
     def backward_propagation(
             self,
             output_gradient: np.ndarray,
-            learning_rate: float,
+            *,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -568,12 +610,8 @@ class BatchNormLayer(Layer):
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            learning_rate = self._validate_backward_propagation_inputs(
-                output_gradient,
-                learning_rate
-            )
-        else:
-            learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
+            self._check_if_optimizer_is_set()
+            self._validate_backward_propagation_input(output_gradient)
         
         output_gradient_mean = output_gradient.mean(axis=1, keepdims=True)
         centered_output_gradient = output_gradient - output_gradient_mean
@@ -590,17 +628,12 @@ class BatchNormLayer(Layer):
         gamma_gradient = np.mean(np.sum(output_gradient * self.normalized_input, axis=1))
         beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
         
-        if enable_checks:
-            check_dtype(gamma_gradient, utils.DEFAULT_DATATYPE)
-            check_dtype(beta_gradient,  utils.DEFAULT_DATATYPE)
-        
-        # updating the trainable parameters (using gradient descent)
-        self.gamma -= learning_rate * gamma_gradient
-        self.beta  -= learning_rate * beta_gradient
-        
-        if enable_checks:
-            check_dtype(self.gamma, utils.DEFAULT_DATATYPE)
-            check_dtype(self.beta,  utils.DEFAULT_DATATYPE)
+        # updating the trainable parameters
+        self.gamma, self.beta = self._optimize_weights(
+            weights=(self.gamma, self.beta),
+            weight_gradients=(gamma_gradient, beta_gradient),
+            enable_checks=enable_checks
+        )
         
         return input_gradient
 
@@ -691,7 +724,8 @@ class DropoutLayer(Layer):
     def forward_propagation(
             self,
             input_data: np.ndarray,
-            training: bool = True,
+            *,
+            training: bool = False,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
@@ -727,19 +761,17 @@ class DropoutLayer(Layer):
     def backward_propagation(
             self,
             output_gradient: np.ndarray,
-            learning_rate: float,
+            *,
             enable_checks: bool = True
         ) -> np.ndarray:
         """
         Backward propagation of the Dropout layer
-        
-        NB : Here, `learning_rate` is not used because there are no trainable
-             parameters
         """
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            self._validate_backward_propagation_inputs(output_gradient, learning_rate)
+            self._check_if_optimizer_is_set()
+            self._validate_backward_propagation_input(output_gradient)
         
         input_gradient = output_gradient * self.dropout_matrix
         

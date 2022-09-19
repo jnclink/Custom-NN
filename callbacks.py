@@ -4,6 +4,7 @@
 Script defining some callback classes that can be used during the training loop
 """
 
+from abc import ABC, abstractmethod
 from typing import Union
 
 import numpy as np
@@ -14,10 +15,9 @@ from utils import list_to_string
 ##############################################################################
 
 
-class Callback:
+class Callback(ABC):
     """
-    Base callback class. Since different types of callbacks might not have
-    similar behaviours, this base class was not made abstract
+    Base (abstract) callback class
     """
     def __init__(self) -> None:
         pass
@@ -29,6 +29,13 @@ class Callback:
     
     def __repr__(self) -> str:
         return str(self)
+    
+    @abstractmethod
+    def callback(self, *args: object, **kwargs: object) -> object:
+        """
+        Defines the callback of the current class
+        """
+        pass
 
 
 ##############################################################################
@@ -81,7 +88,7 @@ class EarlyStoppingCallback(Callback):
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(monitor=\"{self.monitor}\", patience={self.patience})"
     
-    def stop_at_current_epoch(
+    def callback(
             self,
             history: dict[str, list[Union[int, float, np.float32, np.float64]]],
             *,

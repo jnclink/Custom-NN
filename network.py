@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 # used to force integer ticks on the x-axis of a plot
 from matplotlib.ticker import MaxNLocator
 
+# used to print colored text in a Python console/terminal
+from colorama import init, Fore, Style
+
 import utils
 from utils import (
     cast,
@@ -41,11 +44,6 @@ from losses import (
     MSE, MSE_prime
 )
 
-from callbacks import (
-    Callback,
-    EarlyStoppingCallback
-)
-
 from layers import (
     Layer,
     InputLayer,
@@ -53,6 +51,11 @@ from layers import (
     ActivationLayer,
     BatchNormLayer,
     DropoutLayer
+)
+
+from callbacks import (
+    Callback,
+    EarlyStoppingCallback
 )
 
 
@@ -92,6 +95,8 @@ class Network:
         self.loss_name: Union[None, str] = None
         self._loss: Union[None, Callable] = None
         self._loss_prime: Union[None, Callable] = None
+        
+        self.optimizer_name: Union[None, str] = None
         
         Number = Union[int, float, np.float32, np.float64] # generic number type
         self.history: Union[None, dict[str, list[Number]]] = None
@@ -447,6 +452,35 @@ class Network:
         self._loss, self._loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
     
     
+    def set_optimizer(
+            self,
+            optimizer_name: str,
+            *,
+            learning_rate: float = 0.001
+        ) -> None:
+        """
+        Sets the optimizer of (all the layers of) the network to the
+        specified optimizer. The optimizer name is case insensitive
+        """
+        # ------------------------------------------------------------------- #
+        
+        # checking the specified arguments
+        
+        assert isinstance(optimizer_name, str)
+        assert len(optimizer_name.strip()) > 0
+        optimizer_name = optimizer_name.strip().lower()
+        
+        assert isinstance(learning_rate, float)
+        assert (learning_rate > 0) and (learning_rate < 1)
+        
+        # ------------------------------------------------------------------- #
+        
+        for layer in self._layers:
+            layer.set_optimizer(optimizer_name, learning_rate=learning_rate)
+        
+        self.optimizer_name = optimizer_name
+    
+    
     @staticmethod
     def _validate_data(
             X: np.ndarray,
@@ -540,7 +574,6 @@ class Network:
             y_train: np.ndarray,
             nb_epochs: int,
             train_batch_size: int,
-            learning_rate: float,
             *,
             nb_shuffles_before_each_train_batch_split: int = 10,
             seed_train_batch_splits: Optional[int] = None,
@@ -580,9 +613,6 @@ class Network:
             print(f"\nNetwork.fit - WARNING : train_batch_size > nb_train_samples ({train_batch_size} > {nb_train_samples}), therefore `train_batch_size` was set to `nb_train_samples` (i.e. {nb_train_samples})")
             train_batch_size = nb_train_samples
         
-        assert isinstance(learning_rate, float)
-        assert learning_rate > 0
-        
         assert isinstance(nb_shuffles_before_each_train_batch_split, int)
         assert nb_shuffles_before_each_train_batch_split >= 0
         
@@ -606,7 +636,6 @@ class Network:
                 # checking that the specified callbacks all have a legitimate type
                 for callback in training_callbacks:
                     assert issubclass(type(callback), Callback)
-                    assert type(callback) != Callback
                 
                 nb_callbacks = len(training_callbacks)
                 
@@ -625,7 +654,7 @@ class Network:
                             _early_stopping_callback = callback
                     
                     # NB : Add an instance check here if you added another
-                    #      callback in the "callbacks" script
+                    #      callback in the "callbacks.py" script
         
         # ------------------------------------------------------------------ #
         
@@ -681,6 +710,9 @@ class Network:
         
         if (self._loss is None) or (self._loss_prime is None):
             raise Exception("Network.fit - Please set a loss function before training the network !")
+        
+        if self.optimizer_name is None:
+            raise Exception("Network.fit - Please set an optimizer before training the network !")
         
         # ================================================================== #
         
@@ -738,7 +770,9 @@ class Network:
         nb_digits_train_batch_index = len(str(nb_train_batches))
         train_batch_index_format = f"0{nb_digits_train_batch_index}d"
         
-        # number of times the training batch indices are updated (per epoch)
+        # Number of times the training batch indices are updated (per epoch).
+        # Don't set this value to a value >= 10, otherwise Python's standard
+        # output will bug
         nb_train_batch_index_updates = 5
         
         train_batch_index_update_step = nb_train_batches // nb_train_batch_index_updates
@@ -838,7 +872,6 @@ class Network:
                 for layer in reversed(self._layers):
                     output_gradient = layer.backward_propagation(
                         output_gradient,
-                        learning_rate,
                         enable_checks=enable_checks
                     )
                 
@@ -852,7 +885,7 @@ class Network:
                         train_batch_index,
                         nb_train_batches,
                         progress_bar_size=15, # by default
-                        enable_checks=enable_checks
+                        enable_checks=False
                     )
                     
                     train_batch_progress_row = f"{epoch_header}{current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
@@ -935,14 +968,22 @@ class Network:
             # Checking if there is an early stopping callback (if requested)
             
             if (_early_stopping_callback is not None) and (epoch_index != nb_epochs):
-                prematurely_stop_training_loop = _early_stopping_callback.stop_at_current_epoch(
+                prematurely_stop_training_loop = _early_stopping_callback.callback(
                     self.history,
                     enable_checks=enable_checks
                 )
                 
                 if prematurely_stop_training_loop:
-                    callback_message = f"\n{offset_spacing}{str(_early_stopping_callback)} :"
-                    callback_message += f"\n{offset_spacing}Prematurely stopping the training loop after epoch n°{epoch_index}"
+                    # Enables the ability to print colored text in the standard
+                    # output (of Python consoles/terminals). This method is
+                    # imported from the `colorama` module
+                    init()
+                    
+                    printed_color = Fore.MAGENTA # by default
+                    reset_color   = Style.RESET_ALL
+                    
+                    callback_message = f"\n{offset_spacing}{printed_color}{str(_early_stopping_callback)} :{reset_color}"
+                    callback_message += f"\n{offset_spacing}{printed_color}Prematurely stopping the training loop after epoch n°{epoch_index}{reset_color}"
                     print(callback_message)
                     
                     # updating the actual number of completed epochs

@@ -34,6 +34,7 @@ Language used : **Python**
 - Added the **Categorical Cross-Entropy** (CCE) loss function
 - Added the **ReLU**, **leaky ReLU**, **softmax** and **sigmoid** activation functions
 - Added the **Input**, **BatchNorm** and **Dropout** layers
+- Added the **Adam** and **RMSprop** optimizers (the original optimizer was the **Stochastic Gradient Descent**, or "SGD")
 - Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous layer to add a new Dense layer ! Also, for the Activation layers, you can now simply input the name of the loss function (which is a string) instead of inputting the functions `activation` and `activation_prime` !
 - Added an **"early stopping" callback**
 - The network's detailed summary can now be visualized after the network is built

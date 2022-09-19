@@ -17,8 +17,6 @@ from mnist_dataset import (
 
 from network import Network
 
-from callbacks import EarlyStoppingCallback
-
 from layers import (
     InputLayer,
     DenseLayer,
@@ -26,6 +24,8 @@ from layers import (
     BatchNormLayer,
     DropoutLayer
 )
+
+from callbacks import EarlyStoppingCallback
 
 
 ##############################################################################
@@ -91,13 +91,21 @@ def main():
     
     # Loading and formatting the data
     
+    # ---------------------------------------------------------------------- #
+    
+    # Seed
+    
     # This seed is currently used to :
     #     1) Randomly split the raw data into the "train/test" or "train/val/test" sets
     #     2) Randomly shuffle the "train/test" or "train/val/test" sets
     # Set this seed to `None` for "real" randomness during those 2 processes
+    
     seed_data_formatting = 555
     
+    # ---------------------------------------------------------------------- #
+    
     # Defining the number of samples in the "train/test" or "train/val/test" sets
+    
     # NB : The validation set is extracted from the raw "train" data, not from
     # the raw "test" data. As a reminder, there are :
     #     - 60000 samples in the raw "train" data (if ALL the classes are selected)
@@ -106,11 +114,20 @@ def main():
     nb_val_samples   = 1000 # can be set to zero if needed
     nb_test_samples  = 1000
     
+    # ---------------------------------------------------------------------- #
+    
+    # Loading the raw data
+    
     raw_X_train, raw_y_train, raw_X_test, raw_y_test = load_raw_MNIST_dataset_from_disk(
         verbose=False
     )
     
+    # ---------------------------------------------------------------------- #
+    
+    # Plotting random samples of each digit (from the raw data), if requested
+    
     plot_random_images = False
+    
     if plot_random_images:
         plot_random_images_from_raw_MNIST_dataset(
             raw_X_train,
@@ -120,8 +137,13 @@ def main():
             seed=None
         )
     
+    # ---------------------------------------------------------------------- #
+    
+    # Formatting the raw data
+    
     # NB : If you set `nb_val_samples` to zero, `X_val` and `y_val` will both
     #      be equal to `None`
+    
     X_train, y_train, X_val, y_val, X_test, y_test = format_raw_MNIST_dataset(
         raw_X_train,
         raw_y_train,
@@ -140,6 +162,8 @@ def main():
     # ====================================================================== #
     
     # Checking the formatted data
+    
+    # ---------------------------------------------------------------------- #
     
     # NB : Assuming your data meets all the conditons described in the README,
     #      you don't need to change anything in this section
@@ -178,21 +202,15 @@ def main():
     
     assert ("X_val" in locals()) and ("y_val" in locals())
     
-    # ====================================================================== #
-    
-    # Defining the input and output sizes of the network (respectively)
-    
-    # Input size = `nb_features_per_sample`
-    nb_features_per_sample = X_train.shape[1]
-    
-    # Output size = `nb_classes` = number of (distinct) selected class indices
-    nb_classes = y_train.shape[1]
+    _has_validation_data = ((X_val is not None) and (y_val is not None))
     
     # ====================================================================== #
     
-    # Defining the hyperparameters of the Multi-Layer Perceptron (MLP) network
+    # Defining the hyperparameters of the MLP's architecture
     
     # ---------------------------------------------------------------------- #
+    
+    # Seed
     
     # This seed is currently used to :
     #     1) Randomly initialize the weights and biases of the Dense layers
@@ -206,39 +224,49 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # Number of times the trainable parameters will be updated using the WHOLE
-    # training data
-    nb_epochs = 10
+    # Input size of the network
     
-    # If you lower the batch size, you might also want to lower the learning
-    # rate (to prevent the network from overfitting)
-    train_batch_size = 40
+    # Input size = `nb_features_per_sample`
+    nb_features_per_sample = X_train.shape[1]
     
-    # The learning rate has to lie in the range ]0, 1[
-    learning_rate = 0.15
+    # ---------------------------------------------------------------------- #
     
-    # In chronological order
+    # Output size of the network
+    
+    # Output size = `nb_classes` = number of (distinct) selected class indices
+    nb_classes = y_train.shape[1]
+    
+    # ---------------------------------------------------------------------- #
+    
+    # The following list defines the output sizes (or the "number of neurons")
+    # of each Dense layer of the network (in chronological order)
     nb_neurons_in_hidden_dense_layers = [
         256,
         64,
         32
     ]
     
-    # Relevant choices here : "ReLU", "leaky_ReLU" or "tanh". The main
-    # activation name is case insensitive
+    # Defining the name of the main activation function. Relevant choices here :
+    #     - "ReLU",
+    #     - "leaky_ReLU"
+    #     - "tanh"
+    #     - "sigmoid"
+    # The main activation name is case insensitive
     main_activation_name = "ReLU"
     
     if main_activation_name.strip().lower() == "leaky_relu":
         # Defining the "leaky ReLU coefficient" (default value : 0.01). It has
-        # to lie in the range ]0, 1[
-        activation_kwargs = {
+        # to be a small positive constant in the range ]0, 1[
+        main_activation_kwargs = {
             "leaky_ReLU_coeff" : 0.01
         }
     else:
-        activation_kwargs = {}
+        main_activation_kwargs = {}
     
-    # Relevant choices here : "softmax" or "sigmoid". The output activation
-    # name is case insensitive
+    # Defining the name of the output activation function. Relevant choices here :
+    #     - "softmax"
+    #     - "sigmoid"
+    # The output activation name is case insensitive
     output_activation_name = "softmax"
     
     # ---------------------------------------------------------------------- #
@@ -280,7 +308,10 @@ def main():
     # to get better results
     network = Network(standardize_input_data=True)
     
+    # ---------------------------------------------------------------------- #
+    
     # Input layer
+    
     network.add(InputLayer(input_size=nb_features_per_sample))
     
     # ---------------------------------------------------------------------- #
@@ -296,7 +327,7 @@ def main():
             # Adding a BatchNorm regularization layer (if requested)
             network.add(BatchNormLayer())
         
-        network.add(ActivationLayer(main_activation_name, **activation_kwargs))
+        network.add(ActivationLayer(main_activation_name, **main_activation_kwargs))
         
         if use_dropout_layers:
             # Adding a Dropout regularization layer (if requested)
@@ -340,27 +371,61 @@ def main():
     
     # ====================================================================== #
     
-    # Setting the loss function of the network
+    # Setting the hyperparameters related to the training phase
     
-    # Relevant choices here : "CCE" (Categorical Cross-Entropy) or "MSE" (Mean
-    # Squared Error). The loss function name is case insensitive
+    # ---------------------------------------------------------------------- #
+    
+    # Main hyperparameters
+    
+    # Number of times the trainable parameters will be updated using the WHOLE
+    # training data
+    nb_epochs = 10
+    
+    # If you lower the batch size, you might also want to lower the learning
+    # rate, in order to prevent the network from overfitting
+    train_batch_size = 40
+    
+    # The learning rate is a small positive constant in the range ]0, 1[
+    learning_rate = 0.0005
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Optimizer
+    
+    # Defining the name of the weight optimization algorithm. Relevant
+    # choices here :
+    #     - "RMSprop"
+    #     - "Adam"
+    #     - "SGD" (Stochastic Gradient Descent)
+    # The optimizer name is case insensitive
+    # NB : For the "SGD" optimizer, the value of the learning rate usually
+    #      needs to be a bit higher than for the "Adam" and "RMSprop"
+    #      optimizers (in order to converge)
+    optimizer_name = "RMSprop"
+    
+    network.set_optimizer(optimizer_name, learning_rate=learning_rate)
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Loss function
+    
+    # Defining the name of the loss function. Relevant choices here :
+    #     - "CCE" (Categorical Cross-Entropy)
+    #     - "MSE" (Mean Squared Error)
+    # The loss function name is case insensitive
     loss_function_name = "CCE"
     
     network.set_loss_function(loss_function_name)
     
-    # ====================================================================== #
-    
-    # Training phase
-    
     # ---------------------------------------------------------------------- #
     
-    # Setting the validation kwargs
+    # Validation kwargs
     
     # Here, inputting validation data is optional. If you don't want to use
     # validation data, please (at least) set the `validation_data` kwarg to
     # `None` (or don't specify it at all)
     
-    if (X_val is not None) and (y_val is not None):
+    if _has_validation_data:
         validation_kwargs = {
             "validation_data" : (X_val, y_val), # can be set to `None` if needed
             "val_batch_size"  : 32              # default value
@@ -370,15 +435,19 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # Setting the `training_callbacks` kwarg
+    # Callbacks (setting the `training_callbacks` kwarg)
     
     # So far, the only callback that has been implemented is the
     # `EarlyStoppingCallback`. With the latter, you can monitor one of the
-    # following metrics : "train_loss", "train_accuracy", "val_loss" and
-    # "val_accuracy". Naturally, the two last metrics require that you input
-    # validation data to the `Network.fit` method
+    # following metrics :
+    #     - "train_loss"
+    #     - "train_accuracy"
+    #     - "val_loss"
+    #     - "val_accuracy"
+    # Naturally, the two last metrics require that you input validation data
+    # to the `Network.fit` method
     
-    if (X_val is not None) and (y_val is not None):
+    if _has_validation_data:
         monitored_metric = "val_loss"
     else:
         monitored_metric = "train_loss"
@@ -395,27 +464,27 @@ def main():
     #       decreasing in the past `patience` epochs
     early_stopping_callback = EarlyStoppingCallback(
         monitor=monitored_metric,
-        patience=3 # has to be >= 2
+        patience=5 # has to be >= 2
     )
     
     # You can set `training_callbacks` to `None` if needed
     training_callbacks = [early_stopping_callback]
     
-    # ---------------------------------------------------------------------- #
+    # ====================================================================== #
     
-    # NB : If you set the `enable_checks` kwarg to `False` (to speed up the
-    #      training), please first make sure your network runs a couple of
-    #      epochs without errors when the same kwarg is set to `True`. This
-    #      comment is only relevant to whoever wants to change some features
-    #      of the project (and/or add some more !)
+    # Training phase
     
-    # Actually training the network
+    # NB : If you set the `enable_checks` kwarg to `False` (to slightly speed
+    #      up the training), please first make sure your network runs a couple
+    #      of epochs without errors when the same kwarg is set to `True`. This
+    #      comment is only relevant to those who would like to change some
+    #      features of the project (and/or add some more !)
+    
     network.fit(
         X_train,
         y_train,
         nb_epochs,
         train_batch_size,
-        learning_rate,
         nb_shuffles_before_each_train_batch_split=10,
         seed_train_batch_splits=seed_network,
         **validation_kwargs,
@@ -485,7 +554,7 @@ def main():
     # ---------------------------------------------------------------------- #
     
     # Displaying some of the network's predictions (assuming the rows of
-    # `X_test` are the flattened versions of images)
+    # `X_test` are flattened images)
     
     if samples_are_images:
         network.display_some_predictions(

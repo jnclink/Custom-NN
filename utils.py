@@ -879,9 +879,10 @@ def _download_progress_bar(
     
     # ---------------------------------------------------------------------- #
     
-    # defining the (default) number of times the progress bar will be updated
-    # during the entire download
-    nb_progress_bar_updates = 15
+    # Defining the (default) number of times the progress bar will be updated
+    # during the entire download. Don't set this value to a value >= 10,
+    # otherwise Python's standard output will bug
+    nb_progress_bar_updates = 10
     
     block_index_update_step = total_nb_blocks // nb_progress_bar_updates
     
