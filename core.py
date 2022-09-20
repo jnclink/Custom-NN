@@ -9,8 +9,10 @@ from typing import Union, Optional, Iterator
 import numpy as np
 
 from utils import (
+    basic_split,
     _validate_split_data_into_batches_inputs,
-    _validate_label_vector
+    _validate_label_vector,
+    _validate_numpy_dtype
 )
 
 
@@ -23,6 +25,7 @@ from utils import (
 def split_data_into_batches_as_generator_function(
         data: np.ndarray,
         batch_size: int,
+        *,
         labels: Optional[np.ndarray] = None,
         nb_shuffles: int = 10,
         seed: Optional[int] = None,
@@ -106,6 +109,7 @@ def split_data_into_batches_as_generator_function(
 def split_data_into_batches(
         data: np.ndarray,
         batch_size: int,
+        *,
         labels: Optional[np.ndarray] = None,
         is_generator: bool = False,
         nb_shuffles: int = 10,
@@ -241,6 +245,7 @@ def split_data_into_batches(
 def accuracy_score(
         y_true: np.ndarray,
         y_pred: np.ndarray,
+        *,
         normalize: bool = True,
         enable_checks: bool = True
     ) -> Union[float, int]:
@@ -274,7 +279,10 @@ def accuracy_score(
     return acc_score
 
 
-def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
+def confusion_matrix(
+        y_true: np.ndarray,
+        y_pred: np.ndarray
+    ) -> np.ndarray:
     """
     Returns the raw confusion matrix of `y_true` and `y_pred`. Its shape will
     be `(nb_classes, nb_classes)`, and, for all integers `i` and `j` in the
@@ -292,7 +300,7 @@ def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
     # checking the validity of the specified arguments
     
     _validate_label_vector(y_true)
-    _validate_label_vector(y_pred)
+    _validate_label_vector(y_pred, is_whole_label_vector=False)
     assert y_true.size == y_pred.size
     
     # ---------------------------------------------------------------------- #
@@ -311,11 +319,247 @@ def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 ##############################################################################
 
 
-# Main function used to split the raw MNIST data into train/test or train/val/test
-# subsets (it will basically do the same task as the associated `train_test_split`
-# function of the `sklearn.model_selection` module)
+# Main function used to split the raw MNIST data into train/test or
+# train/val/test subsets
 
 
-# TODO : Re-code the `train_test_split` method of the `sklearn.model_selection`
-#        module (WITH the `stratify` kwarg)
+def train_test_split(
+        X: np.ndarray,
+        y: np.ndarray,
+        *,
+        test_size: Optional[Union[float, int]] = None,
+        train_size: Optional[Union[float, int]] = None,
+        stratify: bool = False,
+        shuffle: bool = True,
+        random_state: Optional[int] = None
+    ) -> tuple[np.ndarray]:
+    """
+    Splits data and label arrays into random train and test subsets
+    
+    Here, `X` has to be a 2D array with numeric values, and `y` has to be a
+    1D vector of INTEGER labels
+    
+    If the `stratify` kwarg is set to `True`, then the resulting `y_train` and
+    `y_test` will have roughly the same class distribution as the specified `y`
+    
+    Sidenote
+    --------
+    This function will basically do the same task as the associated
+    `train_test_split` function of the `sklearn.model_selection` module. The
+    only major difference is that, here, the `stratify` kwarg is defined as
+    a boolean, whereas it's defined as an array in the original function. Also,
+    the reason as for why the previous `sklearn.model_selection.train_test_split`
+    method isn't used is simply because we do NOT want to import Scikit-Learn
+    (or "sklearn") ! Indeed, in my opinion, it would be kind of awkward to
+    import Scikit-Learn in a project aiming to implement a Deep Learning
+    model *from scratch* !
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # Checking the specified arguments
+    
+    assert isinstance(X, np.ndarray)
+    assert len(X.shape) == 2
+    _validate_numpy_dtype(X.dtype) # checking if the data is numeric
+    nb_samples = int(X.shape[0])
+    
+    _validate_label_vector(y)
+    assert y.size == nb_samples
+    distinct_classes = list(np.unique(y))
+    nb_classes = int(len(distinct_classes))
+    
+    assert isinstance(test_size,  (type(None), float, int))
+    assert isinstance(train_size, (type(None), float, int))
+    
+    if test_size is None:
+        if train_size is not None:
+            if isinstance(train_size, float):
+                test_size = 1 - train_size
+            elif isinstance(train_size, int):
+                test_size = nb_samples - train_size
+        else:
+            # default value
+            test_size = 0.25
+    
+    if isinstance(test_size, float):
+        assert (test_size > 0) and (test_size < 1)
+        nb_test_samples = int(round(test_size * nb_samples))
+    elif isinstance(test_size, int):
+        nb_test_samples = test_size
+    assert nb_test_samples >= nb_classes
+    
+    if train_size is None:
+        assert test_size is not None
+        if isinstance(test_size, float):
+            train_size = 1 - test_size
+        elif isinstance(test_size, int):
+            train_size = nb_samples - test_size
+    
+    if isinstance(train_size, float):
+        assert (train_size > 0) and (train_size < 1)
+        nb_train_samples = int(round(train_size * nb_samples))
+    elif isinstance(train_size, int):
+        nb_train_samples = train_size
+    assert nb_train_samples >= nb_classes
+    
+    assert nb_train_samples + nb_test_samples <= nb_samples
+    
+    assert isinstance(stratify, bool)
+    
+    assert isinstance(shuffle, bool)
+    
+    assert isinstance(random_state, (type(None), int))
+    if random_state is not None:
+        assert random_state >= 0
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Basic split
+    
+    if not(stratify):
+        sample_indices = np.arange(nb_samples)
+        
+        train_indices, test_indices = basic_split(
+            sample_indices,
+            nb_train_samples,
+            nb_test_samples,
+            seed=random_state
+        )
+        
+        if shuffle and (random_state is not None):
+            # updating the random state (i.e. the "seed") such that the
+            # "randomness" of the shuffle is different than the one used in
+            # the previous basic split (just in case)
+            random_state += 1
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Stratified split (i.e. the resulting `y_train` and `y_test` will have
+    # roughly the same class distribution as the specified `y`)
+    
+    else:
+        # initializing the train/test indices
+        train_indices = []
+        test_indices  = []
+        
+        # keys   : class indices
+        # values : tuples containing : 1) the proportion of the associated class indices (in `y`)
+        #                              2) the actual index locations (in `y`) of ALL the associated class indices
+        class_distribution = {}
+        
+        # list that will contain the proportions of each class (their order
+        # will be determined by the keys of `class_distribution`, i.e. by
+        # `distinct_classes`)
+        class_proportions = []
+        
+        # filling `class_distribution` and `class_proportions`
+        for class_index in distinct_classes:
+            associated_sample_indices = np.where(y == class_index)[0]
+            class_proportion = float(associated_sample_indices.size) / nb_samples
+            
+            class_distribution[class_index] = (class_proportion, associated_sample_indices)
+            class_proportions.append(class_proportion)
+        
+        # 1D array containing the indices of the class proportions, but sorted
+        # in ASCENDING order
+        sorted_class_proportions = np.argsort(class_proportions)
+        
+        # sorting the `class_distribution` dictionary by its class proportions
+        # (the resulting sorted dictionary is `sorted_class_distribution`)
+        sorted_class_distribution = {}
+        for index_of_sorted_class in sorted_class_proportions:
+            sorted_class = distinct_classes[index_of_sorted_class]
+            sorted_class_distribution[sorted_class] = class_distribution[sorted_class]
+        
+        cumulated_nb_train_samples = 0
+        cumulated_nb_test_samples  = 0
+        
+        nb_processed_classes = 0
+        
+        for class_proportion, associated_sample_indices in sorted_class_distribution.values():
+            # NB : The current class index is the associated key of the dictionary
+            #      we're currently iterating over (i.e. `sorted_class_distribution`)
+            
+            # Here, the current class index will be represented by :
+            #     - `partial_nb_train_samples` train samples
+            #     - `partial_nb_test_samples` test samples
+            
+            if nb_processed_classes != nb_classes - 1:
+                partial_nb_train_samples = max(1, int(round(class_proportion * nb_train_samples)))
+                cumulated_nb_train_samples += partial_nb_train_samples
+                
+                partial_nb_test_samples  = max(1, int(round(class_proportion * nb_test_samples)))
+                cumulated_nb_test_samples += partial_nb_test_samples
+            else:
+                # in this case, we've reached the very last class index, which,
+                # by design, is also the most represented in `y` (since the
+                # `sorted_class_distribution` dictionary is sorted such that
+                # the class proportions are in ascending order)
+                
+                partial_nb_train_samples = nb_train_samples - cumulated_nb_train_samples
+                assert partial_nb_train_samples > 0
+                
+                partial_nb_test_samples = nb_test_samples - cumulated_nb_test_samples
+                assert partial_nb_test_samples > 0
+            
+            # Here :
+            #     - `partial_train_indices` is an array containing the actual
+            #        index locations (in `y`) of the randomly selected train
+            #        samples associated with the current class index
+            #     - `partial_test_indices` is an array containing the actual
+            #        index locations (in `y`) of the randomly selected test
+            #        samples associated with the current class index
+            partial_train_indices, partial_test_indices = basic_split(
+                associated_sample_indices,
+                partial_nb_train_samples,
+                partial_nb_test_samples,
+                seed=random_state
+            )
+            
+            # updating the current train/test indices
+            train_indices.append(partial_train_indices)
+            test_indices.append(partial_test_indices)
+            
+            nb_processed_classes += 1
+            
+            if random_state is not None:
+                # updating the random state (i.e. the "seed") such that the
+                # "randomness" of the basic splits is different for each class
+                # index (just in case)
+                random_state += 1
+        
+        assert nb_processed_classes == nb_classes
+        
+        # concatenating the resulting arrays of train/test indices
+        train_indices = np.hstack(tuple(train_indices))
+        test_indices  = np.hstack(tuple(test_indices))
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Shuffling the train/test sample indices
+    
+    if shuffle:
+        np.random.seed(random_state)
+        np.random.shuffle(train_indices)
+        np.random.shuffle(test_indices)
+        np.random.seed(None) # resetting the seed
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Actually building the split data
+    
+    assert train_indices.size == nb_train_samples
+    assert test_indices.size == nb_test_samples
+    
+    X_train = X[train_indices, :].copy()
+    X_test  = X[test_indices, :].copy()
+    y_train = y[train_indices].copy()
+    y_test  = y[test_indices].copy()
+    
+    assert np.allclose(np.unique(y_train), distinct_classes)
+    assert np.allclose(np.unique(y_test),  distinct_classes)
+    
+    # ---------------------------------------------------------------------- #
+    
+    return X_train, X_test, y_train, y_test
 

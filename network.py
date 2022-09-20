@@ -24,13 +24,14 @@ from utils import (
     standardize_data,
     vector_to_categorical,
     categorical_to_vector,
+    list_to_string,
+    clear_currently_printed_row,
+    progress_bar,
+    is_being_run_on_jupyter_notebook,
     _validate_label_vector,
     _validate_selected_classes,
     _validate_numpy_dtype,
-    _validate_one_hot_encoded_array,
-    list_to_string,
-    clear_currently_printed_row,
-    progress_bar
+    _validate_one_hot_encoded_array
 )
 
 from core import (
@@ -973,13 +974,20 @@ class Network:
                 )
                 
                 if prematurely_stop_training_loop:
-                    # Enables the ability to print colored text in the standard
-                    # output (of Python consoles/terminals). This method is
-                    # imported from the `colorama` module
-                    init()
+                    jupyter_notebook = is_being_run_on_jupyter_notebook()
                     
-                    printed_color = Fore.MAGENTA # by default
-                    reset_color   = Style.RESET_ALL
+                    if not(jupyter_notebook):
+                        # Enables the ability to print colored text in the standard
+                        # output (of Python consoles/terminals). This method is
+                        # imported from the `colorama` module
+                        init()
+                        
+                        printed_color = Fore.MAGENTA # by default
+                        reset_color   = Style.RESET_ALL
+                    else:
+                        # printing colored text doesn't work in Jupyter notebooks
+                        printed_color = ""
+                        reset_color   = ""
                     
                     callback_message = f"\n{offset_spacing}{printed_color}{str(_early_stopping_callback)} :{reset_color}"
                     callback_message += f"\n{offset_spacing}{printed_color}Prematurely stopping the training loop after epoch n°{epoch_index}{reset_color}"

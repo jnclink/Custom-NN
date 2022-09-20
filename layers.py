@@ -13,10 +13,10 @@ import utils
 from utils import (
     cast,
     check_dtype,
-    _validate_numpy_dtype,
-    _validate_leaky_ReLU_coeff,
     list_to_string,
-    count_nb_decimals_places
+    count_nb_decimals_places,
+    _validate_numpy_dtype,
+    _validate_leaky_ReLU_coeff
 )
 
 from optimizers import (

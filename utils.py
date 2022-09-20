@@ -354,7 +354,7 @@ def standardize_data(data: np.ndarray) -> np.ndarray:
     # same constant value)
     data_std = data.std(axis=-1, keepdims=True)
     for sample_std in data_std.flatten():
-        assert not(np.allclose(sample_std, 0.0))
+        assert not(np.allclose(sample_std, 0))
     
     # actually standardizing the data
     standardized_data = (data - data.mean(axis=-1, keepdims=True)) / data_std
@@ -363,6 +363,71 @@ def standardize_data(data: np.ndarray) -> np.ndarray:
     check_dtype(standardized_data, DEFAULT_DATATYPE)
     
     return standardized_data
+
+
+def basic_split(
+        sample_indices: Union[np.ndarray, list, tuple],
+        nb_train_samples: int,
+        nb_test_samples:  int,
+        *,
+        seed: Optional[int] = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Does a basic split of the specified 1D array (or list/tuple) of sample
+    indices into 2 randomly generated train and test subsets
+    """
+    # ---------------------------------------------------------------------- #
+    
+    # Checking the specified arguments
+    
+    assert isinstance(sample_indices, (np.ndarray, list, tuple))
+    if isinstance(sample_indices, (list, tuple)):
+        sample_indices = np.array(sample_indices)
+    assert len(sample_indices.shape) == 1
+    nb_samples = sample_indices.size
+    assert issubclass(sample_indices.dtype.type, np.integer)
+    assert np.min(sample_indices) >= 0
+    distinct_sample_indices = np.unique(sample_indices)
+    assert distinct_sample_indices.size == nb_samples
+    
+    assert isinstance(nb_train_samples, int)
+    assert nb_train_samples > 0
+    
+    assert isinstance(nb_test_samples, int)
+    assert nb_test_samples > 0
+    
+    assert nb_train_samples + nb_test_samples <= nb_samples
+    
+    assert isinstance(seed, (type(None), int))
+    if seed is not None:
+        assert seed >= 0
+    
+    # ---------------------------------------------------------------------- #
+    
+    np.random.seed(seed)
+    
+    train_indices = np.random.choice(
+        sample_indices,
+        size=(nb_train_samples, ),
+        replace=False
+    )
+    
+    potential_test_indices = []
+    for sample_index in sample_indices:
+        if sample_index not in train_indices:
+            potential_test_indices.append(sample_index)
+    
+    test_indices = np.random.choice(
+        potential_test_indices,
+        size=(nb_test_samples, ),
+        replace=False
+    )
+    
+    np.random.seed(None) # resetting the seed
+    
+    # ---------------------------------------------------------------------- #
+    
+    return train_indices, test_indices
 
 
 def is_being_run_on_jupyter_notebook() -> bool:
@@ -1218,7 +1283,7 @@ def print_confusion_matrix(
             if normalize == "columns":
                 # computing the PRECISION of the (predicted) class at column index `class_index`
                 sum_of_column = np.sum(normalized_conf_matrix[:, class_index])
-                if np.allclose(sum_of_column, 0.0):
+                if np.allclose(sum_of_column, 0):
                     normalized_conf_matrix[:, class_index] = 0
                 else:
                     normalized_conf_matrix[:, class_index] /= sum_of_column
@@ -1226,7 +1291,7 @@ def print_confusion_matrix(
             elif normalize == "rows":
                 # computing the RECALL of the (true) class at row index `class_index`
                 sum_of_row = np.sum(normalized_conf_matrix[class_index, :])
-                if np.allclose(sum_of_row, 0.0):
+                if np.allclose(sum_of_row, 0):
                     raise Exception(f"print_confusion_matrix (utils.py) - The true class \"{class_names[class_index]}\" (class_index={class_index}) isn't represented in the confusion matrix !")
                 normalized_conf_matrix[class_index, :] /= sum_of_row
         
@@ -1342,7 +1407,7 @@ def print_confusion_matrix(
     # the diagonal of the confusion matrix will be printed in this color
     printed_color_of_diagonal = COLORS_AND_COLORMAPS[color][0]
     
-    escape_sequence_of_color_reset = Style.RESET_ALL
+    color_reset = Style.RESET_ALL
     
     lines_of_str_conf_matrix_as_dataframe = str_conf_matrix_as_dataframe.split("\n")
     lines_of_str_colored_conf_matrix_as_dataframe = lines_of_str_conf_matrix_as_dataframe.copy()
@@ -1435,14 +1500,14 @@ def print_confusion_matrix(
                     
                     colored_element = printed_color_of_diagonal + element
                     if not(next_element_is_a_percent_symbol):
-                        colored_element += escape_sequence_of_color_reset
+                        colored_element += color_reset
                     split_colored_area_of_interest[element_index] = colored_element
                     
                     if not(next_element_is_a_percent_symbol):
                         break
                 else:
                     assert element == "%"
-                    split_colored_area_of_interest[element_index] += escape_sequence_of_color_reset
+                    split_colored_area_of_interest[element_index] += color_reset
                     
                     break
         

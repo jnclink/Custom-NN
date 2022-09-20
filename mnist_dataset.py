@@ -11,28 +11,21 @@ from typing import Union, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
-# The Scikit-Learn (or "sklearn") module is ONLY used to split the data, such
-# that the class distribution of the split data is (roughly) the same as the
-# class distribution of the initial raw data. This is done using the VERY
-# HANDY `stratify` kwarg of the `train_test_split` method
-from sklearn.model_selection import train_test_split
-
 import utils
 from utils import (
     cast,
     check_dtype,
-    _download_data,
-    _validate_selected_classes,
     get_dtype_of_array,
     get_range_of_array,
     vector_to_categorical,
     categorical_to_vector,
     list_to_string,
-    display_class_distributions
+    display_class_distributions,
+    _download_data,
+    _validate_selected_classes
 )
 
-# TODO
-#from core import train_test_split
+from core import train_test_split
 
 
 ##############################################################################
@@ -500,7 +493,7 @@ def format_raw_MNIST_dataset(
             y_train,
             train_size=nb_train_samples,
             test_size=nb_val_samples,
-            stratify=y_train, # keeping the same class distribution as `y_train`
+            stratify=True, # keeping the same class distribution as `y_train`
             random_state=seed
         )
     else:
@@ -511,7 +504,7 @@ def format_raw_MNIST_dataset(
                 X_train,
                 y_train,
                 train_size=nb_train_samples,
-                stratify=y_train, # keeping the same class distribution as `y_train`
+                stratify=True, # keeping the same class distribution as `y_train`
                 random_state=seed
             )
         else:
@@ -533,13 +526,19 @@ def format_raw_MNIST_dataset(
     if _return_validation_data:
         assert np.unique(y_val).size == nb_classes
     
+    if seed is not None:
+        # updating the seed such that the "randomness" of the test split is
+        # different than the one used in the previous train (or train/val )
+        # split (just in case)
+        seed += 1
+    
     # getting the formatted "test" dataset (from the raw "test" data)
     if total_nb_of_raw_test_samples - nb_test_samples >= nb_classes:
         X_test, _, y_test, _ = train_test_split(
             X_test,
             y_test,
             train_size=nb_test_samples,
-            stratify=y_test, # keeping the same class distribution as `y_test`
+            stratify=True, # keeping the same class distribution as `y_test`
             random_state=seed
         )
     else:
@@ -558,6 +557,11 @@ def format_raw_MNIST_dataset(
         y_test = y_test[test_indices].copy()
     
     assert np.unique(y_test).size == nb_classes
+    
+    if (nb_shuffles > 0) and (seed is not None):
+        # updating the seed such that the "randomness" of the shuffle is
+        # different than the one used in the previous splits (just in case)
+        seed += 1
     
     # ====================================================================== #
     

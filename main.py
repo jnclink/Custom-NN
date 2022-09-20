@@ -245,11 +245,6 @@ def main():
         64,
         32
     ]
-    # nb_neurons_in_hidden_dense_layers = [
-    #     256,
-    #     64,
-    #     32
-    # ]
     
     # Defining the name of the main activation function. Relevant choices here :
     #     - "ReLU",
@@ -399,14 +394,14 @@ def main():
     
     # Defining the name of the weight optimization algorithm. Relevant
     # choices here :
-    #     - "RMSprop"
     #     - "Adam"
+    #     - "RMSprop"
     #     - "SGD" (Stochastic Gradient Descent)
     # The optimizer name is case insensitive
     # NB : For the "SGD" optimizer, the value of the learning rate usually
     #      needs to be a bit higher than for the "Adam" and "RMSprop"
     #      optimizers (in order to converge)
-    optimizer_name = "RMSprop"
+    optimizer_name = "Adam"
     
     network.set_optimizer(optimizer_name, learning_rate=learning_rate)
     
