@@ -83,7 +83,12 @@ class Network:
         "mse" : (MSE, MSE_prime)  # MSE = Mean Squared Error
     }
     
-    def __init__(self, *, standardize_input_data: bool = True) -> None:
+    def __init__(
+            self,
+            *,
+            standardize_input_data: bool = True
+        ) -> None:
+        
         assert isinstance(standardize_input_data, bool)
         self.__standardize_input_data: bool = standardize_input_data
         
@@ -488,7 +493,7 @@ class Network:
             *,
             input_size_of_network: Optional[int] = None,
             output_size_of_network: Optional[int] = None,
-        ):
+        ) -> Union[np.ndarray, tuple[np.ndarray]]:
         """
         Checks if the specified (training, validation or testing) data is
         valid or not
@@ -581,7 +586,7 @@ class Network:
             validation_data: Optional[int] = None,
             val_batch_size: int = 32,
             training_callbacks: Optional[list[Callback]] = None
-        ):
+        ) -> None:
         """
         Trains the network on `nb_epochs` epochs
         

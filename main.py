@@ -238,6 +238,8 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
+    # Main hyperparameters
+    
     # The following list defines the output sizes (or the "number of neurons")
     # of each Dense layer of the network (in chronological order)
     nb_neurons_in_hidden_dense_layers = [
@@ -271,6 +273,8 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
+    # BatchNorm layers
+    
     # The BatchNorm layer is a regularization layer that helps prevent overfitting
     # (without necessarily improving the overall accuracy of the network). It
     # basically standardizes (i.e. it normalizes with a mean of 0 and a standard
@@ -282,6 +286,8 @@ def main():
     use_batch_norm_layers = False
     
     # ---------------------------------------------------------------------- #
+    
+    # Dropout layers
     
     # Just like the BatchNorm layer, the Dropout layer is a regularization layer
     # that helps prevent overfitting, without necessarily improving the overall
@@ -446,7 +452,6 @@ def main():
     #     - "val_accuracy"
     # Naturally, the two last metrics require that you input validation data
     # to the `Network.fit` method
-    
     if _has_validation_data:
         monitored_metric = "val_loss"
     else:
@@ -467,7 +472,8 @@ def main():
         patience=5 # has to be >= 2
     )
     
-    # You can set `training_callbacks` to `None` if needed
+    # You can set `training_callbacks` to `None` (or to the empty list/tuple)
+    # if needed
     training_callbacks = [early_stopping_callback]
     
     # ====================================================================== #
