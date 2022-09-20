@@ -38,7 +38,7 @@ from utils import (
 ##############################################################################
 
 
-def _download_raw_MNIST_dataset():
+def _download_raw_MNIST_dataset() -> None:
     r"""
     Automatically downloads the raw MNIST data (as a single file), and saves
     it to the following location on your disk :
@@ -127,7 +127,7 @@ def _validate_raw_MNIST_dataset(
         raw_y_train: np.ndarray,
         raw_X_test:  np.ndarray,
         raw_y_test:  np.ndarray
-    ):
+    ) -> None:
     """
     Checks if the specified raw MNIST data is valid or not. By design, the
     arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and `raw_y_test` are
@@ -159,7 +159,10 @@ def _validate_raw_MNIST_dataset(
 ##############################################################################
 
 
-def load_raw_MNIST_dataset_from_disk(*, verbose: bool = False):
+def load_raw_MNIST_dataset_from_disk(
+        *,
+        verbose: bool = False
+    ) -> tuple[np.ndarray]:
     """
     Loads the raw MNIST data from the disk
     """
@@ -239,7 +242,7 @@ def plot_random_images_from_raw_MNIST_dataset(
         raw_y_test:  np.ndarray,
         *,
         seed: Optional[int] = None
-    ):
+    ) -> None:
     """
     Plots a random sample of each of the 10 digits (from the raw MNIST data).
     By design, the arguments `raw_X_train`, `raw_y_train`, `raw_X_test` and
@@ -316,12 +319,12 @@ def format_raw_MNIST_dataset(
         nb_val_samples:   int,
         nb_test_samples:  int,
         *,
-        selected_classes: Union[str, list, tuple, np.ndarray] = "all",
-        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+        selected_classes: Union[str, list[int]] = "all",
+        dict_of_real_class_names: Optional[dict[int, str]] = None,
         nb_shuffles: int = 20,
         seed: Optional[int] = None,
         verbose: bool = False
-    ):
+    ) -> tuple[Union[np.ndarray, None]]:
     """
     Formats the raw MNIST data so that it can be directly interpreted by a
     regular MLP neural network. By design, the arguments `raw_X_train`,

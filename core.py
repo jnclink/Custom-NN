@@ -27,10 +27,7 @@ def split_data_into_batches_as_generator_function(
         nb_shuffles: int = 10,
         seed: Optional[int] = None,
         enable_checks: bool = True
-    ) -> Union[
-        Iterator[np.ndarray],                   # if `labels` is `None`
-        Iterator[tuple[np.ndarray, np.ndarray]] # if `labels` is not `None`
-    ]:
+    ) -> Iterator[np.ndarray]:
     """
     Generator function counterpart of the `split_data_into_batches` function
     of this script. This function has to be defined separately, as the Python
@@ -114,13 +111,7 @@ def split_data_into_batches(
         nb_shuffles: int = 10,
         seed: Optional[int] = None,
         enable_checks: bool = True
-    ) -> Union[
-        dict[str, list[np.ndarray]],                # if `is_generator` is `False`
-        Union[
-            Iterator[np.ndarray],                   # if `is_generator` is `True` and `labels` is `None`
-            Iterator[tuple[np.ndarray, np.ndarray]] # if `is_generator` is `True` and `labels` is not `None`
-        ]
-    ]:
+    ) -> Union[dict[str, list[np.ndarray]], Iterator[np.ndarray]]:
     """
     Splits the input data and/or labels into batches with `batch_size` samples
     each. If `batch_size` doesn't divide the number of samples, then the very
@@ -252,10 +243,7 @@ def accuracy_score(
         y_pred: np.ndarray,
         normalize: bool = True,
         enable_checks: bool = True
-    ) -> Union[
-        float, # if `normalize` is `True`
-        int    # if `normalize` is `False`
-    ]:
+    ) -> Union[float, int]:
     """
     Returns the proportion of the correctly predicted samples. The returned
     proportion lies between 0 and 1

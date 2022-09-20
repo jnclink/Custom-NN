@@ -5,7 +5,6 @@ Script defining some callback classes that can be used during the training loop
 """
 
 from abc import ABC, abstractmethod
-from typing import Union
 
 import numpy as np
 
@@ -90,7 +89,7 @@ class EarlyStoppingCallback(Callback):
     
     def callback(
             self,
-            history: dict[str, list[Union[int, float, np.float32, np.float64]]],
+            history: dict[str, list],
             *,
             enable_checks: bool = True
         ) -> bool:

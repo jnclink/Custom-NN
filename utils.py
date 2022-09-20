@@ -128,7 +128,7 @@ def set_global_datatype(datatype: Union[str, type, np.dtype]) -> None:
 
 
 def check_dtype(
-        x : Union[int, float, np.integer, np.floating, np.ndarray],
+        x : Union[int, float, np.ndarray],
         dtype: Union[str, type, np.dtype]
     ) -> None:
     """
@@ -150,9 +150,9 @@ def check_dtype(
 
 
 def cast(
-        x : Union[int, float, np.integer, np.floating, np.ndarray],
+        x : Union[int, float, np.ndarray],
         dtype: Union[str, type, np.dtype]
-    ) -> Union[int, float, np.integer, np.floating, np.ndarray]:
+    ) -> Union[int, float, np.ndarray]:
     """
     Returns the cast version of `x` to `dtype`. Here, `x` can either be a
     scalar or a vector/matrix. By design, in most cases, `dtype` will be
@@ -231,7 +231,7 @@ def categorical_to_vector(
     return y
 
 
-def list_to_string(L : Union[list, tuple, np.ndarray]) -> str:
+def list_to_string(L: list) -> str:
     """
     Converts the specified non-empty list (or tuple or 1D numpy array) into
     a string
@@ -384,7 +384,7 @@ def is_being_run_on_jupyter_notebook() -> bool:
 
 
 def count_nb_decimals_places(
-        x: Union[int, float, np.integer, np.floating],
+        x: Union[int, float],
         *,
         max_precision: int = 6
     ) -> int:
@@ -462,8 +462,8 @@ def get_range_of_array(array: np.ndarray, *, precision: int = 3) -> str:
 def display_class_distributions(
         dict_of_label_vectors: dict[str, np.ndarray],
         *,
-        selected_classes: Union[str, list, tuple, np.ndarray] = "all",
-        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+        selected_classes: Union[str, list[int]] = "all",
+        dict_of_real_class_names: Optional[dict[int, str]] = None,
         precision: int = 2
     ) -> None:
     """
@@ -579,10 +579,10 @@ def _validate_label_vector(
 
 
 def _validate_selected_classes(
-        selected_classes: Union[str, list, tuple, np.ndarray],
+        selected_classes: Union[str, list[int]],
         max_nb_classes: int,
         *,
-        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None
+        dict_of_real_class_names: Optional[dict[int, str]] = None,
     ) -> tuple[Union[str, np.ndarray], list[str]]:
     """
     Checks the validity of the `selected_classes` argument, and returns the
@@ -704,9 +704,9 @@ def _validate_one_hot_encoded_array(array: np.ndarray) -> None:
 def _validate_split_data_into_batches_inputs(
         data: np.ndarray,
         batch_size: int,
-        labels: Union[None, np.ndarray],
+        labels: Optional[np.ndarray],
         nb_shuffles: int,
-        seed: Union[None, int]
+        seed: Optional[int]
     ) -> None:
     """
     Checks the validity of the specified arguments (as inputs of the functions
@@ -1058,7 +1058,7 @@ def highlight_diagonal(
 
 
 def highlight_all_cells(
-        value: Union[str, np.str_, float, np.float_],
+        value: Union[str, float],
         *,
         colormap: Colormap = cm.Greens
     ) -> str:
@@ -1102,8 +1102,8 @@ def highlight_all_cells(
 def print_confusion_matrix(
         conf_matrix: np.ndarray,
         *,
-        selected_classes: Union[str, list, tuple, np.ndarray] = "all",
-        dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+        selected_classes: Union[str, list[int]] = "all",
+        dict_of_real_class_names: Optional[dict[int, str]] = None,
         normalize: str = "no",
         precision: int = 1,
         color: str = "green",

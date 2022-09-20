@@ -47,11 +47,11 @@ class Optimizer(ABC):
     @abstractmethod
     def optimize_weights(
             self,
-            weights: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
-            weight_gradients: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
+            weights: tuple[np.ndarray],
+            weight_gradients: tuple[np.ndarray],
             *,
             enable_checks: bool = True
-        ) -> list[Union[np.float32, np.float64, np.ndarray]]:
+        ) -> list[np.ndarray]:
         """
         Optimizes the given weights using gradient descent (or one of its
         variants), and returns the resulting optimized weights
@@ -71,11 +71,11 @@ class SgdOptimizer(Optimizer):
     
     def optimize_weights(
             self,
-            weights: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
-            weight_gradients: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
+            weights: tuple[np.ndarray],
+            weight_gradients: tuple[np.ndarray],
             *,
             enable_checks: bool = True
-        ) -> list[Union[np.float32, np.float64, np.ndarray]]:
+        ) -> list[np.ndarray]:
         """
         Optimizes the given weights using the "basic"/stochastic gradient
         descent algorihtm, and returns the resulting optimized weights
@@ -163,11 +163,11 @@ class AdamOptimizer(Optimizer):
     
     def optimize_weights(
             self,
-            weights: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
-            weight_gradients: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
+            weights: tuple[np.ndarray],
+            weight_gradients: tuple[np.ndarray],
             *,
             enable_checks: bool = True
-        ) -> list[Union[np.float32, np.float64, np.ndarray]]:
+        ) -> list[np.ndarray]:
         """
         Optimizes the given weights using the "Adam" gradient descent algorihtm,
         and returns the resulting optimized weights
@@ -298,11 +298,11 @@ class RMSpropOptimizer(Optimizer):
     
     def optimize_weights(
             self,
-            weights: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
-            weight_gradients: Union[list[Union[np.float32, np.float64, np.ndarray]], tuple[Union[np.float32, np.float64, np.ndarray]]],
+            weights: tuple[np.ndarray],
+            weight_gradients: tuple[np.ndarray],
             *,
             enable_checks: bool = True
-        ) -> list[Union[np.float32, np.float64, np.ndarray]]:
+        ) -> list[np.ndarray]:
         """
         Optimizes the given weights using the "RMSprop" gradient descent algorihtm,
         and returns the resulting optimized weights

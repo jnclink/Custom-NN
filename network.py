@@ -98,8 +98,7 @@ class Network:
         
         self.optimizer_name: Union[None, str] = None
         
-        Number = Union[int, float, np.float32, np.float64] # generic number type
-        self.history: Union[None, dict[str, list[Number]]] = None
+        self.history: Union[None, dict[str, list]] = None
         self._is_trained: bool = False
     
     
@@ -580,7 +579,7 @@ class Network:
             enable_checks: bool = True,
             validation_data: Optional[int] = None,
             val_batch_size: int = 32,
-            training_callbacks: Optional[Union[list[Callback], tuple[Callback]]] = None
+            training_callbacks: Optional[list[Callback]] = None
         ):
         """
         Trains the network on `nb_epochs` epochs
@@ -1393,8 +1392,8 @@ class Network:
             X_test: np.ndarray,
             y_test: np.ndarray,
             *,
-            selected_classes: Union[str, list, tuple, np.ndarray] = "all",
-            dict_of_real_class_names: Optional[dict[Union[int, np.integer], str]] = None,
+            selected_classes: Union[str, list[int]] = "all",
+            dict_of_real_class_names: Optional[dict[int, str]] = None,
             image_shape: Optional[tuple] = None,
             seed: Optional[int] = None
         ) -> None:
