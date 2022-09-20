@@ -399,17 +399,14 @@ class ActivationLayer(Layer):
         self.activation:       Callable = activations[0]
         self.activation_prime: Callable = activations[1]
         
+        self.activation_kwargs: dict[str, float] = {}
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
-            leaky_ReLU_coeff = kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
             
+            leaky_ReLU_coeff = kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
             _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
             
-            self.activation_kwargs: dict[str, float] = {
-                "leaky_ReLU_coeff" : leaky_ReLU_coeff
-            }
-        else:
-            self.activation_kwargs: dict[str, float] = {}
+            self.activation_kwargs["leaky_ReLU_coeff"] = leaky_ReLU_coeff
         
         # NB : Since the softmax activation only applies to VECTORS (and not
         #      scalars), the backpropagation formula won't be the same as the other

@@ -250,7 +250,7 @@ def softmax_prime(
         _validate_activation_input(x)
     
     if len(x.shape) == 1:
-        softmax_output = softmax(x, enable_checks=False).reshape((1, x.shape[0]))
+        softmax_output = softmax(x, enable_checks=False).reshape((1, x.size))
         softmax_prime_output = np.diagflat(softmax_output) - softmax_output.T @ softmax_output
         return softmax_prime_output
     elif len(x.shape) == 2:

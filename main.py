@@ -245,6 +245,11 @@ def main():
         64,
         32
     ]
+    # nb_neurons_in_hidden_dense_layers = [
+    #     256,
+    #     64,
+    #     32
+    # ]
     
     # Defining the name of the main activation function. Relevant choices here :
     #     - "ReLU",
@@ -254,14 +259,14 @@ def main():
     # The main activation name is case insensitive
     main_activation_name = "ReLU"
     
-    if main_activation_name.strip().lower() == "leaky_relu":
-        # Defining the "leaky ReLU coefficient" (default value : 0.01). It has
-        # to be a small positive constant in the range ]0, 1[
-        main_activation_kwargs = {
-            "leaky_ReLU_coeff" : 0.01
-        }
-    else:
-        main_activation_kwargs = {}
+    # Defining the "leaky ReLU coefficient" (default value : 0.01). It has to
+    # be a small positive constant in the range ]0, 1[. If you didn't select
+    # the leaky ReLU activation as the main activation function, the defined
+    # `leaky_ReLU_coeff` kwarg will simply be discarded when processed by the
+    # main Activation layers
+    main_activation_kwargs = {
+        "leaky_ReLU_coeff" : 0.01
+    }
     
     # Defining the name of the output activation function. Relevant choices here :
     #     - "softmax"
