@@ -248,7 +248,13 @@ class DenseLayer(Layer):
     """
     Dense (i.e. fully connected) layer class
     """
-    def __init__(self, nb_neurons: int, seed: Optional[int] = None) -> None:
+    def __init__(
+            self,
+            nb_neurons: int,
+            *,
+            seed: Optional[int] = None
+        ) -> None:
+        
         super().__init__()
         
         assert isinstance(nb_neurons, int)
@@ -344,7 +350,8 @@ class DenseLayer(Layer):
             self._validate_backward_propagation_input(output_gradient)
         
         input_gradient = output_gradient @ self.weights.T # = dE/dX
-        check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
+        if enable_checks:
+            check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
         batch_size = output_gradient.shape[0]
         averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
@@ -642,7 +649,13 @@ class DropoutLayer(Layer):
     """
     Dropout regularization layer class
     """
-    def __init__(self, dropout_rate: float, seed: Optional[int] = None) -> None:
+    def __init__(
+            self,
+            dropout_rate: float,
+            *,
+            seed: Optional[int] = None
+        ) -> None:
+        
         super().__init__()
         
         assert isinstance(dropout_rate, float)
@@ -675,6 +688,7 @@ class DropoutLayer(Layer):
             self,
             shape: tuple[int, int],
             dtype: Union[str, type, np.dtype],
+            *,
             enable_checks: bool = True
         ):
         """

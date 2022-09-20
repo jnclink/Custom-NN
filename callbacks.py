@@ -5,6 +5,7 @@ Script defining some callback classes that can be used during the training loop
 """
 
 from abc import ABC, abstractmethod
+from typing import Callable
 
 import numpy as np
 
@@ -55,8 +56,8 @@ class EarlyStoppingCallback(Callback):
     
     def __init__(
             self,
-            *,
             monitor: str = "train_loss",
+            *,
             patience: int = 5
         ) -> None:
         
@@ -77,12 +78,12 @@ class EarlyStoppingCallback(Callback):
             # the loss needs to be *minimized*, therefore here we'll
             # check if the loss has *only been increasing* for the past
             # `self.patience` epochs
-            self.comparison_function = max
+            self.comparison_function: Callable = max
         elif self.monitor in ["train_accuracy", "val_accuracy"]:
             # the accuracy needs to be *maximized*, therefore here we'll
             # check if the accuracy has *only been decreasing* for the past
             # `self.patience` epochs
-            self.comparison_function = min
+            self.comparison_function: Callable = min
     
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(monitor=\"{self.monitor}\", patience={self.patience})"
@@ -136,7 +137,11 @@ class EarlyStoppingCallback(Callback):
                 if np.allclose(value_of_interest, next_value_of_interest):
                     return False
                 
-                if np.allclose(self.comparison_function(value_of_interest, next_value_of_interest), value_of_interest):
+                # checking if the sequence formed by `value_of_interest` and
+                # `next_value_of_interest` is strictly monotonous (in the
+                # "wrong direction")
+                compared_value = self.comparison_function(value_of_interest, next_value_of_interest)
+                if np.allclose(compared_value, value_of_interest):
                     return False
             
             # if we made it to this point, then the sequence defined by the
