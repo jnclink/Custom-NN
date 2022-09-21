@@ -109,7 +109,7 @@ class SgdOptimizer(Optimizer):
             
             # -------------------------------------------------------------- #
             
-            # gradient descent
+            # GRADIENT DESCENT
             
             optimized_weight = weight - self.learning_rate * weight_gradient
             
@@ -145,10 +145,10 @@ class AdamOptimizer(Optimizer):
         assert (self.beta_2 > 0) and (self.beta_2 < 1)
         
         one: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self._inverse_beta_1: Float = one - self.beta_1
-        self._inverse_beta_2: Float = one - self.beta_2
-        check_dtype(self._inverse_beta_1, utils.DEFAULT_DATATYPE)
-        check_dtype(self._inverse_beta_2, utils.DEFAULT_DATATYPE)
+        self._beta_1_inverse: Float = one - self.beta_1
+        self._beta_2_inverse: Float = one - self.beta_2
+        check_dtype(self._beta_1_inverse, utils.DEFAULT_DATATYPE)
+        check_dtype(self._beta_2_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
         self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
@@ -233,11 +233,11 @@ class AdamOptimizer(Optimizer):
             
             # -------------------------------------------------------------- #
             
-            # gradient descent
+            # GRADIENT DESCENT
             
             # computing the (bias-corrected) first moment estimate
             first_moment = self.first_moments[weight_index]
-            first_moment_estimate = self.beta_1 * first_moment + self._inverse_beta_1 * weight_gradient
+            first_moment_estimate = self.beta_1 * first_moment + self._beta_1_inverse * weight_gradient
             self.first_moments[weight_index] = first_moment_estimate
             bias_corrected_first_moment_estimate = scaling_factor_1 * first_moment_estimate
             
@@ -248,7 +248,7 @@ class AdamOptimizer(Optimizer):
             
             # computing the (bias-corrected) second moment estimate
             second_moment = self.second_moments[weight_index]
-            second_moment_estimate = self.beta_2 * second_moment + self._inverse_beta_2 * square_of_weight_gradient
+            second_moment_estimate = self.beta_2 * second_moment + self._beta_2_inverse * square_of_weight_gradient
             self.second_moments[weight_index] = second_moment_estimate
             bias_corrected_second_moment_estimate = scaling_factor_2 * second_moment_estimate
             
@@ -284,8 +284,8 @@ class RMSpropOptimizer(Optimizer):
         assert (self.beta > 0) and (self.beta < 1)
         
         one: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self._inverse_beta: Float = one - self.beta
-        check_dtype(self._inverse_beta, utils.DEFAULT_DATATYPE)
+        self._beta_inverse: Float = one - self.beta
+        check_dtype(self._beta_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
         self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
@@ -350,7 +350,7 @@ class RMSpropOptimizer(Optimizer):
             
             # -------------------------------------------------------------- #
             
-            # gradient descent
+            # GRADIENT DESCENT
             
             # if `weight_gradient` is a float32, then its square (using the
             # `**` operator) will be a float64, which explains why we don't
@@ -359,7 +359,7 @@ class RMSpropOptimizer(Optimizer):
             
             # computing the moment estimate
             moment = self.moments[weight_index]
-            moment_estimate = self.beta * moment + self._inverse_beta * square_of_weight_gradient
+            moment_estimate = self.beta * moment + self._beta_inverse * square_of_weight_gradient
             self.moments[weight_index] = moment_estimate
             
             optimized_weight_gradient = weight_gradient / (np.sqrt(moment_estimate) + self.epsilon)

@@ -535,8 +535,8 @@ class BatchNormLayer(Layer):
         assert (self.momentum > 0) and (self.momentum < 1)
         
         one: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self._inverse_momentum: Float = one - self.momentum
-        check_dtype(self._inverse_momentum, utils.DEFAULT_DATATYPE)
+        self._momentum_inverse: Float = one - self.momentum
+        check_dtype(self._momentum_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
         self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
@@ -576,8 +576,8 @@ class BatchNormLayer(Layer):
             self.normalized_input = centered_input / self.input_std
             
             # updating the non-trainable parameters
-            self.moving_mean = self.momentum * self.moving_mean + self._inverse_momentum * np.mean(input_mean)
-            self.moving_var  = self.momentum * self.moving_var  + self._inverse_momentum * np.mean(input_variance)
+            self.moving_mean = self.momentum * self.moving_mean + self._momentum_inverse * np.mean(input_mean)
+            self.moving_var  = self.momentum * self.moving_var  + self._momentum_inverse * np.mean(input_variance)
             
             if enable_checks:
                 check_dtype(self.moving_mean, utils.DEFAULT_DATATYPE)

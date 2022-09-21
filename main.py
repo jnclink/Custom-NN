@@ -204,6 +204,10 @@ def main():
     
     _has_validation_data = ((X_val is not None) and (y_val is not None))
     
+    # ---------------------------------------------------------------------- #
+    
+    print("\nThe formatted data was successfully checked")
+    
     # ====================================================================== #
     
     # Defining the hyperparameters of the MLP's architecture
@@ -249,7 +253,7 @@ def main():
     ]
     
     # Defining the name of the main activation function. Relevant choices here :
-    #     - "ReLU",
+    #     - "ReLU"
     #     - "leaky_ReLU"
     #     - "tanh"
     #     - "sigmoid"
@@ -385,14 +389,14 @@ def main():
     
     # Number of times the trainable parameters will be updated using the WHOLE
     # training data
-    nb_epochs = 10
+    nb_epochs = 50
     
     # If you lower the batch size, you might also want to lower the learning
     # rate, in order to prevent the network from overfitting
-    train_batch_size = 40
+    train_batch_size = 20
     
     # The learning rate is a small positive constant in the range ]0, 1[
-    learning_rate = 0.0005
+    learning_rate = 0.00001
     
     # ---------------------------------------------------------------------- #
     
@@ -400,15 +404,17 @@ def main():
     
     # Defining the name of the weight optimization algorithm. Relevant
     # choices here :
+    #     - "SGD" (Stochastic Gradient Descent)
     #     - "Adam"
     #     - "RMSprop"
-    #     - "SGD" (Stochastic Gradient Descent)
     # The optimizer name is case insensitive
     # NB : For the "SGD" optimizer, the value of the learning rate usually
     #      needs to be a bit higher than for the "Adam" and "RMSprop"
     #      optimizers (in order to converge)
-    optimizer_name = "Adam"
+    optimizer_name = "RMSprop"
     
+    # Here, if you don't specify the `learning_rate` kwarg, the learning rate
+    # will be automatically set to 0.001
     network.set_optimizer(optimizer_name, learning_rate=learning_rate)
     
     # ---------------------------------------------------------------------- #
@@ -463,10 +469,10 @@ def main():
     # the training loop is prematurely stopped. Basically :
     #     - If a loss is being monitored : since the losses are meant to be
     #       minimized, it'll check if the monitored loss has only been
-    #       increasing in the past `patience` epochs
+    #       increasing over the past `patience` epochs
     #     - If an accuracy is being monitored : since the accuracies are meant
     #       to be maximized, it'll check if the monitored accuracy has only been
-    #       decreasing in the past `patience` epochs
+    #       decreasing over the past `patience` epochs
     early_stopping_callback = EarlyStoppingCallback(
         monitor=monitored_metric,
         patience=5 # has to be >= 2
@@ -482,9 +488,7 @@ def main():
     
     # NB : If you set the `enable_checks` kwarg to `False` (to slightly speed
     #      up the training), please first make sure your network runs a couple
-    #      of epochs without errors when the same kwarg is set to `True`. This
-    #      comment is only relevant to those who would like to change some
-    #      features of the project (and/or add some more !)
+    #      of epochs without errors when the same kwarg is set to `True` !
     
     network.fit(
         X_train,
@@ -514,20 +518,27 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # Computing the global accuracy scores, the testing loss and the (raw)
-    # confusion matrix of the network
+    # Computing the global accuracy scores, the testing loss, the mean confidence
+    # levels and the raw confusion matrix of the network
     
     # The "top-N accuracy" is defined as the proportion of the true classes
     # that lie within the `N` most probable predicted classes (here, `N` is
     # actually `top_N_accuracy`)
     top_N_accuracy = 2
     
-    acc_score, top_N_acc_score, test_loss, conf_matrix = network.evaluate(
+    results = network.evaluate(
         X_test,
         y_test,
         top_N_accuracy=top_N_accuracy,
         test_batch_size=32 # default value
     )
+    
+    acc_score, top_N_acc_score, test_loss = results[ : 3]
+    
+    mean_confidence_level_correct_predictions = results[3]
+    mean_confidence_level_false_predictions   = results[4]
+    
+    conf_matrix = results[5]
     
     # ---------------------------------------------------------------------- #
     
@@ -547,7 +558,8 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # Displaying the testing loss and the global accuracy scores of the network
+    # Displaying the testing loss, the global accuracy scores and the mean
+    # confidence levels of the network
     
     precision_loss = 4 # by default
     print(f"\nTESTING LOSS    : {test_loss:.{precision_loss}f}")
@@ -555,7 +567,11 @@ def main():
     precision_accuracy = 2 # by default
     print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_accuracy}f} %")
     potential_extra_space = " " * int(top_N_accuracy < 10)
-    print(f"TOP-{top_N_accuracy}{potential_extra_space} ACCURACY : {top_N_acc_score:.{precision_accuracy}f} %\n")
+    print(f"TOP-{top_N_accuracy}{potential_extra_space} ACCURACY : {top_N_acc_score:.{precision_accuracy}f} %")
+    
+    mean_confidence_level_precision = 2 # by default
+    print(f"\nMEAN CONFIDENCE LEVEL (FOR CORRECT PREDICTIONS) : {mean_confidence_level_correct_predictions:.{mean_confidence_level_precision}f} %")
+    print(f"MEAN CONFIDENCE LEVEL (FOR FALSE PREDICTIONS)   : {mean_confidence_level_false_predictions:.{mean_confidence_level_precision}f} %\n")
     
     # ---------------------------------------------------------------------- #
     

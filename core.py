@@ -443,8 +443,10 @@ def train_test_split(
         test_indices  = []
         
         # keys   : class indices
-        # values : tuples containing : 1) the proportion of the associated class indices (in `y`)
-        #                              2) the actual index locations (in `y`) of ALL the associated class indices
+        # values : (
+        #     proportion of the associated class indices (in `y`),
+        #     actual index locations (in `y`) of ALL the associated samples
+        # )
         class_distribution = {}
         
         # list that will contain the proportions of each class (their order
@@ -471,8 +473,8 @@ def train_test_split(
             sorted_class = distinct_classes[index_of_sorted_class]
             sorted_class_distribution[sorted_class] = class_distribution[sorted_class]
         
-        cumulated_nb_train_samples = 0
-        cumulated_nb_test_samples  = 0
+        cumulative_sum_nb_train_samples = 0
+        cumulative_sum_nb_test_samples  = 0
         
         nb_processed_classes = 0
         
@@ -484,23 +486,38 @@ def train_test_split(
             #     - `partial_nb_train_samples` train samples
             #     - `partial_nb_test_samples` test samples
             
+            partial_nb_samples = associated_sample_indices.size
+            relative_proportion_of_train_samples = float(nb_train_samples) / (nb_train_samples + nb_test_samples)
+            
             if nb_processed_classes != nb_classes - 1:
                 partial_nb_train_samples = max(1, int(round(class_proportion * nb_train_samples)))
-                cumulated_nb_train_samples += partial_nb_train_samples
-                
                 partial_nb_test_samples  = max(1, int(round(class_proportion * nb_test_samples)))
-                cumulated_nb_test_samples += partial_nb_test_samples
+                
+                # potentially correcting the partial number of train/test
+                # samples (usually by not much)
+                excess_nb_samples =  (partial_nb_train_samples + partial_nb_test_samples) - partial_nb_samples
+                if excess_nb_samples > 0:
+                    nb_partial_train_samples_to_remove = int(round(relative_proportion_of_train_samples * excess_nb_samples))
+                    nb_partial_test_samples_to_remove  = excess_nb_samples - nb_partial_train_samples_to_remove
+                    
+                    partial_nb_train_samples = max(1, partial_nb_train_samples - nb_partial_train_samples_to_remove)
+                    partial_nb_test_samples  = max(1, partial_nb_test_samples  - nb_partial_test_samples_to_remove)
+                
+                cumulative_sum_nb_train_samples += partial_nb_train_samples
+                cumulative_sum_nb_test_samples  += partial_nb_test_samples
             else:
                 # in this case, we've reached the very last class index, which,
                 # by design, is also the most represented in `y` (since the
                 # `sorted_class_distribution` dictionary is sorted such that
                 # the class proportions are in ascending order)
                 
-                partial_nb_train_samples = nb_train_samples - cumulated_nb_train_samples
+                partial_nb_train_samples = nb_train_samples - cumulative_sum_nb_train_samples
                 assert partial_nb_train_samples > 0
                 
-                partial_nb_test_samples = nb_test_samples - cumulated_nb_test_samples
+                partial_nb_test_samples = nb_test_samples - cumulative_sum_nb_test_samples
                 assert partial_nb_test_samples > 0
+            
+            assert partial_nb_train_samples + partial_nb_test_samples <= partial_nb_samples
             
             # Here :
             #     - `partial_train_indices` is an array containing the actual

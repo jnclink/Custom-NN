@@ -76,12 +76,12 @@ class EarlyStoppingCallback(Callback):
         
         if self.monitor in ["train_loss", "val_loss"]:
             # the loss needs to be *minimized*, therefore here we'll
-            # check if the loss has *only been increasing* for the past
+            # check if the loss has *only been increasing* over the past
             # `self.patience` epochs
             self.comparison_function: Callable = max
         elif self.monitor in ["train_accuracy", "val_accuracy"]:
             # the accuracy needs to be *maximized*, therefore here we'll
-            # check if the accuracy has *only been decreasing* for the past
+            # check if the accuracy has *only been decreasing* over the past
             # `self.patience` epochs
             self.comparison_function: Callable = min
     

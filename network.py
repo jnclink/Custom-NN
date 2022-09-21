@@ -28,6 +28,7 @@ from utils import (
     clear_currently_printed_row,
     progress_bar,
     is_being_run_on_jupyter_notebook,
+    count_nb_decimals_places,
     _validate_label_vector,
     _validate_selected_classes,
     _validate_numpy_dtype,
@@ -140,10 +141,10 @@ class Network:
         assert len(self._layers) == len(self._io_sizes)
         
         if isinstance(layer, InputLayer):
-            assert len(self._layers) == 0, "\nNetwork.add - ERROR - You cannot add an InputLayer if other layers have already been added to the Network !"
+            assert len(self._layers) == 0, "\nNetwork.add - You cannot add an InputLayer if other layers have already been added to the Network !"
             input_size  = layer.input_size
         else:
-            assert len(self._layers) >= 1, f"\nNetwork.add - ERROR - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
+            assert len(self._layers) >= 1, f"\nNetwork.add - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
             input_size  = self._io_sizes[-1][1] # output size of the previous layer
         
         layer.build(input_size)
@@ -289,7 +290,7 @@ class Network:
         
         # checking if the network has got any layers or not
         
-        assert len(self._layers) >= 1, "\nNetwork.summary - ERROR - You can't print the network's summary if it doesn't contain any layers !"
+        assert len(self._layers) >= 1, "\nNetwork.summary - You can't print the network's summary if it doesn't contain any layers !"
         
         # ------------------------------------------------------------------ #
         
@@ -300,9 +301,15 @@ class Network:
         summary_data = self._get_summary_data()
         
         nb_aligned_rows = len(self._layers) + 1
+        
         for data in summary_data.values():
             assert isinstance(data, list)
             assert len(data) == nb_aligned_rows
+            
+            for feature in data:
+                assert isinstance(feature, str)
+                assert len(feature) > 0
+                assert feature == feature.strip()
         
         nb_aligned_columns = len(summary_data)
         assert nb_aligned_columns >= 2
@@ -443,20 +450,6 @@ class Network:
         return str_summary
     
     
-    def set_loss_function(self, loss_name: str) -> None:
-        """
-        Sets the loss function of the network
-        """
-        # checking the validity of the specified loss function name
-        assert isinstance(loss_name, str)
-        loss_name = loss_name.strip().lower()
-        if loss_name not in Network.AVAILABLE_LOSSES:
-            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES))})")
-        
-        self.loss_name = loss_name
-        self._loss, self._loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
-    
-    
     def set_optimizer(
             self,
             optimizer_name: str,
@@ -484,6 +477,25 @@ class Network:
             layer.set_optimizer(optimizer_name, learning_rate=learning_rate)
         
         self.optimizer_name = optimizer_name
+        
+        learning_rate_precision = max(2, count_nb_decimals_places(learning_rate))
+        print(f"\nThe network's optimizer was successfully set to \"{self.optimizer_name}\" (learning_rate={learning_rate:.{learning_rate_precision}f})")
+    
+    
+    def set_loss_function(self, loss_name: str) -> None:
+        """
+        Sets the loss function of the network
+        """
+        # checking the validity of the specified loss function name
+        assert isinstance(loss_name, str)
+        loss_name = loss_name.strip().lower()
+        if loss_name not in Network.AVAILABLE_LOSSES:
+            raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES))})")
+        
+        self.loss_name = loss_name
+        self._loss, self._loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
+        
+        print(f"\nThe network's loss function was successfully set to \"{self.loss_name}\"")
     
     
     @staticmethod
@@ -491,7 +503,7 @@ class Network:
             X: np.ndarray,
             y: Optional[np.ndarray] = None,
             *,
-            input_size_of_network: Optional[int] = None,
+            input_size_of_network:  Optional[int] = None,
             output_size_of_network: Optional[int] = None,
         ) -> Union[np.ndarray, tuple[np.ndarray]]:
         """
@@ -526,8 +538,8 @@ class Network:
         
         # checking `input_size_of_network`
         assert isinstance(input_size_of_network, (type(None), int))
-        if input_size_of_network is not None:
-            assert input_size_of_network == nb_features_per_sample
+        if (input_size_of_network is not None) and (input_size_of_network != nb_features_per_sample):
+            raise Exception(f"Network._validate_data - The input size of the network (= {input_size_of_network}) doesn't match the number of features per sample in the specified `X` (= {nb_features_per_sample}) !")
         
         # ------------------------------------------------------------------ #
         
@@ -565,8 +577,8 @@ class Network:
             
             # checking `output_size_of_network`
             assert isinstance(output_size_of_network, (type(None), int))
-            if output_size_of_network is not None:
-                assert output_size_of_network == nb_classes
+            if (output_size_of_network is not None) and (output_size_of_network != nb_classes):
+                raise Exception(f"Network._validate_data - The output size of the network (= {output_size_of_network}) doesn't match the number of classes in the specified `y` (= {nb_classes}) !")
             
             return used_X, y_categorical, y_flat
         
@@ -607,7 +619,7 @@ class Network:
             input_size_of_network=self._io_sizes[0][0],
             output_size_of_network=self._io_sizes[-1][1]
         )
-        nb_train_samples = X_train.shape[0]
+        nb_train_samples = used_X_train.shape[0]
         
         assert isinstance(nb_epochs, int)
         assert nb_epochs > 0
@@ -636,30 +648,28 @@ class Network:
         # it's only going to be done once so it doesn't really matter (and it
         # takes less than 0.1 seconds to do anyway)
         assert isinstance(training_callbacks, (type(None), list, tuple))
-        if training_callbacks is not None:
-            if len(training_callbacks) > 0:
-                # checking that the specified callbacks all have a legitimate type
-                for callback in training_callbacks:
-                    assert issubclass(type(callback), Callback)
+        if (training_callbacks is not None) and (len(training_callbacks) > 0):
+            # checking that the specified callbacks all have a legitimate type
+            for callback in training_callbacks:
+                assert issubclass(type(callback), Callback)
+            
+            nb_callbacks = len(training_callbacks)
+            
+            # checking that the specified callbacks all have a DIFFERENT type
+            for callback_index, callback in enumerate(training_callbacks):
+                type_current_callback = type(callback)
+                for other_callback_index in range(callback_index + 1, nb_callbacks):
+                    other_callback = training_callbacks[other_callback_index]
+                    if type(other_callback) == type_current_callback:
+                        raise ValueError(f"Network.fit - The `training_callbacks` kwarg contains multiple instances of the same \"{type_current_callback.__name__}\" class !")
+            
+            # checking if the callbacks contain an `EarlyStoppingCallback` instance
+            for callback in training_callbacks:
+                if isinstance(callback, EarlyStoppingCallback) and (callback.patience < nb_epochs):
+                    _early_stopping_callback = callback
                 
-                nb_callbacks = len(training_callbacks)
-                
-                # checking that the specified callbacks all have a DIFFERENT type
-                for callback_index, callback in enumerate(training_callbacks):
-                    type_current_callback = type(callback)
-                    for other_callback_index in range(callback_index + 1, nb_callbacks):
-                        other_callback = training_callbacks[other_callback_index]
-                        if type(other_callback) == type_current_callback:
-                            raise ValueError(f"Network.fit - The `training_callbacks` kwarg contains multiple instances of the same \"{type_current_callback.__name__}\" class !")
-                
-                # checking if the callbacks contain an `EarlyStoppingCallback` instance
-                for callback in training_callbacks:
-                    if isinstance(callback, EarlyStoppingCallback):
-                        if callback.patience < nb_epochs:
-                            _early_stopping_callback = callback
-                    
-                    # NB : Add an instance check here if you added another
-                    #      callback in the "callbacks.py" script
+                # NB : Add an instance check here if you added another
+                #      callback in the "callbacks.py" script
         
         # ------------------------------------------------------------------ #
         
@@ -677,7 +687,7 @@ class Network:
                 input_size_of_network=self._io_sizes[0][0],
                 output_size_of_network=self._io_sizes[-1][1]
             )
-            nb_val_samples = X_val.shape[0]
+            nb_val_samples = used_X_val.shape[0]
             
             # the `val_batch_size` kwarg will not be used if `validation_data`
             # is set to `None`
@@ -704,8 +714,8 @@ class Network:
         if len(self._layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
         
-        # checking if the very last layer of the network is a softmax
-        # or a sigmoid activation layer
+        # checking if the very last layer of the network is a softmax or a
+        # sigmoid activation layer
         try:
             last_layer = self._layers[-1]
             assert isinstance(last_layer, ActivationLayer)
@@ -713,15 +723,15 @@ class Network:
         except:
             raise Exception("Network.fit - The very last layer of the network must be a softmax or a sigmoid activation layer !")
         
-        if (self._loss is None) or (self._loss_prime is None):
-            raise Exception("Network.fit - Please set a loss function before training the network !")
-        
         if self.optimizer_name is None:
             raise Exception("Network.fit - Please set an optimizer before training the network !")
         
+        if (self._loss is None) or (self._loss_prime is None):
+            raise Exception("Network.fit - Please set a loss function before training the network !")
+        
         # ================================================================== #
         
-        # potentially standardizing the input training and/or validation data
+        # standardizing the input training and/or validation data (if requested)
         
         if self.__standardize_input_data:
             used_X_train = standardize_data(used_X_train)
@@ -743,6 +753,20 @@ class Network:
             self.history["val_accuracy"] = []
         
         nb_train_batches = (nb_train_samples + train_batch_size - 1) // train_batch_size
+        
+        if nb_shuffles_before_each_train_batch_split == 0:
+            train_batches = split_data_into_batches(
+                used_X_train,
+                train_batch_size,
+                labels=used_y_train,
+                nb_shuffles=0,
+                enable_checks=True
+            )
+            
+            train_batches_data   = train_batches["data"]
+            train_batches_labels = train_batches["labels"]
+            
+            assert len(train_batches_data) == nb_train_batches
         
         if _has_validation_data:
             # Splitting the validation data into batches. Here, you can set
@@ -782,17 +806,21 @@ class Network:
         
         train_batch_index_update_step = nb_train_batches // nb_train_batch_index_updates
         
+        # the offset spacing is used to center the prints
+        offset_spacing = 5
+        
+        assert offset_spacing >= 3
+        assert offset_spacing % 2 == 1
+        offset_spacing = " " * offset_spacing
+        
         # `nb_dashes_in_transition` is an empirical value
         if _has_validation_data:
-            nb_dashes_in_transition = 105
+            nb_dashes_in_transition = 77
         else:
-            nb_dashes_in_transition = 61
-        nb_dashes_in_transition += 2 * nb_digits_epoch_index
+            nb_dashes_in_transition = 37
+        nb_dashes_in_transition += 2 * len(offset_spacing)
         
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
-        
-        # to center the prints
-        offset_spacing = " " * 5
         
         # ================================================================== #
         
@@ -804,7 +832,7 @@ class Network:
         
         print(transition)
         
-        introduction = f"\n{offset_spacing}Starting the training loop ...\n"
+        introduction = f"\n{offset_spacing}Starting the training loop ..."
         print(introduction)
         
         seed = seed_train_batch_splits
@@ -813,19 +841,24 @@ class Network:
         for epoch_index in range(1, nb_epochs + 1):
             # for display purposes only
             formatted_epoch_index = format(epoch_index, epoch_index_format)
-            epoch_header = f"{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs}  -  "
+            epoch_header = f"\n{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs} :"
             
-            # splitting the training data into batches (NB : here, `train_batches`
-            # is a generator)
-            train_batches = split_data_into_batches(
-                used_X_train,
-                train_batch_size,
-                labels=used_y_train,
-                is_generator=True,
-                nb_shuffles=nb_shuffles_before_each_train_batch_split,
-                seed=seed,
-                enable_checks=enable_checks
-            )
+            print(epoch_header)
+            
+            if nb_shuffles_before_each_train_batch_split != 0:
+                # splitting the training data into batches (NB : here, `train_batches`
+                # is a generator)
+                train_batches = split_data_into_batches(
+                    used_X_train,
+                    train_batch_size,
+                    labels=used_y_train,
+                    is_generator=True,
+                    nb_shuffles=nb_shuffles_before_each_train_batch_split,
+                    seed=seed,
+                    enable_checks=enable_checks
+                )
+            else:
+                train_batches = zip(train_batches_data, train_batches_labels)
             
             if seed is not None:
                 # updating the seed in order to make the shuffling of the
@@ -893,7 +926,7 @@ class Network:
                         enable_checks=False
                     )
                     
-                    train_batch_progress_row = f"{epoch_header}{current_progress_bar}  -  batch {formatted_batch_index}/{nb_train_batches}"
+                    train_batch_progress_row = f"{offset_spacing}{current_progress_bar} batch {formatted_batch_index}/{nb_train_batches}"
                     
                     clear_currently_printed_row()
                     print(train_batch_progress_row, end="\r")
@@ -960,10 +993,12 @@ class Network:
             # -------------------------------------------------------------- #
             
             precision_epoch_history = 4 # by default
+            
+            epoch_history = offset_spacing
             if _has_validation_data:
-                epoch_history = f"{epoch_header}train_loss={train_loss:.{precision_epoch_history}f}  -  val_loss={val_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}  -  val_accuracy={val_accuracy:.{precision_epoch_history}f}"
+                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - val_loss={val_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f} - val_accuracy={val_accuracy:.{precision_epoch_history}f}"
             else:
-                epoch_history = f"{epoch_header}train_loss={train_loss:.{precision_epoch_history}f}  -  train_accuracy={train_accuracy:.{precision_epoch_history}f}"
+                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f}"
             
             clear_currently_printed_row()
             print(epoch_history)
@@ -1019,7 +1054,9 @@ class Network:
             average_batch_duration = average_epoch_duration / nb_train_batches
         average_batch_duration_in_milliseconds = 1000 * average_batch_duration
         
-        conclusion = f"\n{offset_spacing}Training complete !\n\n{offset_spacing}Done in {duration_training:.1f} seconds ({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
+        space_or_newline = " " * int(_has_validation_data) + f"\n{offset_spacing}" * int(not(_has_validation_data))
+        
+        conclusion = f"\n{offset_spacing}Training complete !\n\n{offset_spacing}Done in {duration_training:.1f} seconds{space_or_newline}({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
         print(conclusion)
         
         print(transition)
@@ -1055,10 +1092,14 @@ class Network:
         if save_plot_to_disk:
             # the `saved_image_name` kwarg will not be used if
             # `save_plot_to_disk` is set to `False`
+            
             assert isinstance(saved_image_name, str)
             assert len(saved_image_name.strip()) > 0
             saved_image_name = saved_image_name.strip()
             saved_image_name = " ".join(saved_image_name.split())
+            
+            if os.path.sep in saved_image_name:
+                raise Exception("Network.plot_history - Please don't add sub-folder info to the specified `saved_image_name` kwarg ! Just type in the basename of the saved plot")
         
         # ------------------------------------------------------------------ #
         
@@ -1098,9 +1139,9 @@ class Network:
         # generating the plot
         
         fig, ax = plt.subplots(1, 2, figsize=(16, 8))
-        plt.suptitle(f"\nHistory of the network's training phase (on {nb_epochs} epochs)", fontsize=15)
+        plt.suptitle(f"\nHistory of the network's training phase (over {nb_epochs} epochs)", fontsize=15)
         
-        # losses
+        # losses subplot
         ax[0].plot(epochs, train_losses, color=color_of_train_data, label="train_loss")
         if _has_validation_data:
             ax[0].plot(epochs, val_losses, color=color_of_val_data, label="val_loss")
@@ -1118,7 +1159,7 @@ class Network:
         else:
             ax[0].set_title("Losses for the \"train\" dataset")
         
-        # accuracies
+        # accuracies subplot
         ax[1].plot(epochs, train_accuracies, color=color_of_train_data, label="train_accuracy")
         if _has_validation_data:
             ax[1].plot(epochs, val_accuracies, color=color_of_val_data, label="val_accuracy")
@@ -1139,22 +1180,18 @@ class Network:
         # saving the plot (if requested)
         
         if save_plot_to_disk:
-            # creating the folder containing the saved plot (if it doesn't exist)
+            # creating the folder containing the saved plots (if it doesn't exist)
             DEFAULT_SAVED_IMAGES_FOLDER_NAME = "saved_plots"
             if not(os.path.exists(DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
                 os.mkdir(DEFAULT_SAVED_IMAGES_FOLDER_NAME)
             
+            # the PNG extension was mainly chosen as the default extension
+            # because it is supported by all the Matplotlib backends
             default_extension = ".png"
-            extension_of_saved_image_name = os.path.splitext(saved_image_name)[1]
             
             # getting the corrected (full) basename of the saved plot
-            saved_image_full_name = saved_image_name
-            if extension_of_saved_image_name != default_extension:
-                if extension_of_saved_image_name.lower() == default_extension:
-                    root_of_saved_image_full_name = saved_image_full_name[ : len(saved_image_full_name) - len(default_extension)]
-                    saved_image_full_name = root_of_saved_image_full_name + default_extension
-                else:
-                    saved_image_full_name += default_extension
+            root_of_saved_image_name = os.path.splitext(saved_image_name)[0].replace(".", "_")
+            saved_image_full_name = root_of_saved_image_name + default_extension
             
             # getting the absolute path of the saved plot
             saved_image_path = os.path.join(
@@ -1163,12 +1200,17 @@ class Network:
                 saved_image_full_name
             )
             
+            # if a (saved) plot with exactly the same name already exists, we're
+            # deleting it
+            if os.path.exists(saved_image_path):
+                os.remove(saved_image_path)
+            
             t_beginning_image_saving = perf_counter()
             
-            # actually saving the plot to your disk
+            # actually saving the plot to the disk
             plt.savefig(
                 saved_image_path,
-                dpi=300,
+                dpi=300, # by default (high resolution)
                 format=default_extension[1 : ]
             )
             
@@ -1275,21 +1317,20 @@ class Network:
             *,
             top_N_accuracy: int = 2,
             test_batch_size: int = 32
-        ) -> tuple[float, float, Union[np.float32, np.float64], np.ndarray]:
+        ) -> tuple[Union[float, np.ndarray]]:
         """
-        Computes the network's prediction of `X_test` (i.e. `y_pred`), then
-        returns the accuracy score and the raw confusion matrix of `y_test`
-        and `y_pred`
+        Computes the network's prediction of `X_test` (i.e. `y_pred`), and
+        returns the accuracy score, the "top-N accuracy score", the testing
+        loss, the mean confidence levels (of the correct and false predictions)
+        and the raw confusion matrix of the network
         
         Here, `y_test` can either be a 1D vector of INTEGER labels or its
         one-hot encoded equivalent (in that case it will be a 2D matrix)
         
-        The "top-N accuracy" of `y_test` and `y_pred` is also returned. It's
-        defined as the proportion of the classes in `y_true` that lie within
-        the `N` most probable classes of each prediction of `y_pred` (here, `N`
-        is actually the `top_N_accuracy` kwarg)
-        
-        The testing loss is also returned
+        The "top-N accuracy" of `y_test` and `y_pred` is defined as the
+        proportion of the classes in `y_test` that lie within the `N` most
+        probable classes of each prediction of `y_pred` (here, `N` is actually
+        the `top_N_accuracy` kwarg)
         """
         # ------------------------------------------------------------------ #
         
@@ -1330,15 +1371,21 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        # computing the testing loss and accuracy
+        # computing the testing loss, the testing accuracy and the mean
+        # confidence levels
         
         # NB : For the testing accuracy, we could simply call :
         #      `100 * accuracy_score(y_test_flat, y_pred_flat)`
-        #      but, to simulate
+        #      but, to simulate the fact that we've only got access to one
+        #      testing batch at a time, we're computing it batch by batch.
+        #      The same goes for the testing loss and the mean confidence levels
         
-        # initializing the testing loss and accuracy
+        # initializing the testing loss, the testing accuracy and the mean
+        # confidence levels
         test_loss     = cast(0, utils.DEFAULT_DATATYPE)
         test_accuracy = 0
+        mean_confidence_level_correct_predictions = 0.0
+        mean_confidence_level_false_predictions   = 0.0
         
         for first_index_of_test_batch in range(0, nb_test_samples, test_batch_size):
             last_index_of_test_batch = first_index_of_test_batch + test_batch_size
@@ -1353,13 +1400,40 @@ class Network:
                 enable_checks=True
             ))
             
+            y_test_flat_batch = y_test_flat[first_index_of_test_batch : last_index_of_test_batch]
+            y_pred_flat_batch = y_pred_flat[first_index_of_test_batch : last_index_of_test_batch]
+            
             # updating the (raw) testing accuracy
             test_accuracy += accuracy_score(
-                categorical_to_vector(y_test_batch, enable_checks=True), # NB : We could have also used `y_test_flat` here
-                categorical_to_vector(y_pred_batch, enable_checks=True), # NB : We could have also used `y_pred_flat` here
+                y_test_flat_batch,
+                y_pred_flat_batch,
                 normalize=False,
                 enable_checks=True
             )
+            
+            # In order to actually get probability distributions, we're
+            # normalizing the partial logits (i.e. `y_pred_batch`), in case
+            # we're using a final activation function that isn't softmax (like
+            # sigmoid for instance)
+            normalized_y_pred_batch = y_pred_batch / np.sum(y_pred_batch, axis=1, keepdims=True)
+            
+            for batch_sample_index, (actual_class_index, predicted_class_index) in enumerate(zip(y_test_flat_batch, y_pred_flat_batch)):
+                current_confidence_level = float(normalized_y_pred_batch[batch_sample_index, predicted_class_index])
+                
+                # updating the mean confidence levels
+                if actual_class_index == predicted_class_index:
+                    mean_confidence_level_correct_predictions += current_confidence_level
+                else:
+                    mean_confidence_level_false_predictions += current_confidence_level
+        
+        assert isinstance(test_accuracy, int)
+        
+        if test_accuracy > 0:
+            mean_confidence_level_correct_predictions = 100 * mean_confidence_level_correct_predictions / test_accuracy
+        if test_accuracy < nb_test_samples:
+            mean_confidence_level_false_predictions = 100 * mean_confidence_level_false_predictions / (nb_test_samples - test_accuracy)
+        assert (mean_confidence_level_correct_predictions >= 0) and (mean_confidence_level_correct_predictions <= 100)
+        assert (mean_confidence_level_false_predictions >= 0) and (mean_confidence_level_false_predictions <= 100)
         
         test_loss /= cast(nb_test_samples, utils.DEFAULT_DATATYPE)
         check_dtype(test_loss, utils.DEFAULT_DATATYPE)
@@ -1392,12 +1466,22 @@ class Network:
                 if test_label in top_N_predictions:
                     top_N_acc_score += 1
             
-            nb_test_samples = y_test_flat.size
             top_N_acc_score = 100 * float(top_N_acc_score) / nb_test_samples
         
         assert top_N_acc_score >= acc_score
         
-        return acc_score, top_N_acc_score, test_loss, conf_matrix
+        # ------------------------------------------------------------------ #
+        
+        results = (
+            acc_score,
+            top_N_acc_score,
+            test_loss,
+            mean_confidence_level_correct_predictions,
+            mean_confidence_level_false_predictions,
+            conf_matrix
+        )
+        
+        return results
     
     
     def display_some_predictions(
@@ -1407,11 +1491,12 @@ class Network:
             *,
             selected_classes: Union[str, list[int]] = "all",
             dict_of_real_class_names: Optional[dict[int, str]] = None,
-            image_shape: Optional[tuple] = None,
+            image_shape: Optional[tuple[int]] = None,
             seed: Optional[int] = None
         ) -> None:
         """
-        Displays some of the network's predictions (of random test samples)
+        Displays some of the network's predictions (of random test samples).
+        This method was primarily created for debugging purposes
         
         NB : This function only works if the rows of `X_test` are flattened
              images
@@ -1538,15 +1623,16 @@ class Network:
         random_test_samples = used_X_test[random_test_indices, :]
         logits = self.predict(random_test_samples) # = y_pred
         
-        # getting the "top-2 integer predictions"
+        # getting the class indices of the "top-2 integer predictions"
         predicted_class_indices = np.fliplr(np.argsort(logits, axis=1))[:, 0 : 2]
         
         # by default
         confidence_level_precision = 0
         
-        # in order to actually get probability distributions, we're normalizing
-        # the logits (in case we're using a final activation function that isn't
-        # softmax, like sigmoid for instance)
+        # In order to actually get probability distributions, we're normalizing
+        # the logits, in case we're using a final activation function that isn't
+        # softmax (like sigmoid for instance). Note that this normalization
+        # doesn't require changing `predicted_class_indices`
         logits /= np.sum(logits, axis=1, keepdims=True)
         
         # ------------------------------------------------------------------ #

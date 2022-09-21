@@ -40,7 +40,7 @@ from colorama import init, Back, Style
 # (i.e. we're defining the "global datatype")
 
 DEFAULT_DATATYPE = "float32"                             # = "float32" or "float64"
-DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution # = 1e-6 or 1e-15 (respectively)
+DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution # = 1e-06 or 1e-15 (respectively)
 
 
 ##############################################################################
@@ -132,9 +132,12 @@ def check_dtype(
         dtype: Union[str, type, np.dtype]
     ) -> None:
     """
-    Checks if the datatype of `x` is `dtype` or not. Here, `x` can either be
-    a scalar or a vector/matrix. By design, in most cases, `dtype` will be
+    Checks if the NumPy datatype of `x` is `dtype` or not. Here, `x` can either
+    be a scalar or a vector/matrix. By design, in most cases, `dtype` will be
     equal to `DEFAULT_DATATYPE`
+    
+    NB : This function will NOT work if you're trying to check if a scalar is
+         an instance of a NATIVE type (like `int` or `float` for instance)
     """
     # checking the specified arguments
     assert np.isscalar(x) or isinstance(x, np.ndarray)
@@ -279,7 +282,7 @@ def clear_currently_printed_row(*, max_size_of_row: int = 150) -> None:
     """
     # checking the specified argument
     assert isinstance(max_size_of_row, int)
-    assert max_size_of_row >= 1
+    assert max_size_of_row >= 0
     
     blank_row = " " * max_size_of_row
     print(blank_row, end="\r")
@@ -441,6 +444,7 @@ def is_being_run_on_jupyter_notebook() -> bool:
         
         global display
         if jupyter_notebook and (display is None):
+            # cf. the note at the very beginning of this script
             raise ImportError("The `display` method (from the `IPython.display` module) should have been imported, since, in theory, the code is being run on a Jupyter notebook (which itself runs on an IPython backend) !")
         
         return jupyter_notebook
@@ -451,16 +455,20 @@ def is_being_run_on_jupyter_notebook() -> bool:
 def count_nb_decimals_places(
         x: Union[int, float],
         *,
-        max_precision: int = 6
+        max_precision: int = 9
     ) -> int:
     """
-    Returns the number of decimal places of the scalar `x`
+    Returns the number of decimal places of the real number `x`
+    
+    If the absolute value of the decimal places of `x` is stricly less than
+    10**(-max_precision), then `0` will be returned
     """
     # ---------------------------------------------------------------------- #
     
     # checking the specified arguments
     
     assert np.isscalar(x)
+    assert np.isreal(x)
     
     assert isinstance(max_precision, int)
     assert max_precision >= 1
@@ -469,18 +477,29 @@ def count_nb_decimals_places(
     
     # converting `x` into a positive number, since it doesn't affect its number
     # of decimal places
-    x = round(float(abs(x)), max_precision)
+    x = float(abs(x))
     
-    if x == int(x):
-        # here, `x` is a positive integer
+    # converting `x` into its decimal places counterpart, since it also doesn't
+    # affect its number of decimal places (by definition)
+    x -= int(x)
+    assert (x >= 0) and (x < 1)
+    
+    # rounding `x` to the specified precision
+    x = round(x, max_precision)
+    
+    if x == 0:
         return 0
-    elif x < 1:
-        # here, `x` is a float in the range ]0, 1[
-        return len(str(x)) - 2
-    else:
-        # here, `x` is a non-integer float in the range ]1, infinity[, therefore
-        # `x - int(x)` will be a float in the range ]0, 1[
-        return len(str(x - int(x))) - 2
+    
+    # here, `x` is a float in the range ]0, 1[, or, more, precisely, in the
+    # range [10**(-max_precision), 1[
+    assert x >= 10**(-max_precision)
+    
+    # just in case `x` is stored as a scientific notation (like `1e-05` for
+    # instance)
+    str_x = f"{x:.{max_precision}f}".rstrip("0")
+    assert len(str_x) >= 3
+    
+    return len(str_x) - 2
 
 
 def get_dtype_of_array(array: np.ndarray) -> str:
@@ -492,7 +511,11 @@ def get_dtype_of_array(array: np.ndarray) -> str:
     return str_dtype
 
 
-def get_range_of_array(array: np.ndarray, *, precision: int = 3) -> str:
+def get_range_of_array(
+        array: np.ndarray,
+        *,
+        precision: int = 3
+    ) -> str:
     """
     Returns the range of an array (as a string)
     """
@@ -1235,7 +1258,6 @@ def print_confusion_matrix(
     assert isinstance(color, str)
     assert len(color.strip()) > 0
     color = color.strip().lower()
-    assert " " not in color
     
     # keys   : generic color names
     # values : (
