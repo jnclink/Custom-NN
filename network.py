@@ -184,7 +184,7 @@ class Network:
         it is to align the columns of the summary !
         """
         
-        # Initializing the summary data with the column titles. Note that the
+        # Initializing the summary data (with the column titles). Note that the
         # order in which the data is listed MATTERS (when defining this dictionary),
         # since the columns of the printed summary will be in the SAME order !
         summary_data = {
@@ -531,7 +531,7 @@ class Network:
         except:
             used_X = cast(X, utils.DEFAULT_DATATYPE)
         
-        nb_features_per_sample = X.shape[1] # = number of pixels per image
+        nb_features_per_sample = X.shape[1]
         assert nb_features_per_sample >= 2
         
         # ------------------------------------------------------------------ #
@@ -595,12 +595,12 @@ class Network:
             nb_shuffles_before_each_train_batch_split: int = 10,
             seed_train_batch_splits: Optional[int] = None,
             enable_checks: bool = True,
-            validation_data: Optional[int] = None,
+            validation_data: Optional[tuple[np.ndarray, np.ndarray]] = None,
             val_batch_size: int = 32,
             training_callbacks: Optional[list[Callback]] = None
         ) -> None:
         """
-        Trains the network on `nb_epochs` epochs
+        Trains the network over `nb_epochs` epochs
         
         By design, the network cannot be trained more than once
         """
@@ -1126,7 +1126,7 @@ class Network:
         
         nb_epochs = len(epochs)
         if nb_epochs == 1:
-            print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you only trained it on 1 epoch !")
+            print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you only trained it over 1 epoch !")
             return
         
         # for example

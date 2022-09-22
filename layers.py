@@ -690,7 +690,7 @@ class DropoutLayer(Layer):
             dtype: Union[str, type, np.dtype],
             *,
             enable_checks: bool = True
-        ):
+        ) -> np.ndarray:
         """
         Returns a "dropout matrix" with the specified shape and datatype. For each
         row of that matrix, the values have a probability of `self.dropout_rate`

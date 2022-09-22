@@ -254,6 +254,7 @@ def list_to_string(L: list) -> str:
     
     # ---------------------------------------------------------------------- #
     
+    # initializing the string representation of the specified list
     str_L = ""
     
     for element_index, element in enumerate(L):
@@ -460,8 +461,8 @@ def count_nb_decimals_places(
     """
     Returns the number of decimal places of the real number `x`
     
-    If the absolute value of the decimal places of `x` is stricly less than
-    10**(-max_precision), then `0` will be returned
+    If the fractional part of `x` is non-zero and is stricly less than
+    `10**(-max_precision)` (or if `x` is an integer), then `0` will be returned
     """
     # ---------------------------------------------------------------------- #
     
@@ -479,27 +480,32 @@ def count_nb_decimals_places(
     # of decimal places
     x = float(abs(x))
     
-    # converting `x` into its decimal places counterpart, since it also doesn't
-    # affect its number of decimal places (by definition)
+    # converting `x` into its fractional part, since it also doesn't affect
+    # its number of decimal places (by definition)
     x -= int(x)
     assert (x >= 0) and (x < 1)
     
-    # rounding `x` to the specified precision
+    # rounding (the fractional part of) `x` to the specified precision
     x = round(x, max_precision)
     
     if x == 0:
+        # in this case, the original `x` was either an integer, or had a (non-zero)
+        # fractional part that was strictly less than `10**(-max_precision)`
         return 0
     
     # here, `x` is a float in the range ]0, 1[, or, more, precisely, in the
     # range [10**(-max_precision), 1[
     assert x >= 10**(-max_precision)
     
-    # just in case `x` is stored as a scientific notation (like `1e-05` for
-    # instance)
+    # we're doing this just in case the string representation of `x` uses the
+    # scientific notation (like `1e-05` for instance)
     str_x = f"{x:.{max_precision}f}".rstrip("0")
     assert len(str_x) >= 3
     
-    return len(str_x) - 2
+    # getting rid of the leading "0." (which has a length of 2)
+    nb_decimal_places = len(str_x) - 2
+    
+    return nb_decimal_places
 
 
 def get_dtype_of_array(array: np.ndarray) -> str:
@@ -792,9 +798,9 @@ def _validate_one_hot_encoded_array(array: np.ndarray) -> None:
 def _validate_split_data_into_batches_inputs(
         data: np.ndarray,
         batch_size: int,
-        labels: Optional[np.ndarray],
+        labels: Union[None, np.ndarray],
         nb_shuffles: int,
-        seed: Optional[int]
+        seed: Union[None, int]
     ) -> None:
     """
     Checks the validity of the specified arguments (as inputs of the functions
