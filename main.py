@@ -526,23 +526,25 @@ def main():
     # actually `top_N_accuracy`)
     top_N_accuracy = 2
     
-    results = network.evaluate(
+    testing_results = network.evaluate(
         X_test,
         y_test,
         top_N_accuracy=top_N_accuracy,
         test_batch_size=32 # default value
     )
     
-    acc_score, top_N_acc_score, test_loss = results[ : 3]
+    assert len(testing_results) == 6
     
-    mean_confidence_level_correct_predictions = results[3]
-    mean_confidence_level_false_predictions   = results[4]
+    acc_score, top_N_acc_score, test_loss = testing_results[ : 3]
     
-    conf_matrix = results[5]
+    mean_confidence_level_correct_predictions = testing_results[3]
+    mean_confidence_level_false_predictions   = testing_results[4]
+    
+    conf_matrix = testing_results[5]
     
     # ---------------------------------------------------------------------- #
     
-    # Displaying the confusion matrices of the network
+    # Displaying the (raw and normalized) confusion matrices of the network
     
     for normalize in ["no", "columns", "rows"]:
         print_confusion_matrix(

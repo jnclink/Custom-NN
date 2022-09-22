@@ -1426,11 +1426,13 @@ class Network:
                 else:
                     mean_confidence_level_false_predictions += current_confidence_level
         
+        # NB : At this stage, `test_accuracy` is the number of correct predictions
         assert isinstance(test_accuracy, int)
         
         if test_accuracy > 0:
             mean_confidence_level_correct_predictions = 100 * mean_confidence_level_correct_predictions / test_accuracy
         if test_accuracy < nb_test_samples:
+            # `nb_test_samples - test_accuracy` is the number of false predictions
             mean_confidence_level_false_predictions = 100 * mean_confidence_level_false_predictions / (nb_test_samples - test_accuracy)
         assert (mean_confidence_level_correct_predictions >= 0) and (mean_confidence_level_correct_predictions <= 100)
         assert (mean_confidence_level_false_predictions >= 0) and (mean_confidence_level_false_predictions <= 100)
@@ -1472,7 +1474,7 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        results = (
+        testing_results = (
             acc_score,
             top_N_acc_score,
             test_loss,
@@ -1481,7 +1483,7 @@ class Network:
             conf_matrix
         )
         
-        return results
+        return testing_results
     
     
     def display_some_predictions(
