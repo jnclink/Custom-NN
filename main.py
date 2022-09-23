@@ -96,8 +96,8 @@ def main():
     # Seed
     
     # This seed is currently used to :
-    #     1) Randomly split the raw data into the "train/test" or "train/val/test" sets
-    #     2) Randomly shuffle the "train/test" or "train/val/test" sets
+    #     - Randomly split the raw data into the "train/test" or "train/val/test" sets
+    #     - Randomly shuffle the "train/test" or "train/val/test" sets
     # Set this seed to `None` for "real" randomness during those 2 processes
     
     seed_data_formatting = 555
@@ -217,11 +217,11 @@ def main():
     # Seed
     
     # This seed is currently used to :
-    #     1) Randomly initialize the weights and biases of the Dense layers
-    #     2) Randomly generate the dropout matrices of the Dropout layers (if
-    #        these layers are used)
-    #     3) Randomly split the training data into batches during the training
-    #        phase (at each epoch)
+    #     - Randomly initialize the weights and biases of the Dense layers
+    #     - Randomly generate the dropout matrices of the Dropout layers (if
+    #       these layers are used)
+    #     - Randomly split the training data into batches during the training
+    #       phase (at each epoch)
     # Set this seed to `None` for "real" randomness during those 3 processes
     
     seed_network = 7777
@@ -245,7 +245,8 @@ def main():
     # Main hyperparameters
     
     # The following list defines the output sizes (or the "number of neurons")
-    # of each Dense layer of the network (in chronological order)
+    # of each Dense layer of the network (in chronological order), excluding
+    # the input and output Dense layers
     nb_neurons_in_hidden_dense_layers = [
         256,
         64,
@@ -330,7 +331,7 @@ def main():
     
     seed = seed_network
     
-    for hidden_layer_index, nb_neurons in enumerate(nb_neurons_in_hidden_dense_layers):
+    for nb_neurons in nb_neurons_in_hidden_dense_layers:
         network.add(DenseLayer(nb_neurons, seed=seed))
         
         if use_batch_norm_layers:

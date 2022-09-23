@@ -144,7 +144,7 @@ def check_dtype(
     dtype = _validate_numpy_dtype(dtype)
     
     if np.isscalar(x):
-        if type(x) != np.dtype(dtype).type:
+        if type(x) != dtype.type:
             raise TypeError(f"check_dtype (utils.py) - The datatype of the scalar `x` isn't \"{str(dtype)}\", it's \"{type(x).__name__}\" !")
     else:
         # here, `x` is a vector/matrix
@@ -166,7 +166,7 @@ def cast(
     dtype = _validate_numpy_dtype(dtype)
     
     if np.isscalar(x):
-        cast_x = np.dtype(dtype).type(x)
+        cast_x = dtype.type(x)
     else:
         # here, `x` is a vector/matrix
         cast_x = x.astype(dtype)
@@ -1323,7 +1323,8 @@ def print_confusion_matrix(
                     raise Exception(f"print_confusion_matrix (utils.py) - The true class \"{class_names[class_index]}\" (class_index={class_index}) isn't represented in the confusion matrix !")
                 normalized_conf_matrix[class_index, :] /= sum_of_row
         
-        # rounding the normalized confusion matrix to the specified precision
+        # rounding the (rescaled) normalized confusion matrix to the specified
+        # precision
         normalized_conf_matrix = np.round(100 * normalized_conf_matrix, precision)
         
         conf_matrix_as_dataframe = DataFrame(
