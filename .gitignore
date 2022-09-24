@@ -167,4 +167,8 @@ cython_debug/
 # (if you specifically requested to save those plots)
 saved_plots/
 
+# Folder that will contain all the saved networks/models
+# (if you specifically requested to save them)
+saved_networks/
+
 # ----------------------------------------------------------------------- #

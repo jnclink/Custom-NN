@@ -39,6 +39,7 @@ Language used : **Python**
 - Added an **"early stopping" callback**
 - The detailed summary of the network's architecture can now be visualized right after the network is built
 - The detailed history of the network's training phase is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot if requested (the plot will be saved in the `saved_plots` folder by default)
+- The network can also be **saved to the disk**, even if it's not trained (the network will be saved in the `saved_networks` folder by default)
 - The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct and false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
 - For testing purposes, you can also plot some predictions of the network (after it's trained) !
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script

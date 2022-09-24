@@ -4,8 +4,12 @@
 Script defining the main network class
 """
 
+from __future__ import annotations
+
 import os
 from time import perf_counter
+from pickle import dumps, loads
+from gzip import open as gzip_open
 from typing import Union, Optional, Callable
 
 import numpy as np
@@ -69,20 +73,28 @@ class Network:
     Network class
     """
     
-    # class variable
-    AVAILABLE_LAYER_TYPES: tuple[Layer] = (
-        InputLayer,
-        DenseLayer,
-        ActivationLayer,
-        BatchNormLayer,
-        DropoutLayer
-    )
+    # ---------------------------------------------------------------------- #
     
-    # class variable
+    # Defining the class variables
+    
+    AVAILABLE_LAYER_TYPES: dict[str, Layer] = {
+        "InputLayer"      : InputLayer,
+        "DenseLayer"      : DenseLayer,
+        "ActivationLayer" : ActivationLayer,
+        "BatchNormLayer"  : BatchNormLayer,
+        "DropoutLayer"    : DropoutLayer
+    }
+    
     AVAILABLE_LOSSES: dict[str, tuple[Callable, Callable]] = {
         "cce" : (CCE, CCE_prime), # CCE = Categorical Cross-Entropy
         "mse" : (MSE, MSE_prime)  # MSE = Mean Squared Error
     }
+    
+    DEFAULT_SAVED_IMAGES_FOLDER_NAME = "saved_plots"
+    
+    DEFAULT_SAVED_NETWORKS_FOLDER_NAME = "saved_networks"
+    
+    # ---------------------------------------------------------------------- #
     
     def __init__(
             self,
@@ -104,6 +116,7 @@ class Network:
         self._loss_prime: Union[None, Callable] = None
         
         self.optimizer_name: Union[None, str] = None
+        self._learning_rate: Union[None, float] = None
         
         self.history: Union[None, dict[str, list]] = None
         self._is_trained: bool = False
@@ -133,8 +146,9 @@ class Network:
         
         assert issubclass(type(layer), Layer)
         
-        if not(isinstance(layer, Network.AVAILABLE_LAYER_TYPES)):
-            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\" (available layer types : {list_to_string(Network.AVAILABLE_LAYER_TYPES)})")
+        available_layer_types = tuple(Network.AVAILABLE_LAYER_TYPES.values())
+        if not(isinstance(layer, available_layer_types)):
+            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\" (available layer types : {list_to_string(available_layer_types)})")
         
         # ------------------------------------------------------------------ #
         
@@ -454,7 +468,8 @@ class Network:
             self,
             optimizer_name: str,
             *,
-            learning_rate: float = 0.001
+            learning_rate: float = 0.001,
+            verbose: bool = True
         ) -> None:
         """
         Sets the optimizer of (all the layers of) the network to the
@@ -462,7 +477,7 @@ class Network:
         """
         # ------------------------------------------------------------------- #
         
-        # checking the specified arguments
+        # checking the validity of the specified arguments
         
         assert isinstance(optimizer_name, str)
         assert len(optimizer_name.strip()) > 0
@@ -471,31 +486,48 @@ class Network:
         assert isinstance(learning_rate, float)
         assert (learning_rate > 0) and (learning_rate < 1)
         
+        assert isinstance(verbose, bool)
+        
         # ------------------------------------------------------------------- #
         
         for layer in self._layers:
             layer.set_optimizer(optimizer_name, learning_rate=learning_rate)
         
         self.optimizer_name = optimizer_name
+        self._learning_rate = learning_rate
         
-        learning_rate_precision = max(2, count_nb_decimals_places(learning_rate))
-        print(f"\nThe network's optimizer was successfully set to \"{self.optimizer_name}\" (learning_rate={learning_rate:.{learning_rate_precision}f})")
+        if verbose:
+            learning_rate_precision = max(2, count_nb_decimals_places(learning_rate))
+            print(f"\nThe network's optimizer was successfully set to \"{self.optimizer_name}\" (learning_rate={learning_rate:.{learning_rate_precision}f})")
     
     
-    def set_loss_function(self, loss_name: str) -> None:
+    def set_loss_function(
+            self,
+            loss_name: str,
+            *,
+            verbose: bool = True
+        ) -> None:
         """
         Sets the loss function of the network
         """
-        # checking the validity of the specified loss function name
+        # ------------------------------------------------------------------ #
+        
+        # checking the validity of the specified arguments
+        
         assert isinstance(loss_name, str)
         loss_name = loss_name.strip().lower()
         if loss_name not in Network.AVAILABLE_LOSSES:
             raise ValueError(f"Network.set_loss_function - Unrecognized loss function name : \"{loss_name}\" (possible loss function names : {list_to_string(list(Network.AVAILABLE_LOSSES))})")
         
+        assert isinstance(verbose, bool)
+        
+        # ------------------------------------------------------------------ #
+        
         self.loss_name = loss_name
         self._loss, self._loss_prime = Network.AVAILABLE_LOSSES[self.loss_name]
         
-        print(f"\nThe network's loss function was successfully set to \"{self.loss_name}\"")
+        if verbose:
+            print(f"\nThe network's loss function was successfully set to \"{self.loss_name}\"")
     
     
     @staticmethod
@@ -1082,6 +1114,9 @@ class Network:
         """
         Plots the evolution of the losses and the accuracies of the network
         during the (last) training phase
+        
+        If you requested that the plot should be saved to the disk, then, by
+        default, it will be saved in the `saved_plots` folder (as a PNG image)
         """
         # ------------------------------------------------------------------ #
         
@@ -1181,9 +1216,8 @@ class Network:
         
         if save_plot_to_disk:
             # creating the folder containing the saved plots (if it doesn't exist)
-            DEFAULT_SAVED_IMAGES_FOLDER_NAME = "saved_plots"
-            if not(os.path.exists(DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
-                os.mkdir(DEFAULT_SAVED_IMAGES_FOLDER_NAME)
+            if not(os.path.exists(Network.DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
+                os.mkdir(Network.DEFAULT_SAVED_IMAGES_FOLDER_NAME)
             
             # the PNG extension was mainly chosen as the default extension
             # because it is supported by all the Matplotlib backends
@@ -1196,7 +1230,7 @@ class Network:
             # getting the absolute path of the saved plot
             saved_image_path = os.path.join(
                 os.getcwd(),
-                DEFAULT_SAVED_IMAGES_FOLDER_NAME,
+                Network.DEFAULT_SAVED_IMAGES_FOLDER_NAME,
                 saved_image_full_name
             )
             
@@ -1676,4 +1710,215 @@ class Network:
         plt.subplots_adjust(wspace=0.5, top=0.85)
         
         plt.show()
+    
+    
+    def _pickle(self) -> bytes:
+        """
+        Returns the pickled/serialized version (i.e. a byte representation)
+        of the current Network instance
+        """
+        variables_of_current_network = self.__dict__.copy()
+        
+        # the `_layers`, `_loss` and `_loss_prime` variables aren't
+        # pickleable/serializable
+        variables_of_current_network.pop("_layers")
+        variables_of_current_network.pop("_loss")
+        variables_of_current_network.pop("_loss_prime")
+        
+        # building a pickleable/serializable version of the layers of the network
+        pickled_layers = []
+        for layer in self._layers:
+            layer_name = layer.__class__.__name__
+            pickled_layer = layer._pickle()
+            pickled_layers.append((layer_name, pickled_layer))
+        variables_of_current_network["_layers"] = pickled_layers
+        
+        pickled_network = dumps(variables_of_current_network)
+        assert isinstance(pickled_network, bytes)
+        assert len(pickled_network) > 0
+        
+        return pickled_network
+    
+    
+    @classmethod
+    def _load(cls, pickled_network: bytes) -> Network:
+        """
+        Loads (a copy of) the current Network instance, directly from the
+        specified `pickled_network` argument. This method is the inverse of
+        the `Network._pickle` method
+        """
+        assert isinstance(pickled_network, bytes)
+        assert len(pickled_network) > 0
+        
+        loaded_network_as_dict = loads(pickled_network)
+        assert isinstance(loaded_network_as_dict, dict)
+        assert len(loaded_network_as_dict) > 0
+        
+        # initializing the loaded layer
+        loaded_network = cls.__new__(cls)
+        
+        for variable_name, variable in loaded_network_as_dict.items():
+            assert isinstance(variable_name, str)
+            setattr(loaded_network, variable_name, variable)
+        
+        # setting the `_loss` and `_loss_prime` variables
+        loss_name = loaded_network.loss_name
+        if loss_name is not None:
+            loaded_network.set_loss_function(loss_name, verbose=False)
+        else:
+            loaded_network._loss = None
+            loaded_network._loss_prime = None
+        
+        # re-building the layers of the network
+        actual_layers = []
+        pickled_layers = loaded_network._layers
+        for layer_name, pickled_layer in pickled_layers:
+            layer_class = cls.AVAILABLE_LAYER_TYPES[layer_name]
+            layer = layer_class._load(pickled_layer)
+            actual_layers.append(layer)
+        loaded_network._layers = actual_layers
+        
+        # setting the optimizer of (all the layers of) the loaded network
+        optimizer_name = loaded_network.optimizer_name
+        learning_rate = loaded_network._learning_rate
+        if optimizer_name is not None:
+            assert learning_rate is not None
+            loaded_network.set_optimizer(
+                optimizer_name,
+                learning_rate=learning_rate,
+                verbose=False
+            )
+        
+        return loaded_network
+    
+    
+    def copy(self) -> Network:
+        """
+        Returns a copy of the current Network instance
+        """
+        network_copy = self.__class__._load(self._pickle())
+        
+        assert type(network_copy) == type(self)
+        assert sorted(list(network_copy.__dict__.keys())) == sorted(list(self.__dict__.keys()))
+        assert network_copy is not self
+        
+        return network_copy
+    
+    
+    def save(self, filename: str) -> None:
+        """
+        Saves the current Network to the disk. By default, the network will
+        be saved in the `saved_networks` folder, as a Gunzip file (i.e. as a
+        ".gz" file). Note that the specified filename must be the BASENAME of
+        the path of the network you're saving (with or without the ".gz" extension)
+        
+        Also, you can save the current Network instance even if you haven't
+        trained it !
+        """
+        # ------------------------------------------------------------------ #
+        
+        # checking the specified argument
+        
+        assert isinstance(filename, str)
+        assert len(filename.strip()) > 0
+        filename = filename.strip()
+        filename = " ".join(filename.split())
+        
+        if os.path.sep in filename:
+            raise Exception("Network.save - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that will contain the saved network")
+        
+        # ------------------------------------------------------------------ #
+        
+        # creating the folder containing the saved networks (if it doesn't exist)
+        if not(os.path.exists(Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME)):
+            os.mkdir(Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME)
+        
+        # getting the corrected (full) basename of the saved network
+        root_of_saved_network_name = os.path.splitext(filename)[0].replace(".", "_")
+        saved_network_full_name = root_of_saved_network_name + ".gz"
+        
+        # getting the absolute path of the saved network
+        saved_network_path = os.path.join(
+            os.getcwd(),
+            Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME,
+            saved_network_full_name
+        )
+        
+        # if a (saved) network with exactly the same name already exists, we're
+        # deleting it
+        if os.path.exists(saved_network_path):
+            os.remove(saved_network_path)
+        
+        # ------------------------------------------------------------------ #
+        
+        t_beginning_network_saving = perf_counter()
+        
+        pickled_network = self._pickle()
+        
+        # actually saving the network to the disk
+        with gzip_open(saved_network_path, "wb") as COMPRESSED_NETWORK_FILE:
+            COMPRESSED_NETWORK_FILE.write(pickled_network)
+        
+        t_end_network_saving = perf_counter()
+        duration_network_saving = t_end_network_saving - t_beginning_network_saving
+        print(f"\nThe network was successfully saved to the location \"{saved_network_path}\". Done in {duration_network_saving:.3f} seconds")
+    
+    
+    @classmethod
+    def load_network_from_disk(cls, filename: str) -> Network:
+        """
+        Loads the network saved at the specified location on your disk. Note
+        that the specified filename must be the BASENAME of the path of the
+        network you're loading (with or without the ".gz" extension)
+        """
+        # ------------------------------------------------------------------ #
+        
+        # checking the specified argument
+        
+        assert isinstance(filename, str)
+        assert len(filename.strip()) > 0
+        filename = filename.strip()
+        filename = " ".join(filename.split())
+        
+        if os.path.sep in filename:
+            raise Exception("Network.load_network_from_disk - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that contains the saved network")
+        
+        # ------------------------------------------------------------------ #
+        
+        # getting the corrected (full) basename of the saved network
+        root_of_saved_network_name = os.path.splitext(filename)[0].replace(".", "_")
+        saved_network_full_name = root_of_saved_network_name + ".gz"
+        
+        # getting the absolute path of the saved network
+        saved_network_path = os.path.join(
+            os.getcwd(),
+            Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME,
+            saved_network_full_name
+        )
+        
+        # checking if the network that is meant to be loaded actually exists
+        assert os.path.exists(saved_network_path)
+        
+        # ------------------------------------------------------------------ #
+        
+        t_beginning_network_loading = perf_counter()
+        
+        pickled_network = b""
+        
+        # actually loading the network from the disk
+        with gzip_open(saved_network_path, "rb") as COMPRESSED_NETWORK_FILE:        
+            pickled_network = COMPRESSED_NETWORK_FILE.read()
+        
+        assert isinstance(pickled_network, bytes)
+        assert len(pickled_network) > 0
+        
+        loaded_network = cls._load(pickled_network)
+        
+        t_end_network_loading = perf_counter()
+        duration_network_loading = t_end_network_loading - t_beginning_network_loading
+        print(f"\nThe network was successfully loaded from the location \"{saved_network_path}\". Done in {duration_network_loading:.3f} seconds")
+        
+        # ------------------------------------------------------------------ #
+        
+        return loaded_network
 

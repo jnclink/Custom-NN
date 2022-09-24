@@ -4,7 +4,10 @@
 Script defining the main layer classes
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from pickle import dumps, loads
 from typing import Union, Optional, Callable
 
 import numpy as np
@@ -57,6 +60,7 @@ class Layer(ABC):
         self.nb_trainable_params: Union[None, int] = None
         
         self.optimizer_name: Union[None, str] = None
+        self._learning_rate: Union[None, float] = None
         self._optimizer: Union[None, Optimizer] = None
         self._optimize_weights: Union[None, Callable] = None
     
@@ -103,6 +107,7 @@ class Layer(ABC):
         
         assert isinstance(learning_rate, float)
         assert (learning_rate > 0) and (learning_rate < 1)
+        self._learning_rate = learning_rate
         
         # ------------------------------------------------------------------- #
         
@@ -172,6 +177,69 @@ class Layer(ABC):
         assert isinstance(output_gradient, np.ndarray)
         assert len(output_gradient.shape) == 2
         check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
+    
+    def _pickle(self) -> bytes:
+        """
+        Returns the pickled/serialized version (i.e. a byte representation)
+        of the current Layer instance
+        """
+        variables_of_current_layer = self.__dict__.copy()
+        
+        # the `_optimizer` and `_optimize_weights` variables aren't
+        # pickleable/serializable
+        variables_of_current_layer.pop("_optimizer")
+        variables_of_current_layer.pop("_optimize_weights")
+        
+        pickled_layer = dumps(variables_of_current_layer)
+        assert isinstance(pickled_layer, bytes)
+        assert len(pickled_layer) > 0
+        
+        return pickled_layer
+    
+    @classmethod
+    def _load(cls, pickled_layer: bytes) -> Layer:
+        """
+        Loads (a copy of) the current Layer instance, directly from the
+        specified `pickled_layer` argument. This method is the inverse of the
+        `Layer._pickle` method
+        """
+        assert isinstance(pickled_layer, bytes)
+        assert len(pickled_layer) > 0
+        
+        loaded_layer_as_dict = loads(pickled_layer)
+        assert isinstance(loaded_layer_as_dict, dict)
+        assert len(loaded_layer_as_dict) > 0
+        
+        # initializing the loaded layer
+        loaded_layer = cls.__new__(cls)
+        
+        for variable_name, variable in loaded_layer_as_dict.items():
+            assert isinstance(variable_name, str)
+            setattr(loaded_layer, variable_name, variable)
+        
+        # setting the `_optimizer` and `_optimize_weights` variables
+        optimizer_name = loaded_layer.optimizer_name
+        learning_rate  = loaded_layer._learning_rate
+        if learning_rate is not None:
+            loaded_layer.set_optimizer(optimizer_name, learning_rate=learning_rate)
+        else:
+            assert optimizer_name is None
+            loaded_layer._optimizer = None
+            loaded_layer._optimize_weights = None
+        
+        return loaded_layer
+    
+    def copy(self) -> Layer:
+        """
+        Returns a copy of the current Layer instance
+        """
+        layer_copy = self.__class__._load(self._pickle())
+        
+        assert type(layer_copy) == type(self)
+        assert sorted(list(layer_copy.__dict__.keys())) == sorted(list(self.__dict__.keys()))
+        assert layer_copy is not self
+        
+        return layer_copy
 
 
 ##############################################################################
@@ -252,6 +320,7 @@ class DenseLayer(Layer):
             self,
             nb_neurons: int,
             *,
+            use_biases: bool = True,
             seed: Optional[int] = None
         ) -> None:
         
@@ -260,6 +329,9 @@ class DenseLayer(Layer):
         assert isinstance(nb_neurons, int)
         assert nb_neurons >= 2
         self.output_size: int = nb_neurons
+        
+        assert isinstance(use_biases, bool)
+        self.use_biases = use_biases
         
         assert isinstance(seed, (type(None), int))
         if seed is not None:
@@ -274,7 +346,11 @@ class DenseLayer(Layer):
         self.biases:  Union[None, np.ndarray] = None
     
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({self.output_size})"
+        if not(self.use_biases):
+            extra_info = ", use_biases=False"
+        else:
+            extra_info = ""
+        return f"{self.__class__.__name__}({self.output_size}{extra_info})"
     
     def build(self, input_size: int) -> None:
         """
@@ -288,7 +364,7 @@ class DenseLayer(Layer):
         
         # ------------------------------------------------------------------ #
         
-        # Using the "He initialization" (mostly because it works well with
+        # Using the "He initialization" (primarily because it works well with
         # ReLU-like activations)
         
         initial_var = cast(2, utils.DEFAULT_DATATYPE) / cast(self.input_size, utils.DEFAULT_DATATYPE)
@@ -297,14 +373,19 @@ class DenseLayer(Layer):
         
         np.random.seed(self.seed)
         self.weights = initial_std * np.random.randn(self.input_size, self.output_size).astype(utils.DEFAULT_DATATYPE)
-        self.biases  = initial_std * np.random.randn(1, self.output_size).astype(utils.DEFAULT_DATATYPE)
+        if self.use_biases:
+            self.biases = initial_std * np.random.randn(1, self.output_size).astype(utils.DEFAULT_DATATYPE)
         np.random.seed(None) # resetting the seed
         
         # ------------------------------------------------------------------ #
         
-        # = self.input_size * self.output_size + self.output_size
-        # = (self.input_size + 1) * self.output_size
-        self.nb_trainable_params = int(self.weights.size + self.biases.size) # we want it to be an `int`, not a `np.int_`
+        if self.use_biases:
+            # = self.input_size * self.output_size + self.output_size
+            # = (self.input_size + 1) * self.output_size
+            self.nb_trainable_params = int(self.weights.size + self.biases.size) # we want it to be an `int`, not a `np.int_`
+        else:
+            # = self.input_size * self.output_size
+            self.nb_trainable_params = int(self.weights.size) # we want it to be an `int`, not a `np.int_`
     
     def forward_propagation(
             self,
@@ -325,7 +406,10 @@ class DenseLayer(Layer):
             self._validate_forward_propagation_inputs(input_data, training)
         self.input  = input_data
         
-        self.output = self.input @ self.weights + self.biases
+        if self.use_biases:
+            self.output = self.input @ self.weights + self.biases
+        else:
+            self.output = self.input @ self.weights
         
         if enable_checks:
             check_dtype(self.output, utils.DEFAULT_DATATYPE)
@@ -357,15 +441,23 @@ class DenseLayer(Layer):
         averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
         
         # gradient averaging for batch processing
-        weights_gradient = averaging_factor * self.input.T @ output_gradient # = dE/dW
-        biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)    # = dE/dB
+        weights_gradient = averaging_factor * self.input.T @ output_gradient  # = dE/dW
+        if self.use_biases:
+            biases_gradient = np.mean(output_gradient, axis=0, keepdims=True) # = dE/dB
         
         # updating the trainable parameters
-        self.weights, self.biases = self._optimize_weights(
-            weights=(self.weights, self.biases),
-            weight_gradients=(weights_gradient, biases_gradient),
-            enable_checks=enable_checks
-        )
+        if self.use_biases:
+            self.weights, self.biases = self._optimize_weights(
+                weights=(self.weights, self.biases),
+                weight_gradients=(weights_gradient, biases_gradient),
+                enable_checks=enable_checks
+            )
+        else:
+            self.weights, = self._optimize_weights(
+                weights=(self.weights,),
+                weight_gradients=(weights_gradient,),
+                enable_checks=enable_checks
+            )
         
         return input_gradient
 
@@ -403,8 +495,7 @@ class ActivationLayer(Layer):
         
         self.activation_name: str = activation_name
         activations: tuple[Callable, Callable] = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
-        self.activation:       Callable = activations[0]
-        self.activation_prime: Callable = activations[1]
+        self.activation, self.activation_prime = activations
         
         self.activation_kwargs: dict[str, float] = {}
         if self.activation_name == "leaky_relu":
@@ -495,7 +586,7 @@ class ActivationLayer(Layer):
             """
             The previous code block is completely equivalent to the following line :
             
-            input_gradient = (output_gradient.reshape(batch_size, 1, output_gradient.shape[1]) @ activation_prime_of_input).reshape(output_gradient.shape)
+            input_gradient = (output_gradient.reshape((batch_size, 1, output_gradient.shape[1])) @ activation_prime_of_input).reshape(output_gradient.shape)
             
             --> Basically, we're using 3D matrix multiplication tricks to make
                 the computations a bit more compact !

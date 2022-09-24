@@ -416,7 +416,11 @@ def main():
     
     # Here, if you don't specify the `learning_rate` kwarg, the learning rate
     # will be automatically set to 0.001
-    network.set_optimizer(optimizer_name, learning_rate=learning_rate)
+    network.set_optimizer(
+        optimizer_name,
+        learning_rate=learning_rate,
+        verbose=True
+    )
     
     # ---------------------------------------------------------------------- #
     
@@ -428,7 +432,7 @@ def main():
     # The loss function name is case insensitive
     loss_function_name = "CCE"
     
-    network.set_loss_function(loss_function_name)
+    network.set_loss_function(loss_function_name, verbose=True)
     
     # ---------------------------------------------------------------------- #
     
@@ -487,6 +491,8 @@ def main():
     
     # Training phase
     
+    # ---------------------------------------------------------------------- #
+    
     # NB : If you set the `enable_checks` kwarg to `False` (to slightly speed
     #      up the training), please first make sure your network runs a couple
     #      of epochs without errors when the same kwarg is set to `True` !
@@ -503,6 +509,27 @@ def main():
         enable_checks=True
     )
     
+    # ---------------------------------------------------------------------- #
+    
+    # Saving the network to the disk (if requested)
+    
+    # By default, if the network is saved, it will be saved in the
+    # `saved_networks` folder as a Gunzip file (i.e. as a ".gz" file)
+    
+    save_network_to_disk = False
+    
+    if save_network_to_disk:
+        network_filename = "network"
+        network.save(network_filename)
+        
+        # Here, the saved network is reloaded and tested just for debugging purposes
+        
+        loaded_network = Network.load_network_from_disk(network_filename)
+        test_accuracy_of_loaded_network = loaded_network.evaluate(X_test, y_test)[0]
+        
+        precision_accuracy = 2 # by default
+        print(f"\nTest accuracy of the loaded network : {test_accuracy_of_loaded_network:.{precision_accuracy}f} %\n")
+    
     # ====================================================================== #
     
     # RESULTS
@@ -511,7 +538,8 @@ def main():
     
     # Plotting the network's history
     
-    # If the plot is saved, it will be saved as a PNG image (by default)
+    # By default, if the plot is saved, it will be saved in the `saved_plots`
+    # folder as a PNG image
     network.plot_history(
         save_plot_to_disk=False,
         saved_image_name="network_history"

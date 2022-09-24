@@ -916,10 +916,13 @@ def _validate_hash_of_downloaded_data(
     # computing the hash value of the specified data
     
     hasher = sha256()
-    chunk_size = 65535 # for example
+    chunk_size = 65536 # for example
     
     with open(path_of_downloaded_data, "rb") as DOWNLOADED_DATA:
-        for chunk in iter(lambda: DOWNLOADED_DATA.read(chunk_size), b""):
+        while True:
+            chunk = DOWNLOADED_DATA.read(chunk_size)
+            if chunk == b"":
+                break
             hasher.update(chunk)
     
     computed_hash = hasher.hexdigest()

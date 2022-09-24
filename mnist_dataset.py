@@ -31,7 +31,7 @@ from core import train_test_split
 ##############################################################################
 
 
-def _download_raw_MNIST_dataset() -> None:
+def _download_raw_MNIST_dataset() -> str:
     r"""
     Automatically downloads the raw MNIST data (as a single file), and saves
     it to the following location on your disk :
@@ -99,7 +99,8 @@ def _download_raw_MNIST_dataset() -> None:
     
     # ---------------------------------------------------------------------- #
     
-    # actually downloading the raw MNIST data
+    # actually downloading the raw MNIST data (if it doesn't already exist
+    # on your disk)
     
     _download_data(
         data_URL,
