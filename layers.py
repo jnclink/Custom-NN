@@ -54,15 +54,27 @@ class Layer(ABC):
     }
     
     def __init__(self) -> None:
+        # the name of the current Layer instance will be given once it is
+        # actually added to the network (using the `Network.add` method of
+        # the "network.py" script)
+        self.name: Union[None, str] = None
+        
         self.input:  Union[None, np.ndarray] = None
         self.output: Union[None, np.ndarray] = None
         
         self.nb_trainable_params: Union[None, int] = None
         
+        # these variables will be set by the `Layer.set_optimizer` method
         self.optimizer_name: Union[None, str] = None
         self._learning_rate: Union[None, float] = None
         self._optimizer: Union[None, Optimizer] = None
         self._optimize_weights: Union[None, Callable] = None
+        
+        # If this boolean is set to `True`, then all the trainable and
+        # non-trainable parameters of the current Layer instance will be
+        # frozen. This feature can be used for Transfer Learning purposes
+        # (for example)
+        self._is_frozen: bool = False
     
     def __str__(self) -> str:
         # default string representation of the layer classes (most of the
@@ -178,6 +190,15 @@ class Layer(ABC):
         assert len(output_gradient.shape) == 2
         check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
     
+    def freeze(self) -> None:
+        """
+        Freezes the trainable and non-trainable parameters of the current
+        Layer instance (if it has any)
+        
+        This method can be used for Transfer Learning purposes for example
+        """
+        self._is_frozen = True
+    
     def _pickle(self) -> bytes:
         """
         Returns the pickled/serialized version (i.e. a byte representation)
@@ -221,6 +242,7 @@ class Layer(ABC):
         optimizer_name = loaded_layer.optimizer_name
         learning_rate  = loaded_layer._learning_rate
         if learning_rate is not None:
+            assert optimizer_name is not None
             loaded_layer.set_optimizer(optimizer_name, learning_rate=learning_rate)
         else:
             assert optimizer_name is None
@@ -299,7 +321,6 @@ class InputLayer(Layer):
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            self._check_if_optimizer_is_set()
             self._validate_backward_propagation_input(output_gradient)
         
         input_gradient = output_gradient
@@ -346,10 +367,12 @@ class DenseLayer(Layer):
         self.biases:  Union[None, np.ndarray] = None
     
     def __str__(self) -> str:
+        extra_info = ""
         if not(self.use_biases):
-            extra_info = ", use_biases=False"
-        else:
-            extra_info = ""
+            extra_info += ", use_biases=False"
+        if self._is_frozen:
+            extra_info += ", is_frozen=True"
+        
         return f"{self.__class__.__name__}({self.output_size}{extra_info})"
     
     def build(self, input_size: int) -> None:
@@ -437,27 +460,28 @@ class DenseLayer(Layer):
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
-        batch_size = output_gradient.shape[0]
-        averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
-        
-        # gradient averaging for batch processing
-        weights_gradient = averaging_factor * self.input.T @ output_gradient  # = dE/dW
-        if self.use_biases:
-            biases_gradient = np.mean(output_gradient, axis=0, keepdims=True) # = dE/dB
-        
-        # updating the trainable parameters
-        if self.use_biases:
-            self.weights, self.biases = self._optimize_weights(
-                weights=(self.weights, self.biases),
-                weight_gradients=(weights_gradient, biases_gradient),
-                enable_checks=enable_checks
-            )
-        else:
-            self.weights, = self._optimize_weights(
-                weights=(self.weights,),
-                weight_gradients=(weights_gradient,),
-                enable_checks=enable_checks
-            )
+        if not(self._is_frozen):
+            batch_size = output_gradient.shape[0]
+            averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
+            
+            # gradient averaging for batch processing
+            weights_gradient = averaging_factor * self.input.T @ output_gradient  # = dE/dW
+            if self.use_biases:
+                biases_gradient = np.mean(output_gradient, axis=0, keepdims=True) # = dE/dB
+            
+            # updating the trainable parameters
+            if self.use_biases:
+                self.weights, self.biases = self._optimize_weights(
+                    weights=(self.weights, self.biases),
+                    weight_gradients=(weights_gradient, biases_gradient),
+                    enable_checks=enable_checks
+                )
+            else:
+                self.weights, = self._optimize_weights(
+                    weights=(self.weights,),
+                    weight_gradients=(weights_gradient,),
+                    enable_checks=enable_checks
+                )
         
         return input_gradient
 
@@ -515,12 +539,12 @@ class ActivationLayer(Layer):
         self.nb_trainable_params: int = 0
     
     def __str__(self) -> str:
+        extra_info = ""
         if self.activation_name == "leaky_relu":
             leaky_ReLU_coeff = self.activation_kwargs["leaky_ReLU_coeff"]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
-            extra_info = f", {leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
-        else:
-            extra_info = ""
+            extra_info += f", coeff={leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
+        
         return f"{self.__class__.__name__}(\"{self.activation_name}\"{extra_info})"
     
     def forward_propagation(
@@ -563,7 +587,6 @@ class ActivationLayer(Layer):
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            self._check_if_optimizer_is_set()
             self._validate_backward_propagation_input(output_gradient)
         
         activation_prime_of_input = self.activation_prime(
@@ -638,6 +661,13 @@ class BatchNormLayer(Layer):
         self.input_std:        Union[None, np.ndarray] = None
         self.normalized_input: Union[None, np.ndarray] = None
     
+    def __str__(self) -> str:
+        extra_info = ""
+        if self._is_frozen:
+            extra_info += "is_frozen=True"
+        
+        return f"{self.__class__.__name__}({extra_info})"
+    
     def forward_propagation(
             self,
             input_data: np.ndarray,
@@ -657,7 +687,7 @@ class BatchNormLayer(Layer):
             self._validate_forward_propagation_inputs(input_data, training)
         self.input = input_data
         
-        if training:
+        if training and not(self._is_frozen):
             input_mean = self.input.mean(axis=1, keepdims=True)
             centered_input = self.input - input_mean
             input_variance = self.input.var(axis=1, keepdims=True)
@@ -719,16 +749,17 @@ class BatchNormLayer(Layer):
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
-        # gradient averaging for batch processing
-        gamma_gradient = np.mean(np.sum(output_gradient * self.normalized_input, axis=1))
-        beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
-        
-        # updating the trainable parameters
-        self.gamma, self.beta = self._optimize_weights(
-            weights=(self.gamma, self.beta),
-            weight_gradients=(gamma_gradient, beta_gradient),
-            enable_checks=enable_checks
-        )
+        if not(self._is_frozen):
+            # gradient averaging for batch processing
+            gamma_gradient = np.mean(np.sum(output_gradient * self.normalized_input, axis=1))
+            beta_gradient  = np.mean(np.sum(output_gradient, axis=1))
+            
+            # updating the trainable parameters
+            self.gamma, self.beta = self._optimize_weights(
+                weights=(self.gamma, self.beta),
+                weight_gradients=(gamma_gradient, beta_gradient),
+                enable_checks=enable_checks
+            )
         
         return input_gradient
 
@@ -772,8 +803,12 @@ class DropoutLayer(Layer):
         self.dropout_matrix: Union[None, np.ndarray] = None
     
     def __str__(self) -> str:
+        extra_info = ""
+        if self._is_frozen:
+            extra_info += ", is_frozen=True"
+        
         precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
-        return f"{self.__class__.__name__}({self.dropout_rate:.{precision_dropout_rate}f})"
+        return f"{self.__class__.__name__}({self.dropout_rate:.{precision_dropout_rate}f}{extra_info})"
     
     def generate_random_dropout_matrix(
             self,
@@ -841,7 +876,7 @@ class DropoutLayer(Layer):
             self._validate_forward_propagation_inputs(input_data, training)
         self.input = input_data
         
-        if training:
+        if training and not(self._is_frozen):
             # NB : The dropout matrix is randomly re-generated from scratch
             #      every time the forwarding method is called (during the
             #      training phase)
@@ -872,10 +907,12 @@ class DropoutLayer(Layer):
         assert isinstance(enable_checks, bool)
         
         if enable_checks:
-            self._check_if_optimizer_is_set()
             self._validate_backward_propagation_input(output_gradient)
         
-        input_gradient = output_gradient * self.dropout_matrix
+        if not(self._is_frozen):
+            input_gradient = output_gradient * self.dropout_matrix
+        else:
+            input_gradient = output_gradient
         
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)

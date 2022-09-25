@@ -77,13 +77,13 @@ class Network:
     
     # Defining the class variables
     
-    AVAILABLE_LAYER_TYPES: dict[str, Layer] = {
-        "InputLayer"      : InputLayer,
-        "DenseLayer"      : DenseLayer,
-        "ActivationLayer" : ActivationLayer,
-        "BatchNormLayer"  : BatchNormLayer,
-        "DropoutLayer"    : DropoutLayer
-    }
+    AVAILABLE_LAYER_TYPES: tuple[Layer] = (
+        InputLayer,
+        DenseLayer,
+        ActivationLayer,
+        BatchNormLayer,
+        DropoutLayer
+    )
     
     AVAILABLE_LOSSES: dict[str, tuple[Callable, Callable]] = {
         "cce" : (CCE, CCE_prime), # CCE = Categorical Cross-Entropy
@@ -103,13 +103,23 @@ class Network:
         ) -> None:
         
         assert isinstance(standardize_input_data, bool)
-        self.__standardize_input_data: bool = standardize_input_data
+        self._standardize_input_data: bool = standardize_input_data
         
         self._layers: list[Layer] = []
         
         # list containing the input/output sizes of all the layers of the
         # network (it's a list of tuples of 2 integers)
         self._io_sizes: list[tuple[int, int]] = []
+        
+        # this dictionary keeps track of the number of layer instances that
+        # have already been added to the network (regarding each layer type)
+        self._layer_counter: dict[str, int] = {}
+        
+        # initializing `_layer_counter`
+        for layer_type in Network.AVAILABLE_LAYER_TYPES:
+            layer_name = layer_type.__name__
+            self._layer_counter[layer_name] = 0
+        self._layer_counter["REUSED"] = 0 # for reused layers (e.g. for Transfer Learning purposes)
         
         self.loss_name: Union[None, str] = None
         self._loss: Union[None, Callable] = None
@@ -127,8 +137,8 @@ class Network:
             return f"{self.__class__.__name__}()"
         
         # using the default summary kwargs (except for `print_summary`, which
-        # has to be set to `False` here, in order to return a string, and not
-        # a `NoneType`)
+        # has to be set to `False` here, in order to actually return a string,
+        # and not a `NoneType`)
         return self.summary(print_summary=False)
     
     
@@ -146,9 +156,8 @@ class Network:
         
         assert issubclass(type(layer), Layer)
         
-        available_layer_types = tuple(Network.AVAILABLE_LAYER_TYPES.values())
-        if not(isinstance(layer, available_layer_types)):
-            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\" (available layer types : {list_to_string(available_layer_types)})")
+        if not(isinstance(layer, Network.AVAILABLE_LAYER_TYPES)):
+            raise TypeError(f"Network.add - Unrecognized layer type : \"{layer.__class__.__name__}\" (available layer types : {list_to_string(Network.AVAILABLE_LAYER_TYPES)})")
         
         # ------------------------------------------------------------------ #
         
@@ -161,16 +170,54 @@ class Network:
             assert len(self._layers) >= 1, f"\nNetwork.add - Please add an InputLayer to the network before adding a \"{layer.__class__.__name__}\" !"
             input_size  = self._io_sizes[-1][1] # output size of the previous layer
         
-        layer.build(input_size)
+        # in case a Layer instance is added to the network multiple times
+        # (as some kind of "template")
+        used_layer = layer.copy()
         
-        if hasattr(layer, "output_size"):
+        used_layer.build(input_size)
+        
+        if hasattr(used_layer, "output_size"):
             # so far, only the Dense layer has an `output_size` attribute
-            output_size = layer.output_size
+            output_size = used_layer.output_size
         else:
             output_size = input_size
         
-        self._layers.append(layer)
+        # setting the name of the currently added layer
+        layer_name = used_layer.__class__.__name__
+        layer_name_abbreviation = layer_name.lower().replace("layer", "")
+        if used_layer.name is None:
+            self._layer_counter[layer_name] += 1
+            layer_index = self._layer_counter[layer_name]
+            full_name_of_layer = f"{layer_name_abbreviation}_{layer_index}"
+        else:
+            # here, that means that we've (most likely) reused a layer from
+            # another Network instance (e.g. for Transfer Learning purposes)
+            self._layer_counter["REUSED"] += 1
+            reused_layer_index = self._layer_counter["REUSED"]
+            full_name_of_layer = f"{layer_name_abbreviation}_reused_{reused_layer_index}"
+        used_layer.name = full_name_of_layer
+        
+        # actually updating the layers and the associated input/output sizes
+        self._layers.append(used_layer)
         self._io_sizes.append((input_size, output_size))
+    
+    
+    def get_layer_by_name(self, layer_name: str) -> Layer:
+        """
+        Returns a copy of the layer that has the specified layer name
+        (e.g. "dense_1")
+        """
+        # checking the specified layer name
+        assert isinstance(layer_name, str)
+        assert len(layer_name.strip()) > 0
+        layer_name = layer_name.strip().lower().replace("layer", "").replace(" ", "_")
+        
+        for layer in self._layers:
+            assert layer.name is not None
+            if layer_name == layer.name:
+                return layer.copy()
+        
+        raise Exception(f"Network.get_layer_by_name - The specified layer name (= \"{layer_name}\") doesn't exist !")
     
     
     def _get_total_nb_of_trainable_params(self) -> int:
@@ -202,7 +249,8 @@ class Network:
         # order in which the data is listed MATTERS (when defining this dictionary),
         # since the columns of the printed summary will be in the SAME order !
         summary_data = {
-            "layer_types"      : ["Layer"],
+            "layer_names"      : ["Layer name"],
+            "layer_types"      : ["Layer type"],
             "input_shapes"     : ["Input shape"],
             "output_shapes"    : ["Output shape"],
             "trainable_params" : ["Trainable parameters"]
@@ -214,6 +262,9 @@ class Network:
             # -------------------------------------------------------------- #
             
             # retrieving the summary data related to the current layer
+            
+            layer_name = layer.name
+            assert isinstance(layer_name, str)
             
             layer_type = str(layer).replace("Layer", "")
             
@@ -231,6 +282,7 @@ class Network:
             
             # updating the summary data
             
+            summary_data["layer_names"].append(layer_name)
             summary_data["layer_types"].append(layer_type)
             summary_data["input_shapes"].append(input_shape)
             summary_data["output_shapes"].append(output_shape)
@@ -765,7 +817,7 @@ class Network:
         
         # standardizing the input training and/or validation data (if requested)
         
-        if self.__standardize_input_data:
+        if self._standardize_input_data:
             used_X_train = standardize_data(used_X_train)
             if _has_validation_data:
                 used_X_val = standardize_data(used_X_val)
@@ -1296,7 +1348,7 @@ class Network:
         
         # potentially normalizing/standardizing the input testing data
         
-        if self.__standardize_input_data:
+        if self._standardize_input_data:
             used_X_test = standardize_data(used_X_test)
         
         # ------------------------------------------------------------------ #
@@ -1769,14 +1821,30 @@ class Network:
             loaded_network._loss = None
             loaded_network._loss_prime = None
         
+        # ------------------------------------------------------------------ #
+        
         # re-building the layers of the network
+        
         actual_layers = []
+        
         pickled_layers = loaded_network._layers
+        
         for layer_name, pickled_layer in pickled_layers:
-            layer_class = cls.AVAILABLE_LAYER_TYPES[layer_name]
+            # getting the associated layer class from the list of available
+            # layer types
+            layer_class = None
+            for layer_type in cls.AVAILABLE_LAYER_TYPES:
+                if layer_name == layer_type.__name__:
+                    layer_class = layer_type
+                    break
+            assert layer_class is not None
+            
             layer = layer_class._load(pickled_layer)
             actual_layers.append(layer)
+        
         loaded_network._layers = actual_layers
+        
+        # ------------------------------------------------------------------ #
         
         # setting the optimizer of (all the layers of) the loaded network
         optimizer_name = loaded_network.optimizer_name

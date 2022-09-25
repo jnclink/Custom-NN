@@ -528,7 +528,7 @@ def main():
         test_accuracy_of_loaded_network = loaded_network.evaluate(X_test, y_test)[0]
         
         precision_accuracy = 2 # by default
-        print(f"\nTest accuracy of the loaded network : {test_accuracy_of_loaded_network:.{precision_accuracy}f} %\n")
+        print(f"\nTesting accuracy of the loaded network : {test_accuracy_of_loaded_network:.{precision_accuracy}f} %\n")
     
     # ====================================================================== #
     
