@@ -25,21 +25,52 @@ Language used : **Python**
 ## Improvements of the original repo
 
 - At the very beginning of the main script (`main.py`), you can **select the type of the data** that will flow through the network. For now, the only available datatypes are `float32` (default) and `float64`. Typically, compared to `float64` data, `float32` data will naturally make the computations a little less accurate, but they will be done faster and use less RAM and/or CPU !
+
 - At the very beginning of the main script, you can also, if you want, **select a specific subset of class indices to work with**. For instance, if you only want to work with the class indices `2`, `4` and `7` (and not with all the class indices ranging from `0` to `9` for example), then all you need to do is set the variable `selected_classes` to the list `[2, 4, 7]` (in the main script) !
+
 - **[<ins>Specific to the MNIST dataset</ins>]** Automated the creation of the (formatted) training, validation and testing sets by only specifying their respective number of samples at the beginning of the main script. Those 3 sets will have a **uniform class distribution**. In particular, if **all** the classes are selected, then those 3 sets will have (roughly) the **same class distribution** as the initial raw MNIST data (since the latter also has a uniform class distribution) !
+
 - Added a **validation step** at each epoch. Even though this step is **optional**, it's highly recommended !
+
 - Added **batch processing** for the training, validation *and* testing phases ! Note that, for the validation and testing phases, the batch size will *not* affect the resulting losses and accuracies. Therefore, for those 2 phases, you might want to put the maximum batch size your CPU can handle, in order to speed up the computations (`val_batch_size` and `test_batch_size` are set to `32` by default in the main script). The batch size also doesn't have to perfectly divide the number of samples of the data that is going to be split into batches ! In addition, in order to save memory during training, the (training) batches are created using a **generator function** (this is also done during testing)
+
 - The input data can be normalized such that each (input) sample has a mean of `0` and a standard deviation of `1` (i.e. the data can be **standardized**). This feature is enabled when you instantiate the `Network` class with the `standardize_input_data` kwarg set to `True` (which is done by default)
+
 - The weights and biases of the Dense layers are now initialized using the [He initialization](https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/#:~:text=The%20he%20initialization%20method%20is,of%20inputs%20to%20the%20node.)
-- Added the **Categorical Cross-Entropy** (CCE) loss function (in addition to the **Mean Squared Error**, or "MSE")
-- Added the **ReLU**, **leaky ReLU**, **softmax** and **sigmoid** activation functions (in addition to the hyperbolic tangent, or **tanh**)
+
+- Added the **Categorical Cross-Entropy** (CCE) loss function (in addition to the **Mean Squared Error** loss function, or "MSE")
+
+- Added the **ReLU**, **leaky ReLU**, **softmax** and **sigmoid** activation functions (in addition to the hyperbolic tangent activation function, or **tanh**)
+
 - Added the **Input**, **BatchNorm** and **Dropout** layers (in addition to the **Dense** and **Activation** layers)
-- Added the **Adam** and **RMSprop** optimizers (in addition to the **Stochastic Gradient Descent**, or "SGD")
+
+- Added the **Adam** and **RMSprop** optimizers (in addition to the **Stochastic Gradient Descent** optimizer, or "SGD")
+
 - Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous layer to add a new Dense layer ! Also, for the Activation layers, you can now simply input the name of the loss function (which is a string) instead of inputting the functions `activation` and `activation_prime` !
+
+- There are now **two ways of building the network's architecture** : one using the **`Network.add` method**, and one using the **`__call__` API**. Simply speaking, the `__call__` API allows you to build a network using code that is similar to the following code block :
+
+  `input_layer = InputLayer(input_size=784)`
+
+  `x = input_layer`
+
+  `x = DenseLayer(64)(x)`
+
+  `x = ActivationLayer("relu")(x)`
+
+  `x = DenseLayer(10)(x)`
+
+  `x = ActivationLayer("softmax")(x)`
+
+  `output_layer = x`
+
+  `network = Network()(input_layer, output_layer)`
+
+- Layers can now be **frozen** (if requested), using the `Layer.freeze` method. If a layer is frozen, then all its trainable and non-trainable parameters will be frozen (if it has any). This feature can be used for **Transfer Learning** purposes for instance (FYI, to retrieve a copy of a layer from a Network instance, you can simply call the `Network.get_layer_by_name` method)
 - Added an **"early stopping" callback**
 - The detailed summary of the network's architecture can now be visualized right after the network is built
-- The detailed history of the network's training phase is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot if requested (the plot will be saved in the `saved_plots` folder by default)
-- The network can also be **saved to the disk**, even if it's not trained (the network will be saved in the `saved_networks` folder by default)
+- The detailed history of the network's training phase is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot to the disk if requested (the plot will be saved in the `saved_plots` folder by default)
+- The network can also be **saved to the disk**, even if it's not trained. The network will be saved in the `saved_networks` folder by default
 - The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct and false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
 - For testing purposes, you can also plot some predictions of the network (after it's trained) !
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script

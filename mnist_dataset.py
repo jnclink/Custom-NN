@@ -169,7 +169,7 @@ def load_raw_MNIST_dataset_from_disk(
     # hasn't already been done
     path_of_downloaded_data = _download_raw_MNIST_dataset()
     
-    t_beginning_loading = perf_counter()
+    t_beginning_data_loading = perf_counter()
     
     # actually loading the raw MNIST data from the disk
     with np.load(path_of_downloaded_data, allow_pickle=True) as RAW_MNIST_DATA:
@@ -186,8 +186,8 @@ def load_raw_MNIST_dataset_from_disk(
         raw_y_test
     )
     
-    t_end_loading = perf_counter()
-    duration_loading = t_end_loading - t_beginning_loading
+    t_end_data_loading = perf_counter()
+    duration_data_loading = t_end_data_loading - t_beginning_data_loading
     
     # ---------------------------------------------------------------------- #
     
@@ -221,7 +221,7 @@ def load_raw_MNIST_dataset_from_disk(
             precision=2
         )
     
-    print(f"\nThe raw MNIST dataset was successfully loaded from the disk. Done in {duration_loading:.3f} seconds")
+    print(f"\nThe raw MNIST dataset was successfully loaded from the disk. Done in {duration_data_loading:.3f} seconds")
     
     return raw_X_train, raw_y_train, raw_X_test, raw_y_test
 
@@ -395,7 +395,7 @@ def format_raw_MNIST_dataset(
     
     # ====================================================================== #
     
-    t_beginning_formatting = perf_counter()
+    t_beginning_data_formatting = perf_counter()
     
     # ====================================================================== #
     
@@ -625,8 +625,8 @@ def format_raw_MNIST_dataset(
     
     # ====================================================================== #
     
-    t_end_formatting = perf_counter()
-    duration_formatting = t_end_formatting - t_beginning_formatting
+    t_end_data_formatting = perf_counter()
+    duration_data_formatting = t_end_data_formatting - t_beginning_data_formatting
     
     # ====================================================================== #
     
@@ -692,7 +692,7 @@ def format_raw_MNIST_dataset(
         # by design
         X_val, y_val = None, None
     
-    print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_formatting:.3f} seconds")
+    print(f"\nThe raw MNIST dataset was successfully formatted. Done in {duration_data_formatting:.3f} seconds")
     
     return X_train, y_train, X_val, y_val, X_test, y_test
 

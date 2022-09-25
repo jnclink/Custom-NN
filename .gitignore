@@ -1,6 +1,6 @@
 # ----------------------------------------------------------------------- #
 
-# Python-related folders/files
+# Python-related folders and files
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -161,7 +161,7 @@ cython_debug/
 
 # ----------------------------------------------------------------------- #
 
-# Project-related folders/files
+# Project-related folders and files
 
 # Folder that will contain the plots related to your network's history
 # (if you specifically requested to save those plots)

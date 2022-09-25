@@ -331,14 +331,20 @@ def main():
     
     seed = seed_network
     
+    # Creating the "main ActivationLayer template"
+    main_activation_layer = ActivationLayer(main_activation_name, **main_activation_kwargs)
+    
+    # Creating the "BatchNormLayer template"
+    batch_norm_layer = BatchNormLayer()
+    
     for nb_neurons in nb_neurons_in_hidden_dense_layers:
         network.add(DenseLayer(nb_neurons, seed=seed))
         
         if use_batch_norm_layers:
             # Adding a BatchNorm regularization layer (if requested)
-            network.add(BatchNormLayer())
+            network.add(batch_norm_layer)
         
-        network.add(ActivationLayer(main_activation_name, **main_activation_kwargs))
+        network.add(main_activation_layer)
         
         if use_dropout_layers:
             # Adding a Dropout regularization layer (if requested)
@@ -359,6 +365,50 @@ def main():
     
     network.add(DenseLayer(nb_classes, seed=seed))
     network.add(ActivationLayer(output_activation_name))
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Here would be the equivalent code to build the network, but using
+    # the `__call__` API instead :
+    
+    use_call_API = False
+    
+    if use_call_API:
+        # Input Layer
+        input_layer = InputLayer(input_size=nb_features_per_sample)
+        x = input_layer # Renaming the input layer for convenience purposes
+        
+        # Creating the "main ActivationLayer template"
+        main_activation_layer = ActivationLayer(main_activation_name, **main_activation_kwargs)
+        
+        # Creating the "BatchNormLayer template"
+        batch_norm_layer = BatchNormLayer()
+        
+        # Hidden layers
+        
+        seed = seed_network
+        
+        for nb_neurons in nb_neurons_in_hidden_dense_layers:
+            x = DenseLayer(nb_neurons, seed=seed)(x)
+            
+            if use_batch_norm_layers:
+                x = batch_norm_layer(x)
+            
+            x = main_activation_layer(x)
+            
+            if use_dropout_layers:
+                x = DropoutLayer(dropout_rate, seed=seed)(x)
+            
+            if seed is not None:
+                seed += 1
+        
+        # Output layers
+        x = DenseLayer(nb_classes, seed=seed)(x)
+        x = ActivationLayer(output_activation_name)(x)
+        output_layer = x # Renaming the output layer for convenience purposes
+        
+        # Building the network using the `__call__` API
+        network = Network()(input_layer, output_layer)
     
     # ---------------------------------------------------------------------- #
     

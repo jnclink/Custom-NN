@@ -5,7 +5,7 @@ Script defining some miscellaneous useful functions
 """
 
 import os
-from time import perf_counter
+from time import perf_counter, time
 from urllib.request import urlretrieve
 from hashlib import sha256
 from typing import Union, Optional
@@ -37,7 +37,7 @@ from colorama import init, Back, Style
 
 
 # Defining the datatype of ALL the data that will flow through the network
-# (i.e. we're defining the "global datatype")
+# (i.e. we're defining the "global datatype"), along with its resolution
 
 DEFAULT_DATATYPE = "float32"                             # = "float32" or "float64"
 DTYPE_RESOLUTION = np.finfo(DEFAULT_DATATYPE).resolution # = 1e-06 or 1e-15 (respectively)
@@ -274,6 +274,16 @@ def list_to_string(L: list) -> str:
             str_L += " and " + str_element
     
     return str_L
+
+
+ID = int(time()) # global variable, will only be initialized *once*
+def generate_unique_ID() -> int:
+    """
+    Generates a unique identifier (as an integer)
+    """
+    global ID
+    ID += 1
+    return ID
 
 
 def clear_currently_printed_row(*, max_size_of_row: int = 150) -> None:

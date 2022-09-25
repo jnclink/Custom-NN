@@ -29,6 +29,7 @@ from utils import (
     vector_to_categorical,
     categorical_to_vector,
     list_to_string,
+    generate_unique_ID,
     clear_currently_printed_row,
     progress_bar,
     is_being_run_on_jupyter_notebook,
@@ -130,6 +131,8 @@ class Network:
         
         self.history: Union[None, dict[str, list]] = None
         self._is_trained: bool = False
+        
+        self._unique_ID: int = generate_unique_ID()
     
     
     def __str__(self) -> str:
@@ -200,6 +203,70 @@ class Network:
         # actually updating the layers and the associated input/output sizes
         self._layers.append(used_layer)
         self._io_sizes.append((input_size, output_size))
+    
+    
+    def __call__(
+            self,
+            input_layer:  Layer,
+            output_layer: Layer
+        ) -> Network:
+        """
+        Builds the layers of the current Network instance using the `__call__`
+        API. For example :
+        
+        input_layer = InputLayer(input_size=784)
+        x = input_layer
+        x = DenseLayer(64)(x)
+        x = ActivationLayer("relu")(x)
+        x = DenseLayer(10)(x)
+        x = ActivationLayer("softmax")(x)
+        output_layer = x
+        
+        network = Network()(input_layer, output_layer)
+        """
+        # ------------------------------------------------------------------ #
+        
+        # checking the validity of the specified arguments
+        
+        assert issubclass(type(input_layer),  Layer)
+        assert issubclass(type(output_layer), Layer)
+        
+        # ------------------------------------------------------------------ #
+        
+        layers = Layer.TEMPORARY_NETWORK_LAYERS
+        
+        # the Network instance needs at least an input and an output layer
+        assert len(layers) >= 2
+        
+        input_layer_ID  = input_layer._unique_ID
+        output_layer_ID = output_layer._unique_ID
+        assert input_layer_ID != output_layer_ID
+        
+        index_of_input_layer  = None
+        index_of_output_layer = None
+        
+        # retrieving the indices of the specified input and output layers
+        # (relative to the `layers` list)
+        for layer_index, layer in enumerate(layers):
+            layer_ID = layer._unique_ID
+            
+            if layer_ID == input_layer_ID:
+                index_of_input_layer = layer_index
+            elif layer_ID == output_layer_ID:
+                index_of_output_layer = layer_index
+        
+        assert index_of_input_layer is not None
+        assert index_of_output_layer is not None
+        assert index_of_output_layer > index_of_input_layer
+        
+        # adding the layers of interest to the current Network instance
+        for layer_index in range(index_of_input_layer, index_of_output_layer + 1):
+            layer = layers[layer_index]
+            self.add(layer)
+        
+        Layer.clear_temporary_network_layers()
+        
+        return self
     
     
     def get_layer_by_name(self, layer_name: str) -> Layer:
@@ -1856,6 +1923,8 @@ class Network:
                 learning_rate=learning_rate,
                 verbose=False
             )
+        
+        loaded_network._unique_ID = generate_unique_ID()
         
         return loaded_network
     

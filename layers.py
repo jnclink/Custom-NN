@@ -17,6 +17,7 @@ from utils import (
     cast,
     check_dtype,
     list_to_string,
+    generate_unique_ID,
     count_nb_decimals_places,
     _validate_numpy_dtype,
     _validate_leaky_ReLU_coeff
@@ -46,12 +47,20 @@ class Layer(ABC):
     Base (abstract) layer class
     """
     
-    # class variable
+    # ---------------------------------------------------------------------- #
+    
+    # Defining the class variables
+    
     AVAILABLE_OPTIMIZERS: dict[str, Optimizer] = {
         "sgd"     : SgdOptimizer,
         "adam"    : AdamOptimizer,
         "rmsprop" : RMSpropOptimizer
     }
+    
+    # used for the `__call__` API
+    TEMPORARY_NETWORK_LAYERS: list[Layer] = []
+    
+    # ---------------------------------------------------------------------- #
     
     def __init__(self) -> None:
         # the name of the current Layer instance will be given once it is
@@ -75,6 +84,8 @@ class Layer(ABC):
         # frozen. This feature can be used for Transfer Learning purposes
         # (for example)
         self._is_frozen: bool = False
+        
+        self._unique_ID: int = generate_unique_ID()
     
     def __str__(self) -> str:
         # default string representation of the layer classes (most of the
@@ -83,6 +94,37 @@ class Layer(ABC):
     
     def __repr__(self) -> str:
         return str(self)
+    
+    def __call__(self, layer: Layer) -> Layer:
+        """
+        Adds the current Layer instance (i.e. `self`) to the list of layers
+        that will be used to build the network's architecture using the
+        `__call__` API (i.e. `Layer.TEMPORARY_NETWORK_LAYERS`)
+        
+        See the `Network.__call__` method (of the "network.py" script) for a
+        concrete example
+        """
+        assert issubclass(type(layer), Layer)
+        
+        if len(Layer.TEMPORARY_NETWORK_LAYERS) == 0:
+            Layer.TEMPORARY_NETWORK_LAYERS.append(layer)
+        
+        copy_of_current_layer_instance = self.copy()
+        Layer.TEMPORARY_NETWORK_LAYERS.append(copy_of_current_layer_instance)
+        
+        # the returned copy has to be the *same* as the one that was just
+        # stored in the `Layer.TEMPORARY_NETWORK_LAYERS` list (just in case
+        # it's the output layer)
+        return copy_of_current_layer_instance
+    
+    @staticmethod
+    def clear_temporary_network_layers() -> None:
+        """
+        Simply sets `Layer.TEMPORARY_NETWORK_LAYERS` to the empty list.
+        This method is only called by the `Network.__call__` method (of the
+        "network.py" script)
+        """
+        Layer.TEMPORARY_NETWORK_LAYERS = []
     
     def build(self, input_size: int) -> None:
         """
@@ -248,6 +290,8 @@ class Layer(ABC):
             assert optimizer_name is None
             loaded_layer._optimizer = None
             loaded_layer._optimize_weights = None
+        
+        loaded_layer._unique_ID = generate_unique_ID()
         
         return loaded_layer
     
