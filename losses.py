@@ -4,6 +4,8 @@
 Script defining some loss functions (and their derivatives)
 """
 
+from __future__ import annotations
+
 import numpy as np
 
 import utils

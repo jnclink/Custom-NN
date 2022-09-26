@@ -4,6 +4,8 @@
 Script defining some optimizers that can be used during the training loop
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Union
 

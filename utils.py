@@ -4,6 +4,8 @@
 Script defining some miscellaneous useful functions
 """
 
+from __future__ import annotations
+
 import os
 from time import perf_counter, time
 from urllib.request import urlretrieve

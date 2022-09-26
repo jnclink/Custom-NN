@@ -90,7 +90,7 @@ Language used : **Python**
 
 ## Requirements
 
-<ins>Python version</ins> : has to be greater than or equal to **`3.6`**
+<ins>Python version</ins> : has to be greater than or equal to **`3.7`**
 
 Run : `pip install -r requirements.txt`
 

@@ -4,6 +4,8 @@
 Script containing some core functions of the project
 """
 
+from __future__ import annotations
+
 from typing import Union, Optional, Iterator
 
 import numpy as np
