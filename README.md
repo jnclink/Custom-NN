@@ -1,5 +1,5 @@
-<center><h1>Custom-MLP</h1></center>
-<center><h3>Implementing a Multi-Layer Perceptron (MLP) from scratch</h3></center>
+<center><h1>Custom-NN</h1></center>
+<center><h3>Implementing a neural network from scratch using Python</h3></center>
 <center><h4><i>NumPy is all you need</i></h4></center>
 
 <br/>
@@ -12,9 +12,9 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 ## Description
 
-The main purpose of this repo is to experiment with a [Multi-Layer Perceptron (MLP)](https://en.wikipedia.org/wiki/Multilayer_perceptron) made **from scratch**, almost only using the **NumPy** module.
+Main purpose of this repo : Experiment with a neural network made **from scratch**, almost only using the **NumPy** module
 
-Main task of the MLP network : **Data classification**
+Main task of the neural network : **Data classification**
 
 Default dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database) (it can easily be replaced by another dataset ; see one of the following sections)
 
@@ -74,7 +74,7 @@ Language used : **Python**
 - The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct and false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
 - For testing purposes, you can also plot some predictions of the network (after it's trained) !
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script
-- Globally speaking, the main script is written such that you can tweak a <ins>**maximum**</ins> amount of parameters related to the MLP you want to build !
+- Globally speaking, the main script is written such that you can tweak a <ins>**maximum**</ins> amount of parameters related to the neural network you want to build !
 
 <br/>
 
@@ -96,7 +96,7 @@ Run : `pip install -r requirements.txt`
 
 <br/>
 
-## Run the MLP
+## Run the neural network
 
 Run the main Python script : `python main.py`
 

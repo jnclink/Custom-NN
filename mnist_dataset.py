@@ -35,8 +35,8 @@ def _download_raw_MNIST_dataset() -> str:
     r"""
     Automatically downloads the raw MNIST data (as a single file), and saves
     it to the following location on your disk :
-        - on Windows : "C:\Users\YourUsername\.Custom-MLP\datasets\MNIST\raw_MNIST_data.npz"
-        - on Linux   : "/home/YourUsername/.Custom-MLP/datasets/MNIST/raw_MNIST_data.npz"
+        - on Windows : "C:\Users\YourUsername\.Custom-NN\datasets\MNIST\raw_MNIST_data.npz"
+        - on Linux   : "/home/YourUsername/.Custom-NN/datasets/MNIST/raw_MNIST_data.npz"
     
     This function is basically a wrapper of the `_download_data` function of
     the "utils.py" script
@@ -75,7 +75,7 @@ def _download_raw_MNIST_dataset() -> str:
     # doesn't already exist)
     default_data_directory = os.path.join(
         os.path.expanduser("~"),
-        ".Custom-MLP",
+        ".Custom-NN",
         "datasets",
         "MNIST"
     )

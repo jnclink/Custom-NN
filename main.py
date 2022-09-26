@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Script debugging the whole custom Multi-Layer Perceptron (MLP) implementation
+Script debugging the whole custom neural network implementation
 """
 
 from utils import (
@@ -210,7 +210,7 @@ def main():
     
     # ====================================================================== #
     
-    # Defining the hyperparameters of the MLP's architecture
+    # Defining the hyperparameters of the network's architecture
     
     # ---------------------------------------------------------------------- #
     
@@ -305,7 +305,7 @@ def main():
     
     # ====================================================================== #
     
-    # Building the MLP network architecture from the previously defined
+    # Building the network's architecture from the previously defined
     # hyperparameters
     
     # ---------------------------------------------------------------------- #
