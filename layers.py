@@ -431,8 +431,8 @@ class DenseLayer(Layer):
         
         # ------------------------------------------------------------------ #
         
-        # Using the "He initialization" (primarily because it works well with
-        # ReLU-like activations)
+        # Using the "He initialization" for the weights (primarily because
+        # it works well with ReLU-like activations)
         
         initial_var = cast(2, utils.DEFAULT_DATATYPE) / cast(self.input_size, utils.DEFAULT_DATATYPE)
         initial_std = np.sqrt(initial_var)
@@ -440,9 +440,14 @@ class DenseLayer(Layer):
         
         np.random.seed(self.seed)
         self.weights = initial_std * np.random.randn(self.input_size, self.output_size).astype(utils.DEFAULT_DATATYPE)
-        if self.use_biases:
-            self.biases = initial_std * np.random.randn(1, self.output_size).astype(utils.DEFAULT_DATATYPE)
         np.random.seed(None) # resetting the seed
+        
+        # ------------------------------------------------------------------ #
+        
+        # Initializing all the biases to zero
+        
+        if self.use_biases:
+            self.biases = np.zeros((1, self.output_size), dtype=utils.DEFAULT_DATATYPE)
         
         # ------------------------------------------------------------------ #
         

@@ -36,7 +36,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 - The input data can be normalized such that each (input) sample has a mean of `0` and a standard deviation of `1` (i.e. the data can be **standardized**). This feature is enabled when you instantiate the `Network` class with the `standardize_input_data` kwarg set to `True` (which is done by default)
 
-- The weights and biases of the Dense layers are now initialized using the [He initialization](https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/#:~:text=The%20he%20initialization%20method%20is,of%20inputs%20to%20the%20node.)
+- The weights of the Dense layers are now initialized using the [He initialization](https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/#:~:text=The%20he%20initialization%20method%20is,of%20inputs%20to%20the%20node.) (whereas all the biases are initialized to zero)
 
 - Added the **Categorical Cross-Entropy** (CCE) loss function (in addition to the **Mean Squared Error** loss function, or "MSE")
 
