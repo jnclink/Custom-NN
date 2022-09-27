@@ -157,7 +157,7 @@ class Layer(ABC):
         optimizer_name = optimizer_name.strip().lower()
         
         if optimizer_name not in Layer.AVAILABLE_OPTIMIZERS:
-            raise Exception(f"{self.__class__.__name__}.set_optimizer - Unrecognized optimizer name : \"{optimizer_name}\" (available optimizer names : {list_to_string(list(Layer.AVAILABLE_OPTIMIZERS))})")
+            raise ValueError(f"{self.__class__.__name__}.set_optimizer - Unrecognized optimizer name : \"{optimizer_name}\" (available optimizer names : {list_to_string(list(Layer.AVAILABLE_OPTIMIZERS))})")
         
         assert isinstance(learning_rate, float)
         assert (learning_rate > 0) and (learning_rate < 1)
@@ -547,6 +547,7 @@ class ActivationLayer(Layer):
     AVAILABLE_ACTIVATIONS: dict[str, tuple[Callable, Callable]] = {
         "relu"       : (ReLU,       ReLU_prime),
         "leaky_relu" : (leaky_ReLU, leaky_ReLU_prime),
+        "prelu"      : (leaky_ReLU, leaky_ReLU_prime),
         "tanh"       : (tanh,       tanh_prime),
         "softmax"    : (softmax,    softmax_prime),
         "sigmoid"    : (sigmoid,    sigmoid_prime)
@@ -568,7 +569,7 @@ class ActivationLayer(Layer):
         
         self.activation_name: str = activation_name
         activations: tuple[Callable, Callable] = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
-        self.activation, self.activation_prime = activations
+        self._activation, self._activation_prime = activations
         
         self.activation_kwargs: dict[str, float] = {}
         if self.activation_name == "leaky_relu":
@@ -585,7 +586,21 @@ class ActivationLayer(Layer):
         #      an actual matrix multiplication (cf. the `backward_propagation` method)
         self._is_softmax: bool = (self.activation_name == "softmax")
         
-        self.nb_trainable_params: int = 0
+        # The Parameterized ReLU activation (or "PReLU") is basically a leaky
+        # ReLU activation where the "leaky ReLU coefficient" is unbounded,
+        # and is a trainable parameter
+        self._is_prelu: bool = (self.activation_name == "prelu")
+        
+        if self._is_prelu:
+            # By default, the only trainable parameter of the PReLU activation
+            # layer (i.e. `self.coeff`) will be initialized to zero. It can
+            # be interpreted as some  kind of "unbounded leaky ReLU coefficient
+            # varying over time"
+            self.coeff: Union[None, float] = cast(0, utils.DEFAULT_DATATYPE)
+            self.nb_trainable_params: int = 1
+        else:
+            self.coeff: Union[None, float] = None
+            self.nb_trainable_params: int = 0
     
     def __str__(self) -> str:
         extra_info = ""
@@ -593,6 +608,8 @@ class ActivationLayer(Layer):
             leaky_ReLU_coeff = self.activation_kwargs["leaky_ReLU_coeff"]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
             extra_info += f", coeff={leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
+        elif self._is_prelu and self._is_frozen:
+            extra_info += ", is_frozen=True"
         
         return f"{self.__class__.__name__}(\"{self.activation_name}\"{extra_info})"
     
@@ -612,12 +629,15 @@ class ActivationLayer(Layer):
         
         if enable_checks:
             self._validate_forward_propagation_inputs(input_data, training)
-        self.input  = input_data
+        self.input = input_data
         
-        self.output = self.activation(
+        if self._is_prelu:
+            self.activation_kwargs["leaky_ReLU_coeff"] = self.coeff
+        
+        self.output = self._activation(
             self.input,
             **self.activation_kwargs,
-            enable_checks=enable_checks
+            enable_checks=False
         )
         
         if enable_checks:
@@ -637,16 +657,29 @@ class ActivationLayer(Layer):
         
         if enable_checks:
             self._validate_backward_propagation_input(output_gradient)
+            
+            if self._is_prelu:
+                assert np.allclose(self.activation_kwargs["leaky_ReLU_coeff"], self.coeff)
         
-        activation_prime_of_input = self.activation_prime(
+        activation_prime_of_input = self._activation_prime(
             self.input,
             **self.activation_kwargs,
-            enable_checks=enable_checks
+            enable_checks=False
         )
         
         if not(self._is_softmax):
             # element-wise multiplication
             input_gradient = output_gradient * activation_prime_of_input
+            
+            if self._is_prelu and not(self._is_frozen):
+                coeff_gradient = np.sum(output_gradient * np.minimum(self.input, 0))
+                
+                # updating the (only) trainable parameter of the PReLU layer
+                self.coeff, = self._optimize_weights(
+                    weights=(self.coeff,),
+                    weight_gradients=(coeff_gradient,),
+                    enable_checks=enable_checks
+                )
         else:
             batch_size = output_gradient.shape[0]
             

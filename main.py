@@ -253,12 +253,13 @@ def main():
         32
     ]
     
-    # Defining the name of the main activation function. Relevant choices here :
+    # Defining the name of the main activation function (case insensitive).
+    # Relevant choices here :
     #     - "ReLU"
     #     - "leaky_ReLU"
+    #     - "PReLU"
     #     - "tanh"
     #     - "sigmoid"
-    # The main activation name is case insensitive
     main_activation_name = "ReLU"
     
     # Defining the "leaky ReLU coefficient" (default value : 0.01). It has to
@@ -270,10 +271,10 @@ def main():
         "leaky_ReLU_coeff" : 0.01
     }
     
-    # Defining the name of the output activation function. Relevant choices here :
+    # Defining the name of the output activation function (case insensitive).
+    # Relevant choices here :
     #     - "softmax"
-    #     - "sigmoid"
-    # The output activation name is case insensitive
+    #     - "sigmoid" (you might have to tweak the learning rate a bit to make it work)
     output_activation_name = "softmax"
     
     # ---------------------------------------------------------------------- #
@@ -453,16 +454,16 @@ def main():
     
     # Optimizer
     
-    # Defining the name of the weight optimization algorithm. Relevant
-    # choices here :
+    # Defining the name of the weight optimization algorithm (case insensitive).
+    # Relevant choices here :
     #     - "SGD" (Stochastic Gradient Descent)
     #     - "Adam"
     #     - "RMSprop"
-    # The optimizer name is case insensitive
+    optimizer_name = "RMSprop"
+    
     # NB : For the "SGD" optimizer, the value of the learning rate usually
     #      needs to be a bit higher than for the "Adam" and "RMSprop"
     #      optimizers (in order to converge)
-    optimizer_name = "RMSprop"
     
     # Here, if you don't specify the `learning_rate` kwarg, the learning rate
     # will be automatically set to 0.001
@@ -476,10 +477,10 @@ def main():
     
     # Loss function
     
-    # Defining the name of the loss function. Relevant choices here :
+    # Defining the name of the loss function (case insensitive). Relevant
+    # choices here :
     #     - "CCE" (Categorical Cross-Entropy)
     #     - "MSE" (Mean Squared Error)
-    # The loss function name is case insensitive
     loss_function_name = "CCE"
     
     network.set_loss_function(loss_function_name, verbose=True)

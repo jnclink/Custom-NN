@@ -284,7 +284,7 @@ class Network:
             if layer_name == layer._name:
                 return layer.copy()
         
-        raise Exception(f"Network.get_layer_by_name - The specified layer name (= \"{layer_name}\") doesn't exist !")
+        raise ValueError(f"Network.get_layer_by_name - The specified layer name (= \"{layer_name}\") doesn't exist !")
     
     
     def _get_total_nb_of_trainable_params(self) -> int:
@@ -690,7 +690,7 @@ class Network:
         # checking `input_size_of_network`
         assert isinstance(input_size_of_network, (type(None), int))
         if (input_size_of_network is not None) and (input_size_of_network != nb_features_per_sample):
-            raise Exception(f"Network._validate_data - The input size of the network (= {input_size_of_network}) doesn't match the number of features per sample in the specified `X` (= {nb_features_per_sample}) !")
+            raise ValueError(f"Network._validate_data - The input size of the network (= {input_size_of_network}) doesn't match the number of features per sample in the specified `X` (= {nb_features_per_sample}) !")
         
         # ------------------------------------------------------------------ #
         
@@ -729,7 +729,7 @@ class Network:
             # checking `output_size_of_network`
             assert isinstance(output_size_of_network, (type(None), int))
             if (output_size_of_network is not None) and (output_size_of_network != nb_classes):
-                raise Exception(f"Network._validate_data - The output size of the network (= {output_size_of_network}) doesn't match the number of classes in the specified `y` (= {nb_classes}) !")
+                raise ValueError(f"Network._validate_data - The output size of the network (= {output_size_of_network}) doesn't match the number of classes in the specified `y` (= {nb_classes}) !")
             
             return used_X, y_categorical, y_flat
         
@@ -1253,7 +1253,7 @@ class Network:
             saved_image_name = " ".join(saved_image_name.split())
             
             if os.path.sep in saved_image_name:
-                raise Exception("Network.plot_history - Please don't add sub-folder info to the specified `saved_image_name` kwarg ! Just type in the basename of the saved plot")
+                raise ValueError("Network.plot_history - Please don't add sub-folder info to the specified `saved_image_name` kwarg ! Just type in the basename of the saved plot")
         
         # ------------------------------------------------------------------ #
         
@@ -1962,7 +1962,7 @@ class Network:
         filename = " ".join(filename.split())
         
         if os.path.sep in filename:
-            raise Exception("Network.save - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that will contain the saved network")
+            raise ValueError("Network.save - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that will contain the saved network")
         
         # ------------------------------------------------------------------ #
         
@@ -2018,7 +2018,7 @@ class Network:
         filename = " ".join(filename.split())
         
         if os.path.sep in filename:
-            raise Exception("Network.load_network_from_disk - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that contains the saved network")
+            raise ValueError("Network.load_network_from_disk - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that contains the saved network")
         
         # ------------------------------------------------------------------ #
         

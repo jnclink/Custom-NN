@@ -173,7 +173,6 @@ def cast(
         # here, `x` is a vector/matrix
         cast_x = x.astype(dtype)
     
-    check_dtype(cast_x, dtype)
     return cast_x
 
 

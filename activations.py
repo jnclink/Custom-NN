@@ -92,10 +92,10 @@ def leaky_ReLU(
     if enable_checks:
         _validate_activation_input(x)
         leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
-    else:
+    elif isinstance(leaky_ReLU_coeff, float):
         leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
     
-    leaky_ReLU_output = np.maximum(x, leaky_ReLU_coeff * x)
+    leaky_ReLU_output = np.maximum(x, 0) + leaky_ReLU_coeff * np.minimum(x, 0)
     
     if enable_checks:
         check_dtype(leaky_ReLU_output, utils.DEFAULT_DATATYPE)
@@ -119,7 +119,7 @@ def leaky_ReLU_prime(
     if enable_checks:
         _validate_activation_input(x)
         leaky_ReLU_coeff = _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
-    else:
+    elif isinstance(leaky_ReLU_coeff, float):
         leaky_ReLU_coeff = cast(leaky_ReLU_coeff, utils.DEFAULT_DATATYPE)
     
     leaky_ReLU_prime_output = np.ones(x.shape, dtype=x.dtype)
