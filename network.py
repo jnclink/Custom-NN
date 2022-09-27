@@ -375,7 +375,7 @@ class Network:
             offset_spacing: int = 1
         ) -> Union[None, str]:
         """
-        Returns the summary of the network's architecture
+        Prints the summary of the network's architecture
         """
         # ------------------------------------------------------------------ #
         
