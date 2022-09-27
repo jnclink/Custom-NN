@@ -63,11 +63,6 @@ class Layer(ABC):
     # ---------------------------------------------------------------------- #
     
     def __init__(self) -> None:
-        # the name of the current Layer instance will be given once it is
-        # actually added to the network (using the `Network.add` method of
-        # the "network.py" script)
-        self.name: Union[None, str] = None
-        
         self.input:  Union[None, np.ndarray] = None
         self.output: Union[None, np.ndarray] = None
         
@@ -84,6 +79,11 @@ class Layer(ABC):
         # frozen. This feature can be used for Transfer Learning purposes
         # (for example)
         self._is_frozen: bool = False
+        
+        # the name of the current Layer instance will be given once it is
+        # actually added to the network (using the `Network.add` method of
+        # the "network.py" script)
+        self._name: Union[None, str] = None
         
         self._unique_ID: int = generate_unique_ID()
     

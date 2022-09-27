@@ -188,7 +188,7 @@ class Network:
         # setting the name of the currently added layer
         layer_name = used_layer.__class__.__name__
         layer_name_abbreviation = layer_name.lower().replace("layer", "")
-        if used_layer.name is None:
+        if used_layer._name is None:
             self._layer_counter[layer_name] += 1
             layer_index = self._layer_counter[layer_name]
             full_name_of_layer = f"{layer_name_abbreviation}_{layer_index}"
@@ -198,7 +198,7 @@ class Network:
             self._layer_counter["REUSED"] += 1
             reused_layer_index = self._layer_counter["REUSED"]
             full_name_of_layer = f"{layer_name_abbreviation}_reused_{reused_layer_index}"
-        used_layer.name = full_name_of_layer
+        used_layer._name = full_name_of_layer
         
         # actually updating the layers and the associated input/output sizes
         self._layers.append(used_layer)
@@ -280,8 +280,8 @@ class Network:
         layer_name = layer_name.strip().lower().replace("layer", "").replace(" ", "_")
         
         for layer in self._layers:
-            assert layer.name is not None
-            if layer_name == layer.name:
+            assert layer._name is not None
+            if layer_name == layer._name:
                 return layer.copy()
         
         raise Exception(f"Network.get_layer_by_name - The specified layer name (= \"{layer_name}\") doesn't exist !")
@@ -312,7 +312,7 @@ class Network:
         it is to align the columns of the summary !
         """
         
-        # Initializing the summary data (with the column titles). Note that the
+        # Initializing the summary data with the column titles. Note that the
         # order in which the data is listed MATTERS (when defining this dictionary),
         # since the columns of the printed summary will be in the SAME order !
         summary_data = {
@@ -330,7 +330,7 @@ class Network:
             
             # retrieving the summary data related to the current layer
             
-            layer_name = layer.name
+            layer_name = layer._name
             assert isinstance(layer_name, str)
             
             layer_type = str(layer).replace("Layer", "")
