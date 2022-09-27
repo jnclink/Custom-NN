@@ -6,19 +6,19 @@
 
 ## Original project
 
-This project is an improvement of [this GitHub repo](https://github.com/OmarAflak/Medium-Python-Neural-Network), made by Omar Aflak. I'm *really grateful* to have randomly stumbled upon [his post](https://towardsdatascience.com/math-neural-network-from-scratch-in-python-d6da9f29ce65) where he describes how to build basic neural networks from scratch in Python. It really pushed me to better understand the raw details of their implementation ! He also made [a YouTube video](https://www.youtube.com/watch?v=pauPCy_s0Ok) explaining his code, which was very informative and extremely well animated !
+This project is an improvement of [this GitHub repo](https://github.com/OmarAflak/Medium-Python-Neural-Network), made by Omar Aflak. I'm *really grateful* to have randomly stumbled upon [his post](https://towardsdatascience.com/math-neural-network-from-scratch-in-python-d6da9f29ce65) where he describes how to build basic neural networks from scratch in Python. It really pushed me to better understand the raw details of their implementation !
 
 <br/>
 
 ## Description
 
-Main purpose of this repo : Experiment with a neural network made **from scratch**, almost only using the **NumPy** module
+- <ins>Main purpose of this repo</ins> : Experiment with a neural network made **from scratch**, almost only using the **NumPy** module
 
-Main task of the neural network : **Data classification**
+- <ins>Main task of the neural network</ins> : **Data classification**
 
-Default dataset used : [MNIST](https://en.wikipedia.org/wiki/MNIST_database) (it can easily be replaced by another dataset ; see one of the following sections)
+- <ins>Default dataset used</ins> : [MNIST](https://en.wikipedia.org/wiki/MNIST_database) (it can easily be replaced by another dataset ; see one of the following sections)
 
-Language used : **Python**
+- <ins>Language used</ins> : **Python**
 
 <br/>
 
@@ -28,7 +28,7 @@ Language used : **Python**
 
 - At the very beginning of the main script, you can also, if you want, **select a specific subset of class indices to work with**. For instance, if you only want to work with the class indices `2`, `4` and `7` (and not with all the class indices ranging from `0` to `9` for example), then all you need to do is set the variable `selected_classes` to the list `[2, 4, 7]` (in the main script) !
 
-- **[<ins>Specific to the MNIST dataset</ins>]** Automated the creation of the (formatted) training, validation and testing sets by only specifying their respective number of samples at the beginning of the main script. Those 3 sets will have a **uniform class distribution**. In particular, if **all** the classes are selected, then those 3 sets will have (roughly) the **same class distribution** as the initial raw MNIST data (since the latter also has a uniform class distribution) !
+- **[<ins>Specific to the MNIST dataset</ins>]** Automated the creation of the (formatted) training, validation and testing sets by only specifying their respective number of samples at the beginning of the main script. Those 3 sets will have a **uniform class distribution**. In particular, if **all** the class indices are selected, then those 3 sets will have (roughly) the **same class distribution** as the initial raw MNIST data (since the latter also has a uniform class distribution) !
 
 - Added a **validation step** at each epoch. Even though this step is **optional**, it's highly recommended !
 
@@ -66,13 +66,13 @@ Language used : **Python**
 
   `network = Network()(input_layer, output_layer)`
 
-- Layers can now be **frozen** (if requested), using the `Layer.freeze` method. If a layer is frozen, then all its trainable and non-trainable parameters will be frozen (if it has any). This feature can be used for **Transfer Learning** purposes for instance (FYI, to retrieve a copy of a layer from a Network instance, you can simply call the `Network.get_layer_by_name` method)
+- Layers can now be **frozen** (if requested), using the `Layer.freeze` method. If a layer is frozen, then all its trainable *and* non-trainable parameters will be frozen (if it has any). This feature can be used for **Transfer Learning** purposes for instance. Also, FYI, to retrieve a copy of a layer from a Network instance, you can simply call the `Network.get_layer_by_name` method
 - Added an **"early stopping" callback**
-- The detailed summary of the network's architecture can now be visualized right after the network is built
-- The detailed history of the network's training phase is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot to the disk if requested (the plot will be saved in the `saved_plots` folder by default)
+- The detailed **summary of the network's architecture** can now be visualized right after the network is built
+- The detailed **history of the network's training phase** is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot to the disk if requested (the plot will be saved in the `saved_plots` folder by default)
 - The network can also be **saved to the disk**, even if it's not trained. The network will be saved in the `saved_networks` folder by default
-- The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct and false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
-- For testing purposes, you can also plot some predictions of the network (after it's trained) !
+- The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct *and* false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
+- For testing purposes, you can also **plot some predictions of the network** (after it's trained) !
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script
 - Globally speaking, the main script is written such that you can tweak a <ins>**maximum**</ins> amount of parameters related to the neural network you want to build !
 
