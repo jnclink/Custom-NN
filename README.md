@@ -40,7 +40,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 - Added the **Categorical Cross-Entropy** (CCE) loss function (in addition to the **Mean Squared Error** loss function, or "MSE")
 
-- Added the **ReLU**, **leaky ReLU**, **softmax** and **sigmoid** activation functions (in addition to the hyperbolic tangent activation function, or **tanh**)
+- Added the **ReLU**, **leaky ReLU**, **PReLU**, **softmax** and **sigmoid** activation functions (in addition to the hyperbolic tangent activation function, or **tanh**)
 
 - Added the **Input**, **BatchNorm** and **Dropout** layers (in addition to the **Dense** and **Activation** layers)
 
