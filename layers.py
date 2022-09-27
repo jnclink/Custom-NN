@@ -161,14 +161,14 @@ class Layer(ABC):
         
         assert isinstance(learning_rate, float)
         assert (learning_rate > 0) and (learning_rate < 1)
-        self._learning_rate = learning_rate
         
         # ------------------------------------------------------------------- #
         
         self.optimizer_name = optimizer_name
+        self._learning_rate = learning_rate
         
         optimizer_class = Layer.AVAILABLE_OPTIMIZERS[self.optimizer_name]
-        self._optimizer = optimizer_class(learning_rate)
+        self._optimizer = optimizer_class(self._learning_rate)
         
         self._optimize_weights = self._optimizer.optimize_weights
     
@@ -927,7 +927,7 @@ class DropoutLayer(Layer):
             self.dropout_matrix  = self.generate_random_dropout_matrix(
                 shape=self.input.shape,
                 dtype=self.input.dtype,
-                enable_checks=enable_checks
+                enable_checks=False
             )
             self.output =  self.input * self.dropout_matrix
         else:

@@ -253,11 +253,11 @@ def softmax_prime(
     
     if len(x.shape) == 1:
         softmax_output = softmax(x, enable_checks=False).reshape((1, x.size))
-        softmax_prime_output = np.diagflat(softmax_output) - softmax_output.T @ softmax_output
-        return softmax_prime_output
+        softmax_prime_output = np.diag(softmax_output[0]) - softmax_output.T @ softmax_output
     elif len(x.shape) == 2:
         batch_size, output_size = x.shape
         softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
+        
         for batch_sample_index in range(batch_size):
             x_sample = x[batch_sample_index, :]
             softmax_prime_output[batch_sample_index] = softmax_prime(x_sample, enable_checks=False)

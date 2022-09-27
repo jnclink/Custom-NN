@@ -159,6 +159,9 @@ cython_debug/
 # PyCharm
 .idea/
 
+# Profiling stats (for performance analysis)
+*.prof
+
 # ----------------------------------------------------------------------- #
 
 # Project-related folders and files
