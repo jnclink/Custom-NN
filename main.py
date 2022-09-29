@@ -25,6 +25,8 @@ from layers import (
     DropoutLayer
 )
 
+from regularizers import L1, L2, L1_L2
+
 from callbacks import EarlyStoppingCallback
 
 
@@ -274,8 +276,45 @@ def main():
     # Defining the name of the output activation function (case insensitive).
     # Relevant choices here :
     #     - "softmax"
-    #     - "sigmoid" (you might have to tweak the learning rate a bit to make it work)
+    #     - "log_softmax" (you might have to increase the learning rate a bit to make it work)
+    #     - "sigmoid"     (you also might have to increase the learning rate a bit to make it work)
     output_activation_name = "softmax"
+    
+    # ---------------------------------------------------------------------- #
+    
+    # L1 and L2 regularizers
+    
+    # The higher the L1/L2 coefficients, the higher the constraints will be
+    # on the (maximum absolute values of the elements of the) weights and
+    # biases of the Dense layers. The L1 and L2 regularizations are used to
+    # help prevent overfitting (without necessarily improving the overall
+    # accuracy of the network)
+    
+    use_L1_L2_regularizers = False
+    
+    if use_L1_L2_regularizers:
+        """
+        Usecases
+        --------
+        (L1_coeff != None) and (L2_coeff == None)  -->  L1(L1_coeff)
+        (L1_coeff == None) and (L2_coeff != None)  -->  L2(L2_coeff)
+        (L1_coeff != None) and (L2_coeff != None)  -->  L1_L2(L1_coeff, L2_coeff)
+        """
+        L1_coeff = None # has to lie in the range ]0, 1[ (if not `None`)
+        L2_coeff = 0.01 # has to lie in the range ]0, 1[ (if not `None`)
+        
+        if (L1_coeff is not None) and (L2_coeff is None):
+            regularizer = L1(L1_coeff)
+        elif (L1_coeff is None) and (L2_coeff is not None):
+            regularizer = L2(L2_coeff)
+        elif (L1_coeff is not None) and (L2_coeff is not None):
+            # Sidenote : If both `L1_coeff` and `L2_coeff` are equal, then,
+            # equivalently, you can call `L1_L2(L1_coeff)` or `L1_L2(L2_coeff)`
+            regularizer = L1_L2(L1_coeff, L2_coeff)
+        else:
+            raise ValueError("Please set a \"non-None\" value for `L1_coeff` and/or `L2_coeff`")
+    else:
+        regularizer = None
     
     # ---------------------------------------------------------------------- #
     
@@ -339,7 +378,12 @@ def main():
     batch_norm_layer = BatchNormLayer()
     
     for nb_neurons in nb_neurons_in_hidden_dense_layers:
-        network.add(DenseLayer(nb_neurons, seed=seed))
+        network.add(DenseLayer(
+            nb_neurons,
+            use_biases=True,
+            regularizer=regularizer,
+            seed=seed
+        ))
         
         if use_batch_norm_layers:
             # Adding a BatchNorm regularization layer (if requested)
@@ -355,16 +399,19 @@ def main():
             # Updating the seed such that the "randomness" in the added
             # Dense/Dropout layers is different each time (in case 2
             # consecutive values of `nb_neurons` are the same)
-            seed += 1
+            seed += 1 # The increment value is arbitrary
     
     # ---------------------------------------------------------------------- #
     
     # Output layers
     
-    if seed_network is not None:
-        assert seed == seed_network + len(nb_neurons_in_hidden_dense_layers)
+    network.add(DenseLayer(
+        nb_classes,
+        use_biases=True,
+        regularizer=regularizer,
+        seed=seed
+    ))
     
-    network.add(DenseLayer(nb_classes, seed=seed))
     network.add(ActivationLayer(output_activation_name))
     
     # ---------------------------------------------------------------------- #
@@ -390,7 +437,12 @@ def main():
         seed = seed_network
         
         for nb_neurons in nb_neurons_in_hidden_dense_layers:
-            x = DenseLayer(nb_neurons, seed=seed)(x)
+            x = DenseLayer(
+                    nb_neurons,
+                    use_biases=True,
+                    regularizer=regularizer,
+                    seed=seed
+            )(x)
             
             if use_batch_norm_layers:
                 x = batch_norm_layer(x)
@@ -401,10 +453,15 @@ def main():
                 x = DropoutLayer(dropout_rate, seed=seed)(x)
             
             if seed is not None:
-                seed += 1
+                seed += 1 # The increment value is arbitrary
         
         # Output layers
-        x = DenseLayer(nb_classes, seed=seed)(x)
+        x = DenseLayer(
+                nb_classes,
+                use_biases=True,
+                regularizer=regularizer,
+                seed=seed
+        )(x)
         x = ActivationLayer(output_activation_name)(x)
         output_layer = x # Renaming the output layer for convenience purposes
         

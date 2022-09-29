@@ -30,12 +30,15 @@ from optimizers import (
     RMSpropOptimizer
 )
 
+from regularizers import Regularizer
+
 from activations import (
-    ReLU,       ReLU_prime,
-    leaky_ReLU, leaky_ReLU_prime,
-    tanh,       tanh_prime,
-    softmax,    softmax_prime,
-    sigmoid,    sigmoid_prime
+    ReLU,        ReLU_prime,
+    leaky_ReLU,  leaky_ReLU_prime,
+    tanh,        tanh_prime,
+    softmax,     softmax_prime,
+    log_softmax, log_softmax_prime,
+    sigmoid,     sigmoid_prime
 )
 
 
@@ -73,6 +76,9 @@ class Layer(ABC):
         self._learning_rate: Union[None, float] = None
         self._optimizer: Union[None, Optimizer] = None
         self._optimize_weights: Union[None, Callable] = None
+        
+        # in case any regularizations are used on the weights of a layer
+        self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
         
         # If this boolean is set to `True`, then all the trainable and
         # non-trainable parameters of the current Layer instance will be
@@ -164,11 +170,17 @@ class Layer(ABC):
         
         # ------------------------------------------------------------------- #
         
+        if hasattr(self, "regularizer"):
+            # so far, only the Dense layers can have L1/L2 regularizers
+            regularizer = self.regularizer
+        else:
+            regularizer = None
+        
         self.optimizer_name = optimizer_name
         self._learning_rate = learning_rate
         
         optimizer_class = Layer.AVAILABLE_OPTIMIZERS[self.optimizer_name]
-        self._optimizer = optimizer_class(self._learning_rate)
+        self._optimizer = optimizer_class(self._learning_rate, regularizer=regularizer)
         
         self._optimize_weights = self._optimizer.optimize_weights
     
@@ -386,6 +398,7 @@ class DenseLayer(Layer):
             nb_neurons: int,
             *,
             use_biases: bool = True,
+            regularizer: Optional[Regularizer] = None,
             seed: Optional[int] = None
         ) -> None:
         
@@ -397,6 +410,23 @@ class DenseLayer(Layer):
         
         assert isinstance(use_biases, bool)
         self.use_biases = use_biases
+        
+        self._L1_coeff = None
+        self._L2_coeff = None
+        self._L2_scaling_factor = None
+        
+        assert isinstance(regularizer, (type(None), Regularizer))
+        self.regularizer = regularizer
+        
+        if regularizer is not None:
+            assert type(regularizer) != Regularizer
+            
+            if hasattr(regularizer, "L1_coeff"):
+                self._L1_coeff = cast(regularizer.L1_coeff, utils.DEFAULT_DATATYPE)
+            if hasattr(regularizer, "L2_coeff"):
+                self._L2_coeff = cast(regularizer.L2_coeff, utils.DEFAULT_DATATYPE)
+                self._L2_scaling_factor = self._L2_coeff / cast(2, utils.DEFAULT_DATATYPE)
+                check_dtype(self._L2_scaling_factor, utils.DEFAULT_DATATYPE)
         
         assert isinstance(seed, (type(None), int))
         if seed is not None:
@@ -531,6 +561,19 @@ class DenseLayer(Layer):
                     weight_gradients=(weights_gradient,),
                     enable_checks=enable_checks
                 )
+            
+            # resetting the "loss leftovers"
+            self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
+            
+            if self._L1_coeff is not None:
+                self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.weights))
+                if self.use_biases:
+                    self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.biases))
+            
+            if self._L2_coeff is not None:
+                self.loss_leftovers += self._L2_scaling_factor * np.sum(self.weights**2)
+                if self.use_biases:
+                    self.loss_leftovers += self._L2_scaling_factor * np.sum(self.biases**2)
         
         return input_gradient
 
@@ -545,12 +588,13 @@ class ActivationLayer(Layer):
     
     # class variable
     AVAILABLE_ACTIVATIONS: dict[str, tuple[Callable, Callable]] = {
-        "relu"       : (ReLU,       ReLU_prime),
-        "leaky_relu" : (leaky_ReLU, leaky_ReLU_prime),
-        "prelu"      : (leaky_ReLU, leaky_ReLU_prime),
-        "tanh"       : (tanh,       tanh_prime),
-        "softmax"    : (softmax,    softmax_prime),
-        "sigmoid"    : (sigmoid,    sigmoid_prime)
+        "relu"        : (ReLU,        ReLU_prime),
+        "leaky_relu"  : (leaky_ReLU,  leaky_ReLU_prime),
+        "prelu"       : (leaky_ReLU,  leaky_ReLU_prime),
+        "tanh"        : (tanh,        tanh_prime),
+        "softmax"     : (softmax,     softmax_prime),
+        "log_softmax" : (log_softmax, log_softmax_prime),
+        "sigmoid"     : (sigmoid,     sigmoid_prime)
     }
     
     def __init__(
@@ -571,20 +615,24 @@ class ActivationLayer(Layer):
         activations: tuple[Callable, Callable] = ActivationLayer.AVAILABLE_ACTIVATIONS[self.activation_name]
         self._activation, self._activation_prime = activations
         
+        # to prevent typos
+        self.leaky_ReLU_coeff_key: str = "leaky_ReLU_coeff"
+        
         self.activation_kwargs: dict[str, float] = {}
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
             
-            leaky_ReLU_coeff = kwargs.get("leaky_ReLU_coeff", default_leaky_ReLU_coeff)
+            leaky_ReLU_coeff = kwargs.get(self.leaky_ReLU_coeff_key, default_leaky_ReLU_coeff)
             _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
             
-            self.activation_kwargs["leaky_ReLU_coeff"] = leaky_ReLU_coeff
+            self.activation_kwargs[self.leaky_ReLU_coeff_key] = leaky_ReLU_coeff
         
         # NB : Since the softmax activation only applies to VECTORS (and not
         #      scalars), the backpropagation formula won't be the same as the other
         #      activations. Essentially, the element-wise multiplication becomes
-        #      an actual matrix multiplication (cf. the `backward_propagation` method)
-        self._is_softmax: bool = (self.activation_name == "softmax")
+        #      an actual matrix multiplication (cf. the `backward_propagation` method).
+        #      The same goes for the log-softmax activation
+        self._is_softmax: bool = (self.activation_name in ["softmax", "log_softmax"])
         
         # The Parameterized ReLU activation (or "PReLU") is basically a leaky
         # ReLU activation where the "leaky ReLU coefficient" is unbounded,
@@ -601,11 +649,16 @@ class ActivationLayer(Layer):
         else:
             self.coeff: Union[None, float] = None
             self.nb_trainable_params: int = 0
+        
+        if self.activation_name in ["tanh", "softmax", "log_softmax", "sigmoid"]:
+            self._reuse_activation_output_in_backprop: bool = True
+        else:
+            self._reuse_activation_output_in_backprop: bool = False
     
     def __str__(self) -> str:
         extra_info = ""
         if self.activation_name == "leaky_relu":
-            leaky_ReLU_coeff = self.activation_kwargs["leaky_ReLU_coeff"]
+            leaky_ReLU_coeff = self.activation_kwargs[self.leaky_ReLU_coeff_key]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
             extra_info += f", coeff={leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
         elif self._is_prelu and self._is_frozen:
@@ -632,7 +685,7 @@ class ActivationLayer(Layer):
         self.input = input_data
         
         if self._is_prelu:
-            self.activation_kwargs["leaky_ReLU_coeff"] = self.coeff
+            self.activation_kwargs[self.leaky_ReLU_coeff_key] = self.coeff
         
         self.output = self._activation(
             self.input,
@@ -659,11 +712,17 @@ class ActivationLayer(Layer):
             self._validate_backward_propagation_input(output_gradient)
             
             if self._is_prelu:
-                assert np.allclose(self.activation_kwargs["leaky_ReLU_coeff"], self.coeff)
+                assert np.allclose(self.activation_kwargs[self.leaky_ReLU_coeff_key], self.coeff)
+        
+        if self._reuse_activation_output_in_backprop:
+            used_input = self.output
+        else:
+            used_input = self.input
         
         activation_prime_of_input = self._activation_prime(
-            self.input,
+            used_input,
             **self.activation_kwargs,
+            input_is_activation_output=self._reuse_activation_output_in_backprop,
             enable_checks=False
         )
         
@@ -936,7 +995,7 @@ class DropoutLayer(Layer):
             # matrices aren't the same at each forward propagation (during the
             # training phase)
             if self.seed is not None:
-                self.seed += 55 # the chosen increment value is arbitrary
+                self.seed += 34 # the chosen increment value is arbitrary
         
         return dropout_matrix
     

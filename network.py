@@ -122,6 +122,8 @@ class Network:
             self._layer_counter[layer_name] = 0
         self._layer_counter["REUSED"] = 0 # for reused layers (e.g. for Transfer Learning purposes)
         
+        self._output_activation_is_log_softmax: bool = False
+        
         self.loss_name: Union[None, str] = None
         self._loss: Union[None, Callable] = None
         self._loss_prime: Union[None, Callable] = None
@@ -865,14 +867,22 @@ class Network:
         if len(self._layers) == 0:
             raise Exception("Network.fit - Please add layers to the network before training it !")
         
-        # checking if the very last layer of the network is a softmax or a
-        # sigmoid activation layer
+        ALLOWED_OUTPUT_ACTIVATIONS = [
+            "softmax",
+            "log_softmax",
+            "sigmoid"
+        ]
+        
+        # checking if the very last layer of the network is a softmax,
+        # log-softmax or a sigmoid activation layer
         try:
             last_layer = self._layers[-1]
             assert isinstance(last_layer, ActivationLayer)
-            assert last_layer.activation_name in ["softmax", "sigmoid"]
+            output_activation_name = last_layer.activation_name
+            assert output_activation_name in ALLOWED_OUTPUT_ACTIVATIONS
+            self._output_activation_is_log_softmax = (output_activation_name == "log_softmax")
         except:
-            raise Exception("Network.fit - The very last layer of the network must be a softmax or a sigmoid activation layer !")
+            raise Exception(f"Network.fit - The very last layer of the network must be one of the following activations : {list_to_string(ALLOWED_OUTPUT_ACTIVATIONS)}")
         
         if self.optimizer_name is None:
             raise Exception("Network.fit - Please set an optimizer before training the network !")
@@ -975,11 +985,30 @@ class Network:
         
         # ================================================================== #
         
+        # variables that will only be used if there is an "early stopping"
+        # callback or a KeyboardInterrupt exception during the training loop
+        
+        jupyter_notebook = is_being_run_on_jupyter_notebook()
+        
+        if not(jupyter_notebook):
+            printed_color = Fore.MAGENTA # by default
+            reset_color   = Style.RESET_ALL
+        else:
+            # printing colored text doesn't work in Jupyter notebooks
+            printed_color = ""
+            reset_color   = ""
+        
+        colored_message_format = f"\n{offset_spacing}{printed_color}" + "{}" + reset_color
+        
+        # ================================================================== #
+        
         t_beginning_training = perf_counter()
         
         # ================================================================== #
         
         # training loop
+        
+        _training_loop_was_prematurely_stopped = False
         
         print(transition)
         
@@ -990,204 +1019,231 @@ class Network:
         
         # `epoch_index` doesn't need to be zero-indexed here
         for epoch_index in range(1, nb_epochs + 1):
-            # for display purposes only
-            formatted_epoch_index = format(epoch_index, epoch_index_format)
-            epoch_header = f"\n{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs} :"
-            
-            print(epoch_header)
-            
-            if nb_shuffles_before_each_train_batch_split != 0:
-                # splitting the training data into batches (NB : here, `train_batches`
-                # is a generator)
-                train_batches = split_data_into_batches(
-                    used_X_train,
-                    train_batch_size,
-                    labels=used_y_train,
-                    is_generator=True,
-                    nb_shuffles=nb_shuffles_before_each_train_batch_split,
-                    seed=seed,
-                    enable_checks=enable_checks
-                )
-            else:
-                train_batches = zip(train_batches_data, train_batches_labels)
-            
-            if seed is not None:
-                # updating the seed in order to make the shuffling of the
-                # training data different at each epoch
-                seed += 1
-            
-            # initializing the training loss and accuracy
-            train_loss     = cast(0, utils.DEFAULT_DATATYPE)
-            train_accuracy = 0
-            
-            # initializing the index of the current batch of training data
-            train_batch_index = 0
-            
-            for X_train_batch, y_train_batch in train_batches:
-                # `train_batch_index` doesn't need to be zero-indexed here
-                train_batch_index += 1
-                assert train_batch_index <= nb_train_batches # necessary check
+            try:
+                # for display purposes only
+                formatted_epoch_index = format(epoch_index, epoch_index_format)
+                epoch_header = f"\n{offset_spacing}epoch {formatted_epoch_index}/{nb_epochs} :"
                 
-                # forward propagation
-                train_output = X_train_batch
-                for layer in self._layers:
-                    train_output = layer.forward_propagation(
-                        train_output,
-                        training=True,
+                print(epoch_header)
+                
+                if nb_shuffles_before_each_train_batch_split != 0:
+                    # splitting the training data into batches (NB : here, `train_batches`
+                    # is a generator)
+                    train_batches = split_data_into_batches(
+                        used_X_train,
+                        train_batch_size,
+                        labels=used_y_train,
+                        is_generator=True,
+                        nb_shuffles=nb_shuffles_before_each_train_batch_split,
+                        seed=seed,
                         enable_checks=enable_checks
                     )
+                else:
+                    train_batches = zip(train_batches_data, train_batches_labels)
                 
-                # updating the (raw) training loss
-                train_loss += np.sum(self._loss(
-                    y_train_batch,
-                    train_output,
-                    enable_checks=enable_checks
-                ))
+                if seed is not None:
+                    # updating the seed in order to make the shuffling of the
+                    # training data different at each epoch
+                    seed += 1 # the increment value is arbitrary
                 
-                # updating the (raw) training accuracy
-                train_accuracy += accuracy_score(
-                    categorical_to_vector(y_train_batch, enable_checks=enable_checks),
-                    categorical_to_vector(train_output,  enable_checks=enable_checks),
-                    normalize=False,
-                    enable_checks=enable_checks
-                )
+                # initializing the training loss and accuracy
+                train_loss     = cast(0, utils.DEFAULT_DATATYPE)
+                train_accuracy = 0
                 
-                # backward propagation
-                output_gradient = self._loss_prime(
-                    y_train_batch,
-                    train_output,
-                    enable_checks=enable_checks
-                )
-                for layer in reversed(self._layers):
-                    output_gradient = layer.backward_propagation(
-                        output_gradient,
-                        enable_checks=enable_checks
-                    )
+                # initializing the index of the current batch of training data
+                train_batch_index = 0
                 
-                if (train_batch_index % train_batch_index_update_step == 0) or (train_batch_index == 1) or (train_batch_index == nb_train_batches):
-                    # displaying the progress bar related to the number of
-                    # processed batches (within the current epoch)
+                for X_train_batch, y_train_batch in train_batches:
+                    # `train_batch_index` doesn't need to be zero-indexed here
+                    train_batch_index += 1
+                    assert train_batch_index <= nb_train_batches # necessary check
                     
-                    formatted_batch_index = format(train_batch_index, train_batch_index_format)
-                    
-                    current_progress_bar = progress_bar(
-                        train_batch_index,
-                        nb_train_batches,
-                        progress_bar_size=15, # by default
-                        enable_checks=False
-                    )
-                    
-                    train_batch_progress_row = f"{offset_spacing}{current_progress_bar} batch {formatted_batch_index}/{nb_train_batches}"
-                    
-                    clear_currently_printed_row()
-                    print(train_batch_progress_row, end="\r")
-            
-            # necessary check (to see if the correct number of batches were
-            # generated during the current epoch)
-            assert train_batch_index == nb_train_batches
-            
-            train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
-            check_dtype(train_loss, utils.DEFAULT_DATATYPE)
-            train_accuracy = float(train_accuracy) / nb_train_samples
-            
-            # -------------------------------------------------------------- #
-            
-            # validation step for the current epoch (if requested)
-            
-            if _has_validation_data:
-                # initializing the validation loss and accuracy
-                val_loss     = cast(0, utils.DEFAULT_DATATYPE)
-                val_accuracy = 0
-                
-                for X_val_batch, y_val_batch in zip(val_batches_data, val_batches_labels):
                     # forward propagation
-                    val_output = X_val_batch
+                    train_output = X_train_batch
                     for layer in self._layers:
-                        val_output = layer.forward_propagation(
-                            val_output,
-                            training=False,
+                        train_output = layer.forward_propagation(
+                            train_output,
+                            training=True,
                             enable_checks=enable_checks
                         )
                     
-                    # updating the (raw) validation loss
-                    val_loss += np.sum(self._loss(
-                        y_val_batch,
-                        val_output,
+                    # updating the (raw) training loss
+                    train_loss += np.sum(self._loss(
+                        y_train_batch,
+                        train_output,
+                        y_pred_is_log_softmax_output=self._output_activation_is_log_softmax,
                         enable_checks=enable_checks
                     ))
                     
-                    # updating the (raw) validation accuracy
-                    val_accuracy += accuracy_score(
-                        categorical_to_vector(y_val_batch, enable_checks=enable_checks),
-                        categorical_to_vector(val_output,  enable_checks=enable_checks),
+                    # updating the (raw) training accuracy
+                    train_accuracy += accuracy_score(
+                        categorical_to_vector(y_train_batch, enable_checks=enable_checks),
+                        categorical_to_vector(train_output,  enable_checks=enable_checks),
                         normalize=False,
                         enable_checks=enable_checks
                     )
-                
-                val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
-                check_dtype(val_loss, utils.DEFAULT_DATATYPE)
-                val_accuracy = float(val_accuracy) / nb_val_samples
-            
-            # -------------------------------------------------------------- #
-            
-            # updating the network's history with the losses and accuracies
-            # computed during the current epoch
-            
-            self.history["epoch"].append(epoch_index)
-            self.history["train_loss"].append(train_loss)
-            self.history["train_accuracy"].append(train_accuracy)
-            
-            if _has_validation_data:
-                self.history["val_loss"].append(val_loss)
-                self.history["val_accuracy"].append(val_accuracy)
-            
-            # -------------------------------------------------------------- #
-            
-            precision_epoch_history = 4 # by default
-            
-            epoch_history = offset_spacing
-            if _has_validation_data:
-                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - val_loss={val_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f} - val_accuracy={val_accuracy:.{precision_epoch_history}f}"
-            else:
-                epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f}"
-            
-            clear_currently_printed_row()
-            print(epoch_history)
-            
-            # -------------------------------------------------------------- #
-            
-            # Checking if there is an early stopping callback (if requested)
-            
-            if (_early_stopping_callback is not None) and (epoch_index != nb_epochs):
-                prematurely_stop_training_loop = _early_stopping_callback.callback(
-                    self.history,
-                    enable_checks=enable_checks
-                )
-                
-                if prematurely_stop_training_loop:
-                    jupyter_notebook = is_being_run_on_jupyter_notebook()
                     
-                    if not(jupyter_notebook):
+                    # backward propagation
+                    output_gradient = self._loss_prime(
+                        y_train_batch,
+                        train_output,
+                        y_pred_is_log_softmax_output=self._output_activation_is_log_softmax,
+                        enable_checks=enable_checks
+                    )
+                    for layer in reversed(self._layers):
+                        output_gradient = layer.backward_propagation(
+                            output_gradient,
+                            enable_checks=enable_checks
+                        )
+                        
+                        # updating the training loss with the added correction
+                        # terms from the L1/L2 regularizations (if there are any)
+                        train_loss += layer.loss_leftovers
+                    
+                    if (train_batch_index % train_batch_index_update_step == 0) or (train_batch_index == 1) or (train_batch_index == nb_train_batches):
+                        # displaying the progress bar related to the number of
+                        # processed batches (within the current epoch)
+                        
+                        formatted_batch_index = format(train_batch_index, train_batch_index_format)
+                        
+                        current_progress_bar = progress_bar(
+                            train_batch_index,
+                            nb_train_batches,
+                            progress_bar_size=15, # by default
+                            enable_checks=False
+                        )
+                        
+                        train_batch_progress_row = f"{offset_spacing}{current_progress_bar} batch {formatted_batch_index}/{nb_train_batches}"
+                        
+                        clear_currently_printed_row()
+                        print(train_batch_progress_row, end="\r")
+                
+                # necessary check (to see if the correct number of batches were
+                # generated during the current epoch)
+                assert train_batch_index == nb_train_batches
+                
+                train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
+                check_dtype(train_loss, utils.DEFAULT_DATATYPE)
+                train_accuracy = float(train_accuracy) / nb_train_samples
+                
+                # -------------------------------------------------------------- #
+                
+                # validation step for the current epoch (if requested)
+                
+                if _has_validation_data:
+                    # initializing the validation loss and accuracy
+                    val_loss     = cast(0, utils.DEFAULT_DATATYPE)
+                    val_accuracy = 0
+                    
+                    for X_val_batch, y_val_batch in zip(val_batches_data, val_batches_labels):
+                        # forward propagation
+                        val_output = X_val_batch
+                        for layer in self._layers:
+                            val_output = layer.forward_propagation(
+                                val_output,
+                                training=False,
+                                enable_checks=enable_checks
+                            )
+                        
+                        # updating the (raw) validation loss
+                        val_loss += np.sum(self._loss(
+                            y_val_batch,
+                            val_output,
+                            y_pred_is_log_softmax_output=self._output_activation_is_log_softmax,
+                            enable_checks=enable_checks
+                        ))
+                        
+                        # updating the (raw) validation accuracy
+                        val_accuracy += accuracy_score(
+                            categorical_to_vector(y_val_batch, enable_checks=enable_checks),
+                            categorical_to_vector(val_output,  enable_checks=enable_checks),
+                            normalize=False,
+                            enable_checks=enable_checks
+                        )
+                    
+                    val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
+                    check_dtype(val_loss, utils.DEFAULT_DATATYPE)
+                    val_accuracy = float(val_accuracy) / nb_val_samples
+                
+                # -------------------------------------------------------------- #
+                
+                # updating the network's history with the losses and accuracies
+                # computed during the current epoch
+                
+                self.history["epoch"].append(epoch_index)
+                self.history["train_loss"].append(train_loss)
+                self.history["train_accuracy"].append(train_accuracy)
+                
+                if _has_validation_data:
+                    self.history["val_loss"].append(val_loss)
+                    self.history["val_accuracy"].append(val_accuracy)
+                
+                # -------------------------------------------------------------- #
+                
+                precision_epoch_history = 4 # by default
+                
+                epoch_history = offset_spacing
+                if _has_validation_data:
+                    epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - val_loss={val_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f} - val_accuracy={val_accuracy:.{precision_epoch_history}f}"
+                else:
+                    epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f}"
+                
+                clear_currently_printed_row()
+                print(epoch_history)
+                
+                # -------------------------------------------------------------- #
+                
+                # Checking if there is an early stopping callback (if requested)
+                
+                if (_early_stopping_callback is not None) and (epoch_index != nb_epochs):
+                    prematurely_stop_training_loop = _early_stopping_callback.callback(
+                        self.history,
+                        enable_checks=enable_checks
+                    )
+                    
+                    if prematurely_stop_training_loop:
+                        _training_loop_was_prematurely_stopped = True
+                        
+                        callback_message = colored_message_format.format(f"{str(_early_stopping_callback)} :")
+                        callback_message += colored_message_format.format(f"Prematurely stopping the training loop after epoch n°{epoch_index}")
+                        
                         # Enables the ability to print colored text in the standard
                         # output (of Python consoles/terminals). This method is
                         # imported from the `colorama` module
                         init()
                         
-                        printed_color = Fore.MAGENTA # by default
-                        reset_color   = Style.RESET_ALL
-                    else:
-                        # printing colored text doesn't work in Jupyter notebooks
-                        printed_color = ""
-                        reset_color   = ""
-                    
-                    callback_message = f"\n{offset_spacing}{printed_color}{str(_early_stopping_callback)} :{reset_color}"
-                    callback_message += f"\n{offset_spacing}{printed_color}Prematurely stopping the training loop after epoch n°{epoch_index}{reset_color}"
-                    print(callback_message)
-                    
-                    # updating the actual number of completed epochs
-                    nb_epochs = epoch_index
-                    
-                    break
+                        print(callback_message)
+                        
+                        # updating the actual number of completed epochs
+                        nb_epochs = epoch_index
+                        
+                        break
+            
+            except KeyboardInterrupt:
+                _training_loop_was_prematurely_stopped = True
+                
+                # Removing the history values that were added during the
+                # very last epoch (it's very unlikely, but it's still worth
+                # handling)
+                for features in self.history.values():
+                    if len(features) == epoch_index:
+                        features.pop(-1)
+                
+                keyboard_interrupt_message = "\n" + colored_message_format.format("KeyboardInterrupt :")
+                keyboard_interrupt_message += colored_message_format.format(f"The training loop was prematurely stopped during epoch n°{epoch_index}")
+                
+                # Enables the ability to print colored text in the standard
+                # output (of Python consoles/terminals). This method is
+                # imported from the `colorama` module
+                init()
+                
+                print(keyboard_interrupt_message)
+                
+                # updating the actual number of completed epochs (+ the very
+                # last one)
+                nb_epochs = epoch_index
+                
+                break
         
         # ================================================================== #
         
@@ -1207,7 +1263,10 @@ class Network:
         
         space_or_newline = " " * int(_has_validation_data) + f"\n{offset_spacing}" * int(not(_has_validation_data))
         
-        conclusion = f"\n{offset_spacing}Training complete !\n\n{offset_spacing}Done in {duration_training:.1f} seconds{space_or_newline}({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
+        conclusion = ""
+        if not(_training_loop_was_prematurely_stopped):
+            conclusion += f"\n{offset_spacing}Training complete !\n"
+        conclusion += f"\n{offset_spacing}Done in {duration_training:.1f} seconds{space_or_newline}({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
         print(conclusion)
         
         print(transition)
@@ -1550,6 +1609,7 @@ class Network:
             test_loss += np.sum(self._loss(
                 y_test_batch,
                 y_pred_batch,
+                y_pred_is_log_softmax_output=self._output_activation_is_log_softmax,
                 enable_checks=True
             ))
             
@@ -1564,11 +1624,16 @@ class Network:
                 enable_checks=True
             )
             
+            if not(self._output_activation_is_log_softmax):
+                used_y_pred_batch = y_pred_batch
+            else:
+                used_y_pred_batch = np.exp(y_pred_batch)
+            
             # In order to actually get probability distributions, we're
             # normalizing the partial logits (i.e. `y_pred_batch`), in case
             # we're using a final activation function that isn't softmax (like
             # sigmoid for instance)
-            normalized_y_pred_batch = y_pred_batch / np.sum(y_pred_batch, axis=1, keepdims=True)
+            normalized_y_pred_batch = used_y_pred_batch / np.sum(used_y_pred_batch, axis=1, keepdims=True)
             
             for batch_sample_index, (actual_class_index, predicted_class_index) in enumerate(zip(y_test_flat_batch, y_pred_flat_batch)):
                 current_confidence_level = float(normalized_y_pred_batch[batch_sample_index, predicted_class_index])
@@ -1783,6 +1848,11 @@ class Network:
         
         # by default
         confidence_level_precision = 0
+        
+        # NB : This operation doesn't require changing `predicted_class_indices`,
+        #      since `exp` is a strictly increasing function
+        if self._output_activation_is_log_softmax:
+            logits = np.exp(logits)
         
         # In order to actually get probability distributions, we're normalizing
         # the logits, in case we're using a final activation function that isn't

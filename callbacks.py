@@ -90,6 +90,11 @@ class EarlyStoppingCallback(Callback):
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(monitor=\"{self.monitor}\", patience={self.patience})"
     
+    def __eq__(self, obj: object) -> bool:
+        if type(obj) != type(self):
+            return False
+        return (obj.monitor == self.monitor) and (obj.patience == self.patience)
+    
     def callback(
             self,
             history: dict[str, list],

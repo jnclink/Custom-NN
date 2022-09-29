@@ -48,6 +48,7 @@ def ReLU(
 def ReLU_prime(
         x: np.ndarray,
         *,
+        input_is_activation_output: bool = False, # not used here
         enable_checks: bool = True
     ) -> np.ndarray:
     """
@@ -106,6 +107,7 @@ def leaky_ReLU_prime(
         x: np.ndarray,
         *,
         leaky_ReLU_coeff: float = 0.01,
+        input_is_activation_output: bool = False, # not used here
         enable_checks: bool = True
     ) -> np.ndarray:
     """
@@ -161,6 +163,7 @@ def tanh(
 def tanh_prime(
         x: np.ndarray,
         *,
+        input_is_activation_output: bool = False,
         enable_checks: bool = True
     ) -> np.ndarray:
     """
@@ -172,9 +175,14 @@ def tanh_prime(
     
     if enable_checks:
         _validate_activation_input(x)
+        assert isinstance(input_is_activation_output, bool)
     
     one = cast(1, utils.DEFAULT_DATATYPE)
-    tanh_prime_output = one - np.tanh(x)**2
+    
+    if input_is_activation_output:
+        tanh_prime_output = one - x**2
+    else:
+        tanh_prime_output = one - tanh(x, enable_checks=False)**2
     
     if enable_checks:
         check_dtype(tanh_prime_output, utils.DEFAULT_DATATYPE)
@@ -190,23 +198,17 @@ def tanh_prime(
 def softmax(
         x: np.ndarray,
         *,
-        enable_checks: bool = True,
-        replace_illegal_output_values: bool = True
+        enable_checks: bool = True
     ) -> np.ndarray:
     """
     Softmax activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
-    
-    NB : Here, the `replace_illegal_output_values` kwarg has priority
-         over the `enable_checks` kwarg. In fact, `replace_illegal_output_values`
-         should, in practice, NEVER be set to `False` !
     """
     assert isinstance(enable_checks, bool)
     
     if enable_checks:
         _validate_activation_input(x)
-        assert isinstance(replace_illegal_output_values, bool)
     
     # NB : The softmax function is translationally invariant, i.e., for any
     #      scalar `t`, we will have : `softmax(x) = softmax(x - t)`.
@@ -216,12 +218,6 @@ def softmax(
     #      will never raise overflow errors !
     exps = np.exp(x - np.max(x, axis=-1, keepdims=True))
     softmax_output = exps / np.sum(exps, axis=-1, keepdims=True)
-    
-    if replace_illegal_output_values:
-        # replacing the softmax output values that are *very close* to zero
-        # with the smallest possible positive value of the current global datatype
-        resolution = utils.DTYPE_RESOLUTION
-        softmax_output[softmax_output < resolution] = resolution
     
     if enable_checks:
         # the values of the softmax output have to be strictly positive
@@ -236,6 +232,7 @@ def softmax(
 def softmax_prime(
         x: np.ndarray,
         *,
+        input_is_activation_output: bool = False,
         enable_checks: bool = True
     ) -> np.ndarray:
     """
@@ -250,21 +247,116 @@ def softmax_prime(
     
     if enable_checks:
         _validate_activation_input(x)
+        assert isinstance(input_is_activation_output, bool)
     
     if len(x.shape) == 1:
-        softmax_output = softmax(x, enable_checks=False).reshape((1, x.size))
+        if input_is_activation_output:
+            softmax_output = x.reshape((1, x.size))
+        else:
+            softmax_output = softmax(x, enable_checks=False).reshape((1, x.size))
+        
         softmax_prime_output = np.diag(softmax_output[0]) - softmax_output.T @ softmax_output
+    
     elif len(x.shape) == 2:
         batch_size, output_size = x.shape
         softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
         
         for batch_sample_index in range(batch_size):
             x_sample = x[batch_sample_index, :]
-            softmax_prime_output[batch_sample_index] = softmax_prime(x_sample, enable_checks=False)
+            
+            # recursive call
+            softmax_prime_output[batch_sample_index] = softmax_prime(
+                x_sample,
+                input_is_activation_output=input_is_activation_output,
+                enable_checks=False
+            )
     
     if enable_checks:
         check_dtype(softmax_prime_output, utils.DEFAULT_DATATYPE)
     return softmax_prime_output
+
+
+##############################################################################
+
+
+# Defining the logarithmic softmax activation function and its derivative
+
+
+def log_softmax(
+        x: np.ndarray,
+        *,
+        use_approximation: bool = False,
+        enable_checks: bool = True
+    ) -> np.ndarray:
+    """
+    Logarithmic softmax activation function
+    
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
+    """
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
+        assert isinstance(use_approximation, bool)
+    
+    approximation_of_log_softmax_output = x - np.max(x, axis=-1, keepdims=True)
+    
+    if use_approximation:
+        log_softmax_output = approximation_of_log_softmax_output
+    else:
+        correction_term = np.log(np.sum(np.exp(approximation_of_log_softmax_output), axis=-1, keepdims=True))
+        log_softmax_output = approximation_of_log_softmax_output - correction_term
+    
+    if enable_checks:
+        check_dtype(log_softmax_output, utils.DEFAULT_DATATYPE)
+    return log_softmax_output
+
+
+def log_softmax_prime(
+        x: np.ndarray,
+        *,
+        input_is_activation_output: bool = False,
+        enable_checks: bool = True
+    ) -> np.ndarray:
+    """
+    Derivative of the logarithmic softmax activation function
+    
+    The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
+    
+    NB : If `x` is 1D, the output will be 2D, and if `x` is 2D, then the
+         output will be 3D
+    """
+    assert isinstance(enable_checks, bool)
+    
+    if enable_checks:
+        _validate_activation_input(x)
+        assert isinstance(input_is_activation_output, bool)
+    
+    if len(x.shape) == 1:
+        I = np.identity(x.size)
+        
+        if input_is_activation_output:
+            log_softmax_prime_output = I - np.exp(x)
+        else:
+            log_softmax_prime_output = I - softmax(x, enable_checks=False)
+    
+    elif len(x.shape) == 2:
+        batch_size, output_size = x.shape
+        log_softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
+        
+        for batch_sample_index in range(batch_size):
+            x_sample = x[batch_sample_index, :]
+            
+            # recursive call
+            log_softmax_prime_output[batch_sample_index] = log_softmax_prime(
+                x_sample,
+                input_is_activation_output=input_is_activation_output,
+                enable_checks=False
+            )
+    
+    if enable_checks:
+        check_dtype(log_softmax_prime_output, utils.DEFAULT_DATATYPE)
+    return log_softmax_prime_output
 
 
 ##############################################################################
@@ -276,32 +368,20 @@ def softmax_prime(
 def sigmoid(
         x: np.ndarray,
         *,
-        enable_checks: bool = True,
-        replace_illegal_output_values: bool = True
+        enable_checks: bool = True
     ) -> np.ndarray:
     """
     Sigmoid activation function
     
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
-    
-    NB : Here, the `replace_illegal_output_values` kwarg has priority
-         over the `enable_checks` kwarg. In fact, `replace_illegal_output_values`
-         should, in practice, NEVER be set to `False` !
     """
     assert isinstance(enable_checks, bool)
     
     if enable_checks:
         _validate_activation_input(x)
-        assert isinstance(replace_illegal_output_values, bool)
     
     one = cast(1, utils.DEFAULT_DATATYPE)
     sigmoid_output = one / (one + np.exp(-x))
-    
-    if replace_illegal_output_values:
-        # replacing the sigmoid output values that are *very close* to zero
-        # with the smallest possible positive value of the current global datatype
-        resolution = utils.DTYPE_RESOLUTION
-        sigmoid_output[sigmoid_output < resolution] = resolution
     
     if enable_checks:
         # the values of the sigmoid output have to be strictly positive
@@ -316,6 +396,7 @@ def sigmoid(
 def sigmoid_prime(
         x: np.ndarray,
         *,
+        input_is_activation_output: bool = False,
         enable_checks: bool = True
     ) -> np.ndarray:
     """
@@ -327,8 +408,13 @@ def sigmoid_prime(
     
     if enable_checks:
         _validate_activation_input(x)
+        assert isinstance(input_is_activation_output, bool)
     
-    sigmoid_output = sigmoid(x, enable_checks=False)
+    if input_is_activation_output:
+        sigmoid_output = x
+    else:
+        sigmoid_output = sigmoid(x, enable_checks=False)
+    
     one = cast(1, utils.DEFAULT_DATATYPE)
     sigmoid_prime_output = sigmoid_output * (one - sigmoid_output)
     

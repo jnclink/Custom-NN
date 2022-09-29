@@ -40,11 +40,13 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 - Added the **Categorical Cross-Entropy** (CCE) loss function (in addition to the **Mean Squared Error** loss function, or "MSE")
 
-- Added the **ReLU**, **leaky ReLU**, **PReLU**, **softmax** and **sigmoid** activation functions (in addition to the hyperbolic tangent activation function, or **tanh**)
+- Added the **ReLU**, **leaky ReLU**, **PReLU**, **softmax**, **log-softmax** and **sigmoid** activation functions (in addition to the hyperbolic tangent activation function, or **tanh**)
 
 - Added the **Input**, **BatchNorm** and **Dropout** layers (in addition to the **Dense** and **Activation** layers)
 
 - Added the **Adam** and **RMSprop** optimizers (in addition to the **Stochastic Gradient Descent** optimizer, or "SGD")
+
+- Added the **L1** and **L2** regularizers
 
 - Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous layer to add a new Dense layer ! Also, for the Activation layers, you can now simply input the name of the loss function (which is a string) instead of inputting the functions `activation` and `activation_prime` !
 
@@ -67,13 +69,21 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
   `network = Network()(input_layer, output_layer)`
 
 - Layers can now be **frozen** (if requested), using the `Layer.freeze` method. If a layer is frozen, then all its trainable *and* non-trainable parameters will be frozen (if it has any). This feature can be used for **Transfer Learning** purposes for instance. Also, FYI, to retrieve a copy of a layer from a Network instance, you can simply call the `Network.get_layer_by_name` method
+
 - Added an **"early stopping" callback**
+
 - The detailed **summary of the network's architecture** can now be visualized right after the network is built
+
 - The detailed **history of the network's training phase** is printed *dynamically*, at the end of each epoch. After the training is complete, you can even plot the network's history and/or save the plot to the disk if requested (the plot will be saved in the `saved_plots` folder by default)
+
 - The network can also be **saved to the disk**, even if it's not trained. The network will be saved in the `saved_networks` folder by default
+
 - The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct *and* false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
+
 - For testing purposes, you can also **plot some predictions of the network** (after it's trained) !
+
 - In order to be able to **reproduce some results**, you can set the seeds related to *all* the random processes directly from the main script
+
 - Globally speaking, the main script is written such that you can tweak a <ins>**maximum**</ins> amount of parameters related to the neural network you want to build !
 
 <br/>

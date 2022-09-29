@@ -533,7 +533,7 @@ def format_raw_MNIST_dataset(
         # updating the seed such that the "randomness" of the test split is
         # different than the one used in the previous train (or train/val )
         # split (just in case)
-        seed += 1
+        seed += 1 # the increment value is arbitrary
     
     # getting the formatted "test" dataset (from the raw "test" data)
     if total_nb_of_raw_test_samples - nb_test_samples >= nb_classes:
@@ -564,7 +564,7 @@ def format_raw_MNIST_dataset(
     if (nb_shuffles > 0) and (seed is not None):
         # updating the seed such that the "randomness" of the shuffle is
         # different than the one used in the previous splits (just in case)
-        seed += 1
+        seed += 1 # the increment value is arbitrary
     
     # ====================================================================== #
     
