@@ -245,7 +245,7 @@ def softmax_prime(
         assert isinstance(input_is_activation_output, bool)
     
     if len(x.shape) == 1:
-        used_x = np.expand_dims(x, 0)
+        used_x = np.expand_dims(x, axis=0)
     elif len(x.shape) == 2:
         used_x = x
     
@@ -253,12 +253,12 @@ def softmax_prime(
     softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
     
     if input_is_activation_output:
-        softmax_output = np.expand_dims(used_x, 1)
+        softmax_output = np.expand_dims(used_x, axis=1)
     else:
-        softmax_output = np.expand_dims(softmax(used_x, enable_checks=False), 1)
+        softmax_output = np.expand_dims(softmax(used_x, enable_checks=False), axis=1)
     
-    I = np.tile(np.identity(output_size, dtype=utils.DEFAULT_DATATYPE), (batch_size, 1, 1))
-    softmax_prime_output = (I - softmax_output) * np.swapaxes(softmax_output, 1, 2)
+    I = np.tile(np.identity(output_size, dtype=utils.DEFAULT_DATATYPE), reps=(batch_size, 1, 1))
+    softmax_prime_output = (I - softmax_output) * np.swapaxes(softmax_output, axis1=1, axis2=2)
     
     if len(x.shape) == 1:
         softmax_prime_output = np.squeeze(softmax_prime_output)
@@ -325,7 +325,7 @@ def log_softmax_prime(
         assert isinstance(input_is_activation_output, bool)
     
     if len(x.shape) == 1:
-        used_x = np.expand_dims(x, 0)
+        used_x = np.expand_dims(x, axis=0)
     elif len(x.shape) == 2:
         used_x = x
     
@@ -337,11 +337,11 @@ def log_softmax_prime(
     #      log-softmax function)
     if input_is_activation_output:
         # exp(log_softmax) = exp(log(softmax)) = softmax
-        softmax_output = np.expand_dims(np.exp(used_x), 1)
+        softmax_output = np.expand_dims(np.exp(used_x), axis=1)
     else:
-        softmax_output = np.expand_dims(softmax(used_x, enable_checks=False), 1)
+        softmax_output = np.expand_dims(softmax(used_x, enable_checks=False), axis=1)
     
-    I = np.tile(np.identity(output_size, dtype=utils.DEFAULT_DATATYPE), (batch_size, 1, 1))
+    I = np.tile(np.identity(output_size, dtype=utils.DEFAULT_DATATYPE), reps=(batch_size, 1, 1))
     log_softmax_prime_output = I - softmax_output
     
     if len(x.shape) == 1:

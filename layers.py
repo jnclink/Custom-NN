@@ -741,7 +741,7 @@ class ActivationLayer(Layer):
                 )
         else:
             # matrix multiplication (NOT element-wise multiplication)
-            input_gradient = np.squeeze(np.expand_dims(output_gradient, 1) @ activation_prime_of_input)
+            input_gradient = np.squeeze(np.expand_dims(output_gradient, axis=1) @ activation_prime_of_input)
         
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
