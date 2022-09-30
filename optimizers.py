@@ -50,6 +50,8 @@ class Optimizer(ABC):
         
         # defining regularizer-related variables
         
+        self._has_regularizer: bool = False
+        
         # defined for convenience purposes
         self._one = cast(1, utils.DEFAULT_DATATYPE)
         
@@ -64,6 +66,7 @@ class Optimizer(ABC):
         
         if regularizer is not None:
             assert type(regularizer) != Regularizer
+            self._has_regularizer = True
             
             if hasattr(regularizer, "L1_coeff"):
                 self._L1_coeff = cast(regularizer.L1_coeff, utils.DEFAULT_DATATYPE)
@@ -73,6 +76,8 @@ class Optimizer(ABC):
                 self._L2_coeff = cast(regularizer.L2_coeff, utils.DEFAULT_DATATYPE)
                 self._L2_weight_decay_factor = self._one - self.learning_rate * self._L2_coeff
                 check_dtype(self._L2_weight_decay_factor, utils.DEFAULT_DATATYPE)
+            
+            assert (self._L1_coeff is not None) or (self._L2_coeff is not None)
     
     def __str__(self) -> str:
         # default string representation of the optimizer classes
@@ -178,8 +183,11 @@ class SgdOptimizer(Optimizer):
             
             # GRADIENT DESCENT
             
-            weight_decay_factor = self._get_weight_decay_factor(weight)
-            decayed_weight = weight_decay_factor * weight
+            if not(self._has_regularizer):
+                decayed_weight = weight
+            else:
+                weight_decay_factor = self._get_weight_decay_factor(weight)
+                decayed_weight = weight_decay_factor * weight
             
             optimized_weight = decayed_weight - self.learning_rate * weight_gradient
             
@@ -325,21 +333,19 @@ class AdamOptimizer(Optimizer):
             self.first_moments[weight_index] = first_moment_estimate
             bias_corrected_first_moment_estimate = scaling_factor_1 * first_moment_estimate
             
-            # if `weight_gradient` is a float32, then its square (using the
-            # `**` operator) will be a float64, which explains why we don't
-            # use the `**` operator here (the same goes for the `np.power` method)
-            square_of_weight_gradient = weight_gradient * weight_gradient
-            
             # computing the (bias-corrected) second moment estimate
             second_moment = self.second_moments[weight_index]
-            second_moment_estimate = self.beta_2 * second_moment + self._beta_2_inverse * square_of_weight_gradient
+            second_moment_estimate = self.beta_2 * second_moment + self._beta_2_inverse * np.square(weight_gradient)
             self.second_moments[weight_index] = second_moment_estimate
             bias_corrected_second_moment_estimate = scaling_factor_2 * second_moment_estimate
             
             optimized_weight_gradient = bias_corrected_first_moment_estimate / (np.sqrt(bias_corrected_second_moment_estimate) + self.epsilon)
             
-            weight_decay_factor = self._get_weight_decay_factor(weight)
-            decayed_weight = weight_decay_factor * weight
+            if not(self._has_regularizer):
+                decayed_weight = weight
+            else:
+                weight_decay_factor = self._get_weight_decay_factor(weight)
+                decayed_weight = weight_decay_factor * weight
             
             optimized_weight = decayed_weight - self.learning_rate * optimized_weight_gradient
             
@@ -444,20 +450,18 @@ class RMSpropOptimizer(Optimizer):
             
             # GRADIENT DESCENT
             
-            # if `weight_gradient` is a float32, then its square (using the
-            # `**` operator) will be a float64, which explains why we don't
-            # use the `**` operator here (the same goes for the `np.power` method)
-            square_of_weight_gradient = weight_gradient * weight_gradient
-            
             # computing the moment estimate
             moment = self.moments[weight_index]
-            moment_estimate = self.beta * moment + self._beta_inverse * square_of_weight_gradient
+            moment_estimate = self.beta * moment + self._beta_inverse * np.square(weight_gradient)
             self.moments[weight_index] = moment_estimate
             
             optimized_weight_gradient = weight_gradient / (np.sqrt(moment_estimate) + self.epsilon)
             
-            weight_decay_factor = self._get_weight_decay_factor(weight)
-            decayed_weight = weight_decay_factor * weight
+            if not(self._has_regularizer):
+                decayed_weight = weight
+            else:
+                weight_decay_factor = self._get_weight_decay_factor(weight)
+                decayed_weight = weight_decay_factor * weight
             
             optimized_weight = decayed_weight - self.learning_rate * optimized_weight_gradient
             
