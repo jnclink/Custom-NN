@@ -61,8 +61,8 @@ def ReLU_prime(
     if enable_checks:
         _validate_activation_input(x)
     
-    ReLU_prime_output = np.zeros(x.shape, dtype=x.dtype)
-    ReLU_prime_output[x > 0] = 1
+    ReLU_prime_output = np.ones(x.shape, dtype=x.dtype)
+    ReLU_prime_output[x <= 0] = 0
     
     if enable_checks:
         check_dtype(ReLU_prime_output, utils.DEFAULT_DATATYPE)
@@ -220,12 +220,7 @@ def softmax(
     softmax_output = exps / np.sum(exps, axis=-1, keepdims=True)
     
     if enable_checks:
-        # the values of the softmax output have to be strictly positive
-        nb_illegal_values_in_softmax_output = np.where(softmax_output <= 0)[0].size
-        assert nb_illegal_values_in_softmax_output == 0
-        
         check_dtype(softmax_output, utils.DEFAULT_DATATYPE)
-    
     return softmax_output
 
 
@@ -250,26 +245,23 @@ def softmax_prime(
         assert isinstance(input_is_activation_output, bool)
     
     if len(x.shape) == 1:
-        if input_is_activation_output:
-            softmax_output = x.reshape((1, x.size))
-        else:
-            softmax_output = softmax(x, enable_checks=False).reshape((1, x.size))
-        
-        softmax_prime_output = np.diag(softmax_output[0]) - softmax_output.T @ softmax_output
-    
+        used_x = np.expand_dims(x, 0)
     elif len(x.shape) == 2:
-        batch_size, output_size = x.shape
-        softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
-        
-        for batch_sample_index in range(batch_size):
-            x_sample = x[batch_sample_index, :]
-            
-            # recursive call
-            softmax_prime_output[batch_sample_index] = softmax_prime(
-                x_sample,
-                input_is_activation_output=input_is_activation_output,
-                enable_checks=False
-            )
+        used_x = x
+    
+    batch_size, output_size = used_x.shape
+    softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
+    
+    if input_is_activation_output:
+        softmax_output = np.expand_dims(used_x, 1)
+    else:
+        softmax_output = np.expand_dims(softmax(used_x, enable_checks=False), 1)
+    
+    I = np.tile(np.identity(output_size, dtype=utils.DEFAULT_DATATYPE), (batch_size, 1, 1))
+    softmax_prime_output = (I - softmax_output) * np.swapaxes(softmax_output, 1, 2)
+    
+    if len(x.shape) == 1:
+        softmax_prime_output = np.squeeze(softmax_prime_output)
     
     if enable_checks:
         check_dtype(softmax_prime_output, utils.DEFAULT_DATATYPE)
@@ -333,26 +325,27 @@ def log_softmax_prime(
         assert isinstance(input_is_activation_output, bool)
     
     if len(x.shape) == 1:
-        I = np.identity(x.size)
-        
-        if input_is_activation_output:
-            log_softmax_prime_output = I - np.exp(x)
-        else:
-            log_softmax_prime_output = I - softmax(x, enable_checks=False)
-    
+        used_x = np.expand_dims(x, 0)
     elif len(x.shape) == 2:
-        batch_size, output_size = x.shape
-        log_softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
-        
-        for batch_sample_index in range(batch_size):
-            x_sample = x[batch_sample_index, :]
-            
-            # recursive call
-            log_softmax_prime_output[batch_sample_index] = log_softmax_prime(
-                x_sample,
-                input_is_activation_output=input_is_activation_output,
-                enable_checks=False
-            )
+        used_x = x
+    
+    batch_size, output_size = used_x.shape
+    log_softmax_prime_output = np.zeros((batch_size, output_size, output_size), dtype=x.dtype)
+    
+    # NB : To compute the derivative of the log-softmax, we only need the
+    #      output of the softmax function (and not the output of the
+    #      log-softmax function)
+    if input_is_activation_output:
+        # exp(log_softmax) = exp(log(softmax)) = softmax
+        softmax_output = np.expand_dims(np.exp(used_x), 1)
+    else:
+        softmax_output = np.expand_dims(softmax(used_x, enable_checks=False), 1)
+    
+    I = np.tile(np.identity(output_size, dtype=utils.DEFAULT_DATATYPE), (batch_size, 1, 1))
+    log_softmax_prime_output = I - softmax_output
+    
+    if len(x.shape) == 1:
+        log_softmax_prime_output = np.squeeze(log_softmax_prime_output)
     
     if enable_checks:
         check_dtype(log_softmax_prime_output, utils.DEFAULT_DATATYPE)
@@ -384,12 +377,7 @@ def sigmoid(
     sigmoid_output = one / (one + np.exp(-x))
     
     if enable_checks:
-        # the values of the sigmoid output have to be strictly positive
-        nb_illegal_values_in_sigmoid_output = np.where(sigmoid_output <= 0)[0].size
-        assert nb_illegal_values_in_sigmoid_output == 0
-        
         check_dtype(sigmoid_output, utils.DEFAULT_DATATYPE)
-    
     return sigmoid_output
 
 

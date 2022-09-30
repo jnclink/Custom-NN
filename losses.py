@@ -12,8 +12,7 @@ import utils
 from utils import (
     cast,
     check_dtype,
-    _validate_loss_inputs,
-    _validate_one_hot_encoded_array
+    _validate_loss_inputs
 )
 
 
@@ -39,22 +38,19 @@ def CCE(
     be in the range ]0, 1] (in practice, those 2 conditions are satisfied when
     this function is called)
     
-    By design, `y_pred` is meant to be the output of either the `softmax` or
-    the `sigmoid` activation function (from the "activation.py" script)
+    By design, `y_pred` is meant to be the output of either the `softmax`, the
+    `log-softmax` or the `sigmoid` activation function (from the "activation.py"
+    script)
+    
+    Note that the formula becomes the same as the Binary Cross-Entropy (BCE)
+    loss function if there are only 2 classes ! Indeed, this makes sense, since
+    the CCE is a generalization of the BCE
     """
     assert isinstance(enable_checks, bool)
     
     if enable_checks:
         _validate_loss_inputs(y_true, y_pred)
         assert isinstance(y_pred_is_log_softmax_output, bool)
-        
-        # `y_true` has to be one-hot encoded
-        _validate_one_hot_encoded_array(y_true)
-        
-        if not(y_pred_is_log_softmax_output):
-            # the values of `y_pred` have to be in the range ]0, 1]
-            nb_illegal_values_in_y_pred = np.where(y_pred <= 0)[0].size + np.where(y_pred > 1)[0].size
-            assert nb_illegal_values_in_y_pred == 0
     
     if not(y_pred_is_log_softmax_output):
         # NB : The `utils.DTYPE_RESOLUTION` correction term is here to replace
@@ -87,8 +83,13 @@ def CCE_prime(
     be in the range ]0, 1] (in practice, those 2 conditions are satisfied when
     this function is called)
     
-    By design, `y_pred` is meant to be the output of either the `softmax` or
-    the `sigmoid` activation function (from the "activation.py" script)
+    By design, `y_pred` is meant to be the output of either the `softmax`, the
+    `log-softmax` or the `sigmoid` activation function (from the "activation.py"
+    script)
+    
+    Note that the formula becomes the same as the derivative of the Binary
+    Cross-Entropy (BCE) loss function if there are only 2 classes ! Indeed,
+    this makes sense, since the CCE is a generalization of the BCE
     """
     assert isinstance(enable_checks, bool)
     
@@ -130,8 +131,9 @@ def MSE(
     
     `y_true` and `y_pred` are 1D vectors or 2D matrices (usually the latter)
     
-    By design, `y_pred` is meant to be the output of either the `softmax` or
-    the `sigmoid` activation function (from the "activation.py" script)
+    By design, `y_pred` is meant to be the output of either the `softmax`, the
+    `log-softmax` or the `sigmoid` activation function (from the "activation.py"
+    script)
     """
     assert isinstance(enable_checks, bool)
     
@@ -165,8 +167,9 @@ def MSE_prime(
     
     `y_true` and `y_pred` are 1D vectors or 2D matrices (usually the latter)
     
-    By design, `y_pred` is meant to be the output of either the `softmax` or
-    the `sigmoid` activation function (from the "activation.py" script)
+    By design, `y_pred` is meant to be the output of either the `softmax`, the
+    `log-softmax` or the `sigmoid` activation function (from the "activation.py"
+    script)
     """
     assert isinstance(enable_checks, bool)
     
@@ -187,6 +190,7 @@ def MSE_prime(
     # imply that `y_true` is one-hot encoded and that all the values of `y_pred`
     # lie in the range [0, 1])
     scaling_factor = cast(2, utils.DEFAULT_DATATYPE) / cast(y_true.shape[-1], utils.DEFAULT_DATATYPE)
+    
     MSE_prime_output = scaling_factor * (y_pred - used_y_true)
     
     if enable_checks:

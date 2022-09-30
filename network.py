@@ -1338,8 +1338,12 @@ class Network:
             val_accuracies = self.history["val_accuracy"]
         
         nb_epochs = len(epochs)
-        if nb_epochs == 1:
-            print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you only trained it over 1 epoch !")
+        
+        if nb_epochs <= 1:
+            if nb_epochs == 0:
+                print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you interrupted the training loop during epoch n°1 !")
+            elif nb_epochs == 1:
+                print("\nNetwork.plot_history - WARNING : You cannot plot the network's history if you only trained it over 1 epoch !")
             return
         
         # for example

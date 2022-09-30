@@ -229,6 +229,11 @@ class AdamOptimizer(Optimizer):
         self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
+        # if the scaling factors become *really close* to one, then there's
+        # no point in computing them anymore
+        self._stop_computing_scaling_factor_1: bool = False
+        self._stop_computing_scaling_factor_2: bool = False
+        
         # initializing the list that will contain the first and second moments
         self.first_moments:  list[Union[Float, np.ndarray]] = []
         self.second_moments: list[Union[Float, np.ndarray]] = []
@@ -268,8 +273,17 @@ class AdamOptimizer(Optimizer):
         
         # for convenience purposes, we compute those two scaling factors ahead
         # of time
-        scaling_factor_1 = self._one / (self._one - cast(self.beta_1**self.t, utils.DEFAULT_DATATYPE))
-        scaling_factor_2 = self._one / (self._one - cast(self.beta_2**self.t, utils.DEFAULT_DATATYPE))
+        if not(self._stop_computing_scaling_factor_1):
+            scaling_factor_1 = self._one / (self._one - cast(self.beta_1**self.t, utils.DEFAULT_DATATYPE))
+            self._stop_computing_scaling_factor_1 = np.allclose(scaling_factor_1, 1)
+        else:
+            scaling_factor_1 = self._one
+        if not(self._stop_computing_scaling_factor_2):
+            scaling_factor_2 = self._one / (self._one - cast(self.beta_2**self.t, utils.DEFAULT_DATATYPE))
+            self._stop_computing_scaling_factor_2 = np.allclose(scaling_factor_2, 1)
+        else:
+            scaling_factor_2 = self._one
+        
         if enable_checks:
             check_dtype(scaling_factor_1, utils.DEFAULT_DATATYPE)
             check_dtype(scaling_factor_2, utils.DEFAULT_DATATYPE)

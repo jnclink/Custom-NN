@@ -740,21 +740,8 @@ class ActivationLayer(Layer):
                     enable_checks=enable_checks
                 )
         else:
-            batch_size = output_gradient.shape[0]
-            
-            input_gradient = np.zeros(output_gradient.shape, dtype=output_gradient.dtype)
-            for batch_sample_index in range(batch_size):
-                # matrix multiplication (NOT element-wise multiplication)
-                input_gradient[batch_sample_index, :] = output_gradient[batch_sample_index, :] @ activation_prime_of_input[batch_sample_index]
-            
-            """
-            The previous code block is completely equivalent to the following line :
-            
-            input_gradient = (output_gradient.reshape((batch_size, 1, output_gradient.shape[1])) @ activation_prime_of_input).reshape(output_gradient.shape)
-            
-            --> Basically, we're using 3D matrix multiplication tricks to make
-                the computations a bit more compact !
-            """
+            # matrix multiplication (NOT element-wise multiplication)
+            input_gradient = np.squeeze(np.expand_dims(output_gradient, 1) @ activation_prime_of_input)
         
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
