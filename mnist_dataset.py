@@ -289,7 +289,7 @@ def plot_random_images_from_raw_MNIST_dataset(
         possible_image_indices = np.where(labels == image_index)[0]
         random_image_index = possible_image_indices[np.random.randint(0, possible_image_indices.size)]
         random_image = data[random_image_index]
-        assert len(random_image.shape) == 2
+        assert random_image.ndim == 2
         
         row_index = image_index // nb_columns
         column_index = image_index % nb_columns

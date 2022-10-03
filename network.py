@@ -673,7 +673,7 @@ class Network:
         # checking `X`
         
         assert isinstance(X, np.ndarray)
-        assert len(X.shape) == 2
+        assert X.ndim == 2
         
         # checking if `X` has numeric data
         _validate_numpy_dtype(X.dtype)
@@ -701,13 +701,13 @@ class Network:
         assert isinstance(y, (type(None), np.ndarray))
         
         if y is not None:
-            assert len(y.shape) in [1, 2]
+            assert y.ndim in [1, 2]
             
-            if len(y.shape) == 1:
+            if y.ndim == 1:
                 _validate_label_vector(y)
                 y_flat = y.copy()
                 y_categorical = vector_to_categorical(y_flat, dtype=utils.DEFAULT_DATATYPE)
-            elif len(y.shape) == 2:
+            elif y.ndim == 2:
                 # checking if `y` has numeric data
                 _validate_numpy_dtype(y.dtype)
                 
@@ -1517,7 +1517,7 @@ class Network:
         
         # raw prediction (i.e. the logits)
         y_pred = np.array(np.vstack(tuple(test_outputs)), dtype=used_X_test.dtype)
-        assert len(y_pred.shape) == 2
+        assert y_pred.ndim == 2
         
         if not(return_logits):
             # in this case, the 1D vector of INTEGER labels is returned

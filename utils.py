@@ -223,7 +223,7 @@ def categorical_to_vector(
     if enable_checks:
         # checking the validity of `y_categorical`
         assert isinstance(y_categorical, np.ndarray)
-        assert len(y_categorical.shape) == 2
+        assert y_categorical.ndim == 2
         global DEFAULT_DATATYPE
         check_dtype(y_categorical, DEFAULT_DATATYPE)
     
@@ -248,7 +248,7 @@ def list_to_string(L: list) -> str:
         raise TypeError(f"list_to_string (utils.py) - The input `L` isn't a list (or a tuple or a 1D numpy array), it's a \"{L.__class__.__name__}\" !")
     
     if isinstance(L, np.ndarray):
-        assert len(L.shape) == 1, "list_to_string (utils.py) - The input `L` has to be 1-dimensional !"
+        assert L.ndim == 1, "list_to_string (utils.py) - The input `L` has to be 1-dimensional !"
     
     nb_elements = len(L)
     assert nb_elements > 0, "list_to_string (utils.py) - The input `L` is empty !"
@@ -359,7 +359,7 @@ def standardize_data(data: np.ndarray) -> np.ndarray:
     """
     # checking the validity of `data`
     assert isinstance(data, np.ndarray)
-    assert len(data.shape) in [1, 2]
+    assert data.ndim in [1, 2]
     assert data.shape[0] > 0
     global DEFAULT_DATATYPE
     check_dtype(data, DEFAULT_DATATYPE)
@@ -398,7 +398,7 @@ def basic_split(
     assert isinstance(sample_indices, (np.ndarray, list, tuple))
     if isinstance(sample_indices, (list, tuple)):
         sample_indices = np.array(sample_indices)
-    assert len(sample_indices.shape) == 1
+    assert sample_indices.ndim == 1
     nb_samples = sample_indices.size
     assert issubclass(sample_indices.dtype.type, np.integer)
     assert np.min(sample_indices) >= 0
@@ -672,7 +672,7 @@ def _validate_label_vector(
     assert isinstance(is_whole_label_vector, bool)
     
     assert isinstance(y, np.ndarray)
-    assert len(y.shape) == 1
+    assert y.ndim == 1
     assert y.size > 0
     assert issubclass(y.dtype.type, np.integer)
     
@@ -793,7 +793,7 @@ def _validate_one_hot_encoded_array(array: np.ndarray) -> None:
     The input `array` can either be a 1D vector or a 2D matrix (usually the latter) 
     """
     assert isinstance(array, np.ndarray)
-    assert len(array.shape) in [1, 2]
+    assert array.ndim in [1, 2]
     _validate_numpy_dtype(array.dtype) # checking if `array` has numeric data
     nb_classes = array.shape[-1]
     assert nb_classes >= 2
@@ -819,7 +819,7 @@ def _validate_split_data_into_batches_inputs(
     """
     # checking the validity of the argument `data`
     assert isinstance(data, np.ndarray)
-    assert len(data.shape) == 2
+    assert data.ndim == 2
     nb_samples, nb_features_per_sample = data.shape
     assert nb_features_per_sample >= 2
     
@@ -829,10 +829,10 @@ def _validate_split_data_into_batches_inputs(
     # checking the validity of the `labels` kwarg
     assert isinstance(labels, (type(None), np.ndarray))
     if labels is not None:
-        assert len(labels.shape) in [1, 2]
-        if len(labels.shape) == 1:
+        assert labels.ndim in [1, 2]
+        if labels.ndim == 1:
             _validate_label_vector(labels)
-        elif len(labels.shape) == 2:
+        elif labels.ndim == 2:
             global DEFAULT_DATATYPE
             check_dtype(labels, DEFAULT_DATATYPE)
             _validate_one_hot_encoded_array(labels)
@@ -854,7 +854,7 @@ def _validate_activation_input(x: np.ndarray) -> None:
     The input `x` can either be a 1D vector or a 2D matrix (usually the latter)
     """
     assert isinstance(x, np.ndarray)
-    assert len(x.shape) in [1, 2]
+    assert x.ndim in [1, 2]
     
     global DEFAULT_DATATYPE
     check_dtype(x, DEFAULT_DATATYPE)
@@ -866,7 +866,7 @@ def _validate_loss_inputs(y_true: np.ndarray, y_pred: np.ndarray) -> None:
     loss function)
     """
     assert isinstance(y_true, np.ndarray) and isinstance(y_pred, np.ndarray)
-    assert len(y_true.shape) in [1, 2]
+    assert y_true.ndim in [1, 2]
     assert y_true.shape == y_pred.shape
     
     global DEFAULT_DATATYPE
@@ -1135,11 +1135,10 @@ def highlight_diagonal(
     
     # checking `conf_matrix_as_dataframe`
     assert isinstance(conf_matrix_as_dataframe, DataFrame)
-    conf_matrix_shape = conf_matrix_as_dataframe.shape
-    assert len(conf_matrix_shape) == 2
-    nb_classes = conf_matrix_shape[0]
+    assert conf_matrix_as_dataframe.ndim == 2
+    nb_classes = conf_matrix_as_dataframe.shape[0]
     assert nb_classes >= 2
-    assert conf_matrix_shape[1] == nb_classes
+    assert conf_matrix_as_dataframe.shape[1] == nb_classes
     conf_matrix_dtype = conf_matrix_as_dataframe.to_numpy().dtype.type
     assert issubclass(conf_matrix_dtype, np.integer)
     
@@ -1151,7 +1150,7 @@ def highlight_diagonal(
     
     # ---------------------------------------------------------------------- #
     
-    diagonal_mask = np.full(conf_matrix_shape, "", dtype="<U24")
+    diagonal_mask = np.full(conf_matrix_as_dataframe.shape, "", dtype="<U24")
     
     CSS_property = f"background-color: {color_of_diagonal};"
     np.fill_diagonal(diagonal_mask, CSS_property)
@@ -1252,7 +1251,7 @@ def print_confusion_matrix(
     # checking the validity of the specified arguments
     
     assert isinstance(conf_matrix, np.ndarray)
-    assert len(conf_matrix.shape) == 2
+    assert conf_matrix.ndim == 2
     nb_classes = conf_matrix.shape[0]
     assert nb_classes >= 2
     assert conf_matrix.shape[1] == nb_classes

@@ -222,10 +222,10 @@ def split_data_into_batches(
         assert len(batches["data"]) == expected_nb_batches
         
         if _has_labels:
-            if len(labels.shape) == 1:
+            if labels.ndim == 1:
                 # in this case, the labels are a 1D vector of INTEGER values
                 stacking_function = np.hstack
-            elif len(labels.shape) == 2:
+            elif labels.ndim == 2:
                 # in this case, the labels are one-hot encoded (2D matrix)
                 stacking_function = np.vstack
             
@@ -361,7 +361,7 @@ def train_test_split(
     # Checking the specified arguments
     
     assert isinstance(X, np.ndarray)
-    assert len(X.shape) == 2
+    assert X.ndim == 2
     _validate_numpy_dtype(X.dtype) # checking if the data is numeric
     nb_samples = int(X.shape[0])
     

@@ -215,7 +215,7 @@ class Layer(ABC):
         Checks if `input_data` and `training` are valid or not
         """
         assert isinstance(input_data, np.ndarray)
-        assert len(input_data.shape) == 2
+        assert input_data.ndim == 2
         check_dtype(input_data, utils.DEFAULT_DATATYPE)
         
         assert isinstance(training, bool)
@@ -241,7 +241,7 @@ class Layer(ABC):
         Checks if `output_gradient` is valid or not
         """
         assert isinstance(output_gradient, np.ndarray)
-        assert len(output_gradient.shape) == 2
+        assert output_gradient.ndim == 2
         check_dtype(output_gradient, utils.DEFAULT_DATATYPE)
     
     def freeze(self) -> None:

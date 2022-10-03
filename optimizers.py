@@ -174,7 +174,7 @@ class SgdOptimizer(Optimizer):
                     assert np.isscalar(weight_gradient)
                 else:
                     assert isinstance(weight, np.ndarray) and isinstance(weight_gradient, np.ndarray)
-                    assert len(weight.shape) == 2
+                    assert weight.ndim == 2
                     assert weight.shape == weight_gradient.shape
                 check_dtype(weight, utils.DEFAULT_DATATYPE)
                 check_dtype(weight_gradient, utils.DEFAULT_DATATYPE)
@@ -302,7 +302,7 @@ class AdamOptimizer(Optimizer):
                     assert np.isscalar(weight_gradient)
                 else:
                     assert isinstance(weight, np.ndarray) and isinstance(weight_gradient, np.ndarray)
-                    assert len(weight.shape) == 2
+                    assert weight.ndim == 2
                     assert weight.shape == weight_gradient.shape
                 check_dtype(weight, utils.DEFAULT_DATATYPE)
                 check_dtype(weight_gradient, utils.DEFAULT_DATATYPE)
@@ -427,7 +427,7 @@ class RMSpropOptimizer(Optimizer):
                     assert np.isscalar(weight_gradient)
                 else:
                     assert isinstance(weight, np.ndarray) and isinstance(weight_gradient, np.ndarray)
-                    assert len(weight.shape) == 2
+                    assert weight.ndim == 2
                     assert weight.shape == weight_gradient.shape
                 check_dtype(weight, utils.DEFAULT_DATATYPE)
                 check_dtype(weight_gradient, utils.DEFAULT_DATATYPE)
