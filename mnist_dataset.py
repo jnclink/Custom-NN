@@ -56,7 +56,7 @@ def _download_raw_MNIST_dataset() -> str:
     --------
     This function is basically equivalent to the `tensorflow.keras.datasets.mnist.load_data`
     method. The only real difference is that the downloaded data has a different
-    location on your disk. The reason as for why the previous `mnist.load_data`
+    location on your disk. The reason why the previous `mnist.load_data`
     method isn't used is simply because we do NOT want to import TensorFlow !
     Indeed, in my opinion, it would be kind of awkward to import TensorFlow in
     a project aiming to implement a Deep Learning model *from scratch* !

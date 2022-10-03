@@ -120,7 +120,10 @@ class Network:
         for layer_type in Network.AVAILABLE_LAYER_TYPES:
             layer_name = layer_type.__name__
             self._layer_counter[layer_name] = 0
-        self._layer_counter["REUSED"] = 0 # for reused layers (e.g. for Transfer Learning purposes)
+        
+        # for reused layers (e.g. for Transfer Learning purposes)
+        self._key_name_for_reused_layers = "REUSED" # to prevent typos
+        self._layer_counter[self._key_name_for_reused_layers] = 0
         
         self._output_activation_is_log_softmax: bool = False
         
@@ -197,8 +200,8 @@ class Network:
         else:
             # here, that means that we've (most likely) reused a layer from
             # another Network instance (e.g. for Transfer Learning purposes)
-            self._layer_counter["REUSED"] += 1
-            reused_layer_index = self._layer_counter["REUSED"]
+            self._layer_counter[self._key_name_for_reused_layers] += 1
+            reused_layer_index = self._layer_counter[self._key_name_for_reused_layers]
             full_name_of_layer = f"{layer_name_abbreviation}_reused_{reused_layer_index}"
         used_layer._name = full_name_of_layer
         
@@ -967,6 +970,10 @@ class Network:
         
         train_batch_index_update_step = nb_train_batches // nb_train_batch_index_updates
         
+        # by default
+        precision_epoch_history = 4
+        assert precision_epoch_history >= 2
+        
         # the offset spacing is used to center the prints
         offset_spacing = 5
         
@@ -976,10 +983,9 @@ class Network:
         
         # `nb_dashes_in_transition` is an empirical value
         if _has_validation_data:
-            nb_dashes_in_transition = 77
+            nb_dashes_in_transition = 61 + 4 * precision_epoch_history + 2 * len(offset_spacing)
         else:
-            nb_dashes_in_transition = 37
-        nb_dashes_in_transition += 2 * len(offset_spacing)
+            nb_dashes_in_transition = 29 + 2 * precision_epoch_history + 2 * len(offset_spacing)
         
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
         
@@ -1180,8 +1186,6 @@ class Network:
                 
                 # -------------------------------------------------------------- #
                 
-                precision_epoch_history = 4 # by default
-                
                 epoch_history = offset_spacing
                 if _has_validation_data:
                     epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - val_loss={val_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f} - val_accuracy={val_accuracy:.{precision_epoch_history}f}"
@@ -1266,7 +1270,8 @@ class Network:
         conclusion = ""
         if not(_training_loop_was_prematurely_stopped):
             conclusion += f"\n{offset_spacing}Training complete !\n"
-        conclusion += f"\n{offset_spacing}Done in {duration_training:.1f} seconds{space_or_newline}({average_epoch_duration:.1f} s/epoch, {average_batch_duration_in_milliseconds:.1f} ms/batch)"
+        time_precision = 1 # by default
+        conclusion += f"\n{offset_spacing}Done in {duration_training:.{time_precision}f} seconds{space_or_newline}({average_epoch_duration:.{time_precision}f} s/epoch, {average_batch_duration_in_milliseconds:.{time_precision}f} ms/batch)"
         print(conclusion)
         
         print(transition)

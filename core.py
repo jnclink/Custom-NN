@@ -350,7 +350,7 @@ def train_test_split(
     `train_test_split` function of the `sklearn.model_selection` module. The
     only major difference is that, here, the `stratify` kwarg is defined as
     a boolean, whereas it's defined as an array in the original function. Also,
-    the reason as for why the previous `sklearn.model_selection.train_test_split`
+    the reason why the previous `sklearn.model_selection.train_test_split`
     method isn't used is simply because we do NOT want to import Scikit-Learn
     (or "sklearn") ! Indeed, in my opinion, it would be kind of awkward to
     import Scikit-Learn in a project aiming to implement a Deep Learning

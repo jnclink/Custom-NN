@@ -874,7 +874,7 @@ def _validate_loss_inputs(y_true: np.ndarray, y_pred: np.ndarray) -> None:
     check_dtype(y_pred, DEFAULT_DATATYPE)
 
 
-def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff: float) -> Union[np.float32, np.float64]:
+def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff: float) -> float:
     """
     Checks if `leaky_ReLU_coeff` is valid or not, and returns it (cast
     to `DEFAULT_DATATYPE`)

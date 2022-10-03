@@ -30,7 +30,7 @@ from optimizers import (
     RMSpropOptimizer
 )
 
-from regularizers import Regularizer
+from regularizers import Regularizer, L1, L2, L1_L2
 
 from activations import (
     ReLU,        ReLU_prime,
@@ -71,14 +71,18 @@ class Layer(ABC):
         
         self.nb_trainable_params: Union[None, int] = None
         
+        # variables related to L1/L2 regularization
+        self.regularizer: Optional[Regularizer] = None
+        self.loss_leftovers: float = cast(0, utils.DEFAULT_DATATYPE)
+        self._L1_coeff: Optional[float] = None
+        self._L2_coeff: Optional[float] = None
+        self._L2_scaling_factor: Optional[float] = None
+        
         # these variables will be set by the `Layer.set_optimizer` method
         self.optimizer_name: Union[None, str] = None
         self._learning_rate: Union[None, float] = None
         self._optimizer: Union[None, Optimizer] = None
         self._optimize_weights: Union[None, Callable] = None
-        
-        # in case any regularizations are used on the weights of a layer
-        self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
         
         # If this boolean is set to `True`, then all the trainable and
         # non-trainable parameters of the current Layer instance will be
@@ -144,6 +148,23 @@ class Layer(ABC):
         """
         pass
     
+    def _add_regularizer(self, regularizer: Regularizer):
+        """
+        Adds a L1/L2 regularizer to the current layer
+        """
+        assert isinstance(regularizer, (type(None), Regularizer))
+        
+        if regularizer is not None:
+            assert type(regularizer) != Regularizer
+            self.regularizer = regularizer
+            
+            if hasattr(regularizer, "L1_coeff"):
+                self._L1_coeff = cast(regularizer.L1_coeff, utils.DEFAULT_DATATYPE)
+            if hasattr(regularizer, "L2_coeff"):
+                self._L2_coeff = cast(regularizer.L2_coeff, utils.DEFAULT_DATATYPE)
+                self._L2_scaling_factor = self._L2_coeff / cast(2, utils.DEFAULT_DATATYPE)
+                check_dtype(self._L2_scaling_factor, utils.DEFAULT_DATATYPE)
+    
     def set_optimizer(
             self,
             optimizer_name: str,
@@ -170,17 +191,11 @@ class Layer(ABC):
         
         # ------------------------------------------------------------------- #
         
-        if hasattr(self, "regularizer"):
-            # so far, only the Dense layers can have L1/L2 regularizers
-            regularizer = self.regularizer
-        else:
-            regularizer = None
-        
         self.optimizer_name = optimizer_name
         self._learning_rate = learning_rate
         
         optimizer_class = Layer.AVAILABLE_OPTIMIZERS[self.optimizer_name]
-        self._optimizer = optimizer_class(self._learning_rate, regularizer=regularizer)
+        self._optimizer = optimizer_class(self._learning_rate, regularizer=self.regularizer)
         
         self._optimize_weights = self._optimizer.optimize_weights
     
@@ -260,8 +275,9 @@ class Layer(ABC):
         """
         variables_of_current_layer = self.__dict__.copy()
         
-        # the `_optimizer` and `_optimize_weights` variables aren't
-        # pickleable/serializable
+        # the `regularizer`, `_optimizer` and `_optimize_weights` variables
+        # aren't pickleable/serializable
+        variables_of_current_layer.pop("regularizer")
         variables_of_current_layer.pop("_optimizer")
         variables_of_current_layer.pop("_optimize_weights")
         
@@ -292,6 +308,20 @@ class Layer(ABC):
             assert isinstance(variable_name, str)
             setattr(loaded_layer, variable_name, variable)
         
+        # setting the `regularizer` variable
+        L1_coeff = loaded_layer._L1_coeff
+        L2_coeff = loaded_layer._L2_coeff
+        if (L1_coeff is None) and (L2_coeff is None):
+            loaded_layer.regularizer = None
+        elif (L1_coeff is not None) and (L2_coeff is None):
+            loaded_layer.regularizer = L1(L1_coeff)
+        elif (L1_coeff is None) and (L2_coeff is not None):
+            loaded_layer.regularizer = L2(L2_coeff)
+        else:
+            # in this case, `L1_coeff` and `L2_coeff` are both different
+            # from `None`
+            loaded_layer.regularizer = L1_L2(L1_coeff, L2_coeff)
+        
         # setting the `_optimizer` and `_optimize_weights` variables
         optimizer_name = loaded_layer.optimizer_name
         learning_rate  = loaded_layer._learning_rate
@@ -318,6 +348,99 @@ class Layer(ABC):
         assert layer_copy is not self
         
         return layer_copy
+
+
+##############################################################################
+
+
+class MyLayer(Layer):
+    """
+    Template for defining a new Layer class. The `forward_propagation` and
+    `backward_propagation` methods need to have these exact signatures
+    """
+    def __init__(self, *args, **kwargs) -> None:
+        # Note that this class has to inherit from the base `Layer` class
+        super().__init__()
+        
+        # Define all the instance variables you need (make sure your weights
+        # and/or other variables are *all* cast to `utils.DEFAULT_DATATYPE`)
+        ...
+        
+        # Manually define the total number of trainable parameters in the layer
+        self.nb_trainable_params: int = ...
+    
+    def build(self, input_size: int) -> None:
+        # Optional method used to define some instance variables if the
+        # input size of the layer is unknown when the layer is instantiated
+        # (and assuming the input size is a defining feature of the layer)
+        pass
+    
+    def forward_propagation(
+            self,
+            input_data: np.ndarray,
+            *,
+            training: bool = False,
+            enable_checks: bool = True
+        ) -> np.ndarray:
+        
+        # Save the input data (since it might be needed in the backward propagation)
+        self.input = input_data
+        
+        # Compute the output directly from the input
+        self.output = ...
+        
+        return self.output
+    
+    def backward_propagation(
+            self,
+            output_gradient: np.ndarray,
+            *,
+            enable_checks: bool = True
+        ) -> np.ndarray:
+        
+        # Compute the input gradient directly from the given output gradient
+        input_gradient = ...
+        
+        if not(self._is_frozen):
+            # Update the trainable parameters (if there are any). Uncomment the
+            # following code block if needed :
+            
+            # self.weights_1, self.weights_2, ... = self._optimize_weights(
+            #     weights=(self.weights_1, self.weights_2, ...),
+            #     weight_gradients=(weights_gradient_1, weights_gradient_2, ...),
+            #     enable_checks=enable_checks
+            # )
+            
+            pass
+        
+        # ------------------------------------------------------------------ #
+        
+        # This section is only relevant if this layer has trainable parameters
+        # that are interesting to regularize using the L1/L2 regularizers. In
+        # that case, you'll need to call `self._add_regularizer(regularizer)`
+        # at some stage before the training occurs (e.g. in the `__init__`
+        # method). Here, `regularizer` has to be an instance of one of the
+        # `L1`, `L2` or `L1_L2` classes
+        
+        # resetting the "loss leftovers" (for the L1/L2 regularizers)
+        self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
+        
+        if self._L1_coeff is not None:
+            self.loss_leftovers += self._L1_coeff * (np.sum(np.abs(self.weights_1)) + np.sum(np.abs(self.weights_2)) + ...)
+        if self._L2_coeff is not None:
+            self.loss_leftovers += self._L2_scaling_factor * (np.sum(np.square(self.weights_1)) + np.sum(np.square(self.weights_2)) + ...)
+        
+        # ------------------------------------------------------------------ #
+        
+        return input_gradient
+
+
+"""
+Then, import your layer class at the beginning of the "network.py" script,
+and add it to the `Network.AVAILABLE_LAYER_TYPES` dictionary. The latter
+dictionary is a (class) variable defined right before the `Network.__init__`
+method (also in the "network.py" script)
+"""
 
 
 ##############################################################################
@@ -357,7 +480,7 @@ class InputLayer(Layer):
         
         if enable_checks:
             self._validate_forward_propagation_inputs(input_data, training)
-        self.input  = input_data
+        self.input = input_data
         
         self.output = self.input
         
@@ -411,22 +534,7 @@ class DenseLayer(Layer):
         assert isinstance(use_biases, bool)
         self.use_biases = use_biases
         
-        self._L1_coeff = None
-        self._L2_coeff = None
-        self._L2_scaling_factor = None
-        
-        assert isinstance(regularizer, (type(None), Regularizer))
-        self.regularizer = regularizer
-        
-        if regularizer is not None:
-            assert type(regularizer) != Regularizer
-            
-            if hasattr(regularizer, "L1_coeff"):
-                self._L1_coeff = cast(regularizer.L1_coeff, utils.DEFAULT_DATATYPE)
-            if hasattr(regularizer, "L2_coeff"):
-                self._L2_coeff = cast(regularizer.L2_coeff, utils.DEFAULT_DATATYPE)
-                self._L2_scaling_factor = self._L2_coeff / cast(2, utils.DEFAULT_DATATYPE)
-                check_dtype(self._L2_scaling_factor, utils.DEFAULT_DATATYPE)
+        self._add_regularizer(regularizer)
         
         assert isinstance(seed, (type(None), int))
         if seed is not None:
@@ -562,6 +670,10 @@ class DenseLayer(Layer):
                     enable_checks=enable_checks
                 )
             
+            # -------------------------------------------------------------- #
+            
+            # Part related to L1/L2 regularization
+            
             # resetting the "loss leftovers"
             self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
             
@@ -571,9 +683,11 @@ class DenseLayer(Layer):
                     self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.biases))
             
             if self._L2_coeff is not None:
-                self.loss_leftovers += self._L2_scaling_factor * np.sum(self.weights**2)
+                self.loss_leftovers += self._L2_scaling_factor * np.sum(np.square(self.weights))
                 if self.use_biases:
-                    self.loss_leftovers += self._L2_scaling_factor * np.sum(self.biases**2)
+                    self.loss_leftovers += self._L2_scaling_factor * np.sum(np.square(self.biases))
+            
+            # -------------------------------------------------------------- #
         
         return input_gradient
 
@@ -616,16 +730,16 @@ class ActivationLayer(Layer):
         self._activation, self._activation_prime = activations
         
         # to prevent typos
-        self.leaky_ReLU_coeff_key: str = "leaky_ReLU_coeff"
+        self._key_name_for_leaky_ReLU_coeff: str = "leaky_ReLU_coeff"
         
         self.activation_kwargs: dict[str, float] = {}
         if self.activation_name == "leaky_relu":
             default_leaky_ReLU_coeff = 0.01
             
-            leaky_ReLU_coeff = kwargs.get(self.leaky_ReLU_coeff_key, default_leaky_ReLU_coeff)
+            leaky_ReLU_coeff = kwargs.get(self._key_name_for_leaky_ReLU_coeff, default_leaky_ReLU_coeff)
             _validate_leaky_ReLU_coeff(leaky_ReLU_coeff)
             
-            self.activation_kwargs[self.leaky_ReLU_coeff_key] = leaky_ReLU_coeff
+            self.activation_kwargs[self._key_name_for_leaky_ReLU_coeff] = leaky_ReLU_coeff
         
         # NB : Since the softmax activation only applies to VECTORS (and not
         #      scalars), the backpropagation formula won't be the same as the other
@@ -658,7 +772,7 @@ class ActivationLayer(Layer):
     def __str__(self) -> str:
         extra_info = ""
         if self.activation_name == "leaky_relu":
-            leaky_ReLU_coeff = self.activation_kwargs[self.leaky_ReLU_coeff_key]
+            leaky_ReLU_coeff = self.activation_kwargs[self._key_name_for_leaky_ReLU_coeff]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
             extra_info += f", coeff={leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
         elif self._is_prelu and self._is_frozen:
@@ -685,7 +799,7 @@ class ActivationLayer(Layer):
         self.input = input_data
         
         if self._is_prelu:
-            self.activation_kwargs[self.leaky_ReLU_coeff_key] = self.coeff
+            self.activation_kwargs[self._key_name_for_leaky_ReLU_coeff] = self.coeff
         
         self.output = self._activation(
             self.input,
@@ -712,7 +826,7 @@ class ActivationLayer(Layer):
             self._validate_backward_propagation_input(output_gradient)
             
             if self._is_prelu:
-                assert np.allclose(self.activation_kwargs[self.leaky_ReLU_coeff_key], self.coeff)
+                assert np.allclose(self.activation_kwargs[self._key_name_for_leaky_ReLU_coeff], self.coeff)
         
         if self._reuse_activation_output_in_backprop:
             used_input = self.output
@@ -758,30 +872,27 @@ class BatchNormLayer(Layer):
     def __init__(self) -> None:
         super().__init__()
         
-        # generic type representing the global datatype
-        Float = np.dtype(utils.DEFAULT_DATATYPE).type
-        
         # initializing the trainable parameters
-        self.gamma: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self.beta:  Float = cast(0, utils.DEFAULT_DATATYPE)
+        self.gamma: float = cast(1, utils.DEFAULT_DATATYPE)
+        self.beta:  float = cast(0, utils.DEFAULT_DATATYPE)
         
         self.nb_trainable_params: int = 2
         
         # initializing the non-trainable parameters
-        self.moving_mean: Float = cast(0, utils.DEFAULT_DATATYPE)
-        self.moving_var:  Float = cast(1, utils.DEFAULT_DATATYPE)
-        self.moving_std: Union[None, Float] = None
+        self.moving_mean: float = cast(0, utils.DEFAULT_DATATYPE)
+        self.moving_var:  float = cast(1, utils.DEFAULT_DATATYPE)
+        self.moving_std: Union[None, float] = None
         
         # by default
-        self.momentum: Float = cast(0.99, utils.DEFAULT_DATATYPE)
+        self.momentum: float = cast(0.99, utils.DEFAULT_DATATYPE)
         assert (self.momentum > 0) and (self.momentum < 1)
         
-        one: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self._momentum_inverse: Float = one - self.momentum
+        one: float = cast(1, utils.DEFAULT_DATATYPE)
+        self._momentum_inverse: float = one - self.momentum
         check_dtype(self._momentum_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
-        self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
+        self.epsilon: float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
         # initializing the cached input data (which is used to slightly speed
@@ -917,12 +1028,9 @@ class DropoutLayer(Layer):
             assert seed >= 0
         self.seed: Union[None, int] = seed
         
-        # generic type representing the global datatype
-        Float = np.dtype(utils.DEFAULT_DATATYPE).type
-        
         # all the non-deactivated values will be scaled up by this factor (by default)
-        one: Float = cast(1, utils.DEFAULT_DATATYPE)
-        self.scaling_factor: Float = one / (one - cast(self.dropout_rate, utils.DEFAULT_DATATYPE))
+        one: float = cast(1, utils.DEFAULT_DATATYPE)
+        self.scaling_factor: float = one / (one - cast(self.dropout_rate, utils.DEFAULT_DATATYPE))
         check_dtype(self.scaling_factor, utils.DEFAULT_DATATYPE)
         
         self.nb_trainable_params = 0

@@ -40,7 +40,7 @@ class L1(Regularizer):
     L1 regularizer class
     """
     def __init__(self, L1_coeff: float) -> None:
-        assert isinstance(L1_coeff, float)
+        assert isinstance(L1_coeff, (float, np.floating))
         assert (L1_coeff > 0) and (L1_coeff < 1)
         self.L1_coeff = L1_coeff
     
@@ -65,7 +65,7 @@ class L2(Regularizer):
     a different name)
     """
     def __init__(self, L2_coeff: float) -> None:
-        assert isinstance(L2_coeff, float)
+        assert isinstance(L2_coeff, (float, np.floating))
         assert (L2_coeff > 0) and (L2_coeff < 1)
         self.L2_coeff = L2_coeff
     

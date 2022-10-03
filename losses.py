@@ -19,6 +19,51 @@ from utils import (
 ##############################################################################
 
 
+"""
+Template for defining loss functions and their derivatives (with these
+exact signatures):
+"""
+
+
+def my_loss_function(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        *,
+        y_pred_is_log_softmax_output: bool = False,
+        enable_checks: bool = True
+    ) -> np.ndarray:
+    
+    # Compute the loss between `y_pred` and `y_true`
+    loss_output = ...
+    
+    return loss_output
+
+
+def my_loss_function_prime(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        *,
+        y_pred_is_log_softmax_output: bool = False,
+        enable_checks: bool = True
+    ) -> np.ndarray:
+    
+    # Compute the derivative of the loss between `y_pred` and `y_true`
+    loss_prime_output = ...
+    
+    return loss_prime_output
+
+
+"""
+Then, import your loss functions at the beginning of the "network.py" script,
+and add them to the `Network.AVAILABLE_LOSSES` dictionary. The latter dictionary
+is a (class) variable defined right before the `Network.__init__` method
+(also in the "network.py" script)
+"""
+
+
+##############################################################################
+
+
 # Defining the Categorical Cross-Entropy (CCE) loss function and its derivative
 
 

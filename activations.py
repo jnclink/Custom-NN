@@ -20,6 +20,48 @@ from utils import (
 ##############################################################################
 
 
+"""
+Template for defining activation functions and their derivatives (with these
+exact signatures):
+"""
+
+
+def my_activation_function(
+        x: np.ndarray,
+        *,
+        enable_checks: bool = True
+    ) -> np.ndarray:
+    
+    # Compute the activated version of `x`
+    activation_output = ...
+    
+    return activation_output
+
+
+def my_activation_function_prime(
+        x: np.ndarray,
+        *,
+        input_is_activation_output: bool = False,
+        enable_checks: bool = True
+    ) -> np.ndarray:
+    
+    # Compute the derivative of the activated version of `x`
+    activation_prime_output = ...
+    
+    return activation_prime_output
+
+
+"""
+Then, import your activation functions at the beginning of the "layers.py"
+script, and add them to the `ActivationLayer.AVAILABLE_ACTIVATIONS` dictionary.
+The latter dictionary is a (class) variable defined right before the
+`ActivationLayer.__init__` method (also in the "layers.py" script)
+"""
+
+
+##############################################################################
+
+
 # Defining the Rectified Linear Unit (ReLU) activation function and its derivative
 
 
