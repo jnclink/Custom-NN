@@ -71,9 +71,15 @@ class Layer(ABC):
         
         self.nb_trainable_params: Union[None, int] = None
         
+        # defined for convenience purposes
+        self._zero: float = cast(0, utils.DEFAULT_DATATYPE)
+        self._one:  float = cast(1, utils.DEFAULT_DATATYPE)
+        self._two:  float = cast(2, utils.DEFAULT_DATATYPE)
+        
         # variables related to L1/L2 regularization
+        self._has_regularizer: bool = False
         self.regularizer: Optional[Regularizer] = None
-        self.loss_leftovers: float = cast(0, utils.DEFAULT_DATATYPE)
+        self.loss_leftovers: float = self._zero
         self._L1_coeff: Optional[float] = None
         self._L2_coeff: Optional[float] = None
         self._L2_scaling_factor: Optional[float] = None
@@ -154,16 +160,19 @@ class Layer(ABC):
         """
         assert isinstance(regularizer, (type(None), Regularizer))
         
-        if regularizer is not None:
+        if (regularizer is not None) and (self.regularizer is None):
             assert type(regularizer) != Regularizer
-            self.regularizer = regularizer
             
             if hasattr(regularizer, "L1_coeff"):
                 self._L1_coeff = cast(regularizer.L1_coeff, utils.DEFAULT_DATATYPE)
             if hasattr(regularizer, "L2_coeff"):
                 self._L2_coeff = cast(regularizer.L2_coeff, utils.DEFAULT_DATATYPE)
-                self._L2_scaling_factor = self._L2_coeff / cast(2, utils.DEFAULT_DATATYPE)
+                self._L2_scaling_factor = self._L2_coeff / self._two
                 check_dtype(self._L2_scaling_factor, utils.DEFAULT_DATATYPE)
+            
+            assert (self._L1_coeff is not None) or (self._L2_coeff is not None)
+            self.regularizer = regularizer
+            self._has_regularizer = True
     
     def set_optimizer(
             self,
@@ -407,7 +416,7 @@ class MyLayer(Layer):
             
             # self.weights_1, self.weights_2, ... = self._optimize_weights(
             #     weights=(self.weights_1, self.weights_2, ...),
-            #     weight_gradients=(weights_gradient_1, weights_gradient_2, ...),
+            #     weight_gradients=(weight_gradient_1, weight_gradient_2, ...),
             #     enable_checks=enable_checks
             # )
             
@@ -422,13 +431,16 @@ class MyLayer(Layer):
         # method). Here, `regularizer` has to be an instance of one of the
         # `L1`, `L2` or `L1_L2` classes
         
-        # resetting the "loss leftovers" (for the L1/L2 regularizers)
-        self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
-        
-        if self._L1_coeff is not None:
-            self.loss_leftovers += self._L1_coeff * (np.sum(np.abs(self.weights_1)) + np.sum(np.abs(self.weights_2)) + ...)
-        if self._L2_coeff is not None:
-            self.loss_leftovers += self._L2_scaling_factor * (np.sum(np.square(self.weights_1)) + np.sum(np.square(self.weights_2)) + ...)
+        if self._has_regularizer:
+            # resetting the "loss leftovers" (for the L1/L2 regularizers)
+            self.loss_leftovers = self._zero
+            
+            if self._L1_coeff is not None:
+                # += L1_coeff * sum([np.sum(np.abs(weights)) for weights in list_of_all_weight_matrices])
+                self.loss_leftovers += self._L1_coeff * (np.sum(np.abs(self.weights_1)) + np.sum(np.abs(self.weights_2)) + ...)
+            if self._L2_coeff is not None:
+                # += L2_scaling_factor * sum([np.sum(np.square(weights)) for weights in list_of_all_weight_matrices])
+                self.loss_leftovers += self._L2_scaling_factor * (np.sum(np.square(self.weights_1)) + np.sum(np.square(self.weights_2)) + ...)
         
         # ------------------------------------------------------------------ #
         
@@ -547,6 +559,10 @@ class DenseLayer(Layer):
         self.input_size: Union[None, int] = None
         self.weights: Union[None, np.ndarray] = None
         self.biases:  Union[None, np.ndarray] = None
+        
+        # used to speed up the computations a bit during backpropagation
+        self._batch_size: Union[None, int] = None
+        self._averaging_factor: Union[None, float] = None
     
     def __str__(self) -> str:
         extra_info = ""
@@ -572,7 +588,7 @@ class DenseLayer(Layer):
         # Using the "He initialization" for the weights (primarily because
         # it works well with ReLU-like activations)
         
-        initial_var = cast(2, utils.DEFAULT_DATATYPE) / cast(self.input_size, utils.DEFAULT_DATATYPE)
+        initial_var = self._two / cast(self.input_size, utils.DEFAULT_DATATYPE)
         initial_std = np.sqrt(initial_var)
         check_dtype(initial_std, utils.DEFAULT_DATATYPE)
         
@@ -614,7 +630,7 @@ class DenseLayer(Layer):
         
         if enable_checks:
             self._validate_forward_propagation_inputs(input_data, training)
-        self.input  = input_data
+        self.input = input_data
         
         if self.use_biases:
             self.output = self.input @ self.weights + self.biases
@@ -633,9 +649,6 @@ class DenseLayer(Layer):
         ) -> np.ndarray:
         """
         Backward propagation of the Dense layer
-        
-        Computes dE/dW and dE/dB for a given output_gradient=dE/dY, updates
-        the weights and biases, and returns the input_gradient=dE/dX
         """
         assert isinstance(enable_checks, bool)
         
@@ -643,18 +656,20 @@ class DenseLayer(Layer):
             self._check_if_optimizer_is_set()
             self._validate_backward_propagation_input(output_gradient)
         
-        input_gradient = output_gradient @ self.weights.T # = dE/dX
+        input_gradient = output_gradient @ self.weights.T
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
         if not(self._is_frozen):
             batch_size = output_gradient.shape[0]
-            averaging_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(batch_size, utils.DEFAULT_DATATYPE)
+            if batch_size != self._batch_size:
+                self._batch_size = batch_size
+                self._averaging_factor = self._one / cast(batch_size, utils.DEFAULT_DATATYPE)
             
             # gradient averaging for batch processing
-            weights_gradient = averaging_factor * self.input.T @ output_gradient  # = dE/dW
+            weights_gradient = self._averaging_factor * self.input.T @ output_gradient
             if self.use_biases:
-                biases_gradient = np.mean(output_gradient, axis=0, keepdims=True) # = dE/dB
+                biases_gradient = np.mean(output_gradient, axis=0, keepdims=True)
             
             # updating the trainable parameters
             if self.use_biases:
@@ -674,18 +689,19 @@ class DenseLayer(Layer):
             
             # Part related to L1/L2 regularization
             
-            # resetting the "loss leftovers"
-            self.loss_leftovers = cast(0, utils.DEFAULT_DATATYPE)
-            
-            if self._L1_coeff is not None:
-                self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.weights))
-                if self.use_biases:
-                    self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.biases))
-            
-            if self._L2_coeff is not None:
-                self.loss_leftovers += self._L2_scaling_factor * np.sum(np.square(self.weights))
-                if self.use_biases:
-                    self.loss_leftovers += self._L2_scaling_factor * np.sum(np.square(self.biases))
+            if self._has_regularizer:
+                # resetting the "loss leftovers"
+                self.loss_leftovers = self._zero
+                
+                if self._L1_coeff is not None:
+                    self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.weights))
+                    if self.use_biases:
+                        self.loss_leftovers += self._L1_coeff * np.sum(np.abs(self.biases))
+                
+                if self._L2_coeff is not None:
+                    self.loss_leftovers += self._L2_scaling_factor * np.sum(np.square(self.weights))
+                    if self.use_biases:
+                        self.loss_leftovers += self._L2_scaling_factor * np.sum(np.square(self.biases))
             
             # -------------------------------------------------------------- #
         
@@ -758,7 +774,7 @@ class ActivationLayer(Layer):
             # layer (i.e. `self.coeff`) will be initialized to zero. It can
             # be interpreted as some  kind of "unbounded leaky ReLU coefficient
             # varying over time"
-            self.coeff: Union[None, float] = cast(0, utils.DEFAULT_DATATYPE)
+            self.coeff: Union[None, float] = self._zero
             self.nb_trainable_params: int = 1
         else:
             self.coeff: Union[None, float] = None
@@ -774,7 +790,8 @@ class ActivationLayer(Layer):
         if self.activation_name == "leaky_relu":
             leaky_ReLU_coeff = self.activation_kwargs[self._key_name_for_leaky_ReLU_coeff]
             precision_leaky_ReLU_coeff = max(2, count_nb_decimals_places(leaky_ReLU_coeff))
-            extra_info += f", coeff={leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
+            str_leaky_ReLU_coeff = f"{leaky_ReLU_coeff:.{precision_leaky_ReLU_coeff}f}"
+            extra_info += f", coeff={str_leaky_ReLU_coeff}"
         elif self._is_prelu and self._is_frozen:
             extra_info += ", is_frozen=True"
         
@@ -873,22 +890,26 @@ class BatchNormLayer(Layer):
         super().__init__()
         
         # initializing the trainable parameters
-        self.gamma: float = cast(1, utils.DEFAULT_DATATYPE)
-        self.beta:  float = cast(0, utils.DEFAULT_DATATYPE)
+        self.gamma: float = self._one
+        self.beta:  float = self._zero
         
         self.nb_trainable_params: int = 2
         
         # initializing the non-trainable parameters
-        self.moving_mean: float = cast(0, utils.DEFAULT_DATATYPE)
-        self.moving_var:  float = cast(1, utils.DEFAULT_DATATYPE)
-        self.moving_std: Union[None, float] = None
+        self.moving_mean: float = self._zero
+        self.moving_var:  float = self._one
+        
+        # used to speed up the computations a bit during the forward
+        # propagation (during validation and testing)
+        self._moving_var_was_changed: bool = False
+        
+        self.moving_std: float = self._one
         
         # by default
         self.momentum: float = cast(0.99, utils.DEFAULT_DATATYPE)
         assert (self.momentum > 0) and (self.momentum < 1)
         
-        one: float = cast(1, utils.DEFAULT_DATATYPE)
-        self._momentum_inverse: float = one - self.momentum
+        self._momentum_inverse: float = self._one - self.momentum
         check_dtype(self._momentum_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
@@ -917,8 +938,8 @@ class BatchNormLayer(Layer):
         """
         Forward propagation of the BatchNorm layer
         
-        Returns the standardized (and rescaled) input along the 1st axis, i.e.
-        along the batches/rows
+        Returns the standardized (and rescaled) input along the first axis, i.e.
+        along the batch samples (or the rows)
         """
         assert isinstance(enable_checks, bool)
         
@@ -938,14 +959,17 @@ class BatchNormLayer(Layer):
             # updating the non-trainable parameters
             self.moving_mean = self.momentum * self.moving_mean + self._momentum_inverse * np.mean(input_mean)
             self.moving_var  = self.momentum * self.moving_var  + self._momentum_inverse * np.mean(input_variance)
+            self._moving_var_was_changed = True
             
             if enable_checks:
                 check_dtype(self.moving_mean, utils.DEFAULT_DATATYPE)
                 check_dtype(self.moving_var,  utils.DEFAULT_DATATYPE)
         else:
-            self.moving_std = np.sqrt(self.moving_var + self.epsilon)
-            if enable_checks:
-                check_dtype(self.moving_std, utils.DEFAULT_DATATYPE)
+            if self._moving_var_was_changed:
+                self.moving_std = np.sqrt(self.moving_var + self.epsilon)
+                if enable_checks:
+                    check_dtype(self.moving_std, utils.DEFAULT_DATATYPE)
+                self._moving_var_was_changed = False
             
             self.normalized_input = (self.input - self.moving_mean) / self.moving_std
         
@@ -967,9 +991,6 @@ class BatchNormLayer(Layer):
         ) -> np.ndarray:
         """
         Backward propagation of the BatchNorm layer
-        
-        Computes dE/d_gamma and dE/d_beta for a given output_gradient=dE/dY,
-        updates gamma and beta, and returns the input_gradient=dE/dX
         """
         assert isinstance(enable_checks, bool)
         
@@ -984,7 +1005,7 @@ class BatchNormLayer(Layer):
         # input gradient
         intermediate_mean = np.mean(output_gradient * self.normalized_input, axis=1, keepdims=True)
         
-        input_gradient = self.gamma * (centered_output_gradient - intermediate_mean * self.normalized_input) / self.input_std
+        input_gradient = self.gamma * (centered_output_gradient - self.normalized_input * intermediate_mean) / self.input_std
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)
         
@@ -1029,8 +1050,7 @@ class DropoutLayer(Layer):
         self.seed: Union[None, int] = seed
         
         # all the non-deactivated values will be scaled up by this factor (by default)
-        one: float = cast(1, utils.DEFAULT_DATATYPE)
-        self.scaling_factor: float = one / (one - cast(self.dropout_rate, utils.DEFAULT_DATATYPE))
+        self.scaling_factor: float = self._one / (self._one - cast(self.dropout_rate, utils.DEFAULT_DATATYPE))
         check_dtype(self.scaling_factor, utils.DEFAULT_DATATYPE)
         
         self.nb_trainable_params = 0
@@ -1039,12 +1059,14 @@ class DropoutLayer(Layer):
         self.dropout_matrix: Union[None, np.ndarray] = None
     
     def __str__(self) -> str:
+        precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
+        str_dropout_rate = f"{self.dropout_rate:.{precision_dropout_rate}f}"
+        
         extra_info = ""
         if self._is_frozen:
             extra_info += ", is_frozen=True"
         
-        precision_dropout_rate = max(2, count_nb_decimals_places(self.dropout_rate))
-        return f"{self.__class__.__name__}({self.dropout_rate:.{precision_dropout_rate}f}{extra_info})"
+        return f"{self.__class__.__name__}({str_dropout_rate}{extra_info})"
     
     def generate_random_dropout_matrix(
             self,
@@ -1067,12 +1089,10 @@ class DropoutLayer(Layer):
             dtype = _validate_numpy_dtype(dtype)
         
         batch_size, output_size = shape
-        
-        dropout_matrix = np.ones(shape, dtype=dtype)
         nb_of_values_to_drop_per_input_sample = int(round(self.dropout_rate * output_size))
         
         if nb_of_values_to_drop_per_input_sample > 0:
-            dropout_matrix *= self.scaling_factor
+            dropout_matrix = np.full(shape, self.scaling_factor, dtype=dtype)
             
             choices_for_dropped_indices = np.arange(output_size)
             
@@ -1091,6 +1111,8 @@ class DropoutLayer(Layer):
             # training phase)
             if self.seed is not None:
                 self.seed += 34 # the chosen increment value is arbitrary
+        else:
+            dropout_matrix = np.ones(shape, dtype=dtype)
         
         return dropout_matrix
     
@@ -1116,7 +1138,7 @@ class DropoutLayer(Layer):
             # NB : The dropout matrix is randomly re-generated from scratch
             #      every time the forwarding method is called (during the
             #      training phase)
-            self.dropout_matrix  = self.generate_random_dropout_matrix(
+            self.dropout_matrix = self.generate_random_dropout_matrix(
                 shape=self.input.shape,
                 dtype=self.input.dtype,
                 enable_checks=False

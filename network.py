@@ -134,6 +134,9 @@ class Network:
         self.optimizer_name: Union[None, str] = None
         self._learning_rate: Union[None, float] = None
         
+        # defined for convenience purposes
+        self._zero = cast(0, utils.DEFAULT_DATATYPE)
+        
         self.history: Union[None, dict[str, list]] = None
         self._is_trained: bool = False
         
@@ -776,6 +779,7 @@ class Network:
             output_size_of_network=self._io_sizes[-1][1]
         )
         nb_train_samples = used_X_train.shape[0]
+        cast_nb_train_samples = cast(nb_train_samples, utils.DEFAULT_DATATYPE)
         
         assert isinstance(nb_epochs, int)
         assert nb_epochs > 0
@@ -844,6 +848,7 @@ class Network:
                 output_size_of_network=self._io_sizes[-1][1]
             )
             nb_val_samples = used_X_val.shape[0]
+            cast_nb_val_samples = cast(nb_val_samples, utils.DEFAULT_DATATYPE)
             
             # the `val_batch_size` kwarg will not be used if `validation_data`
             # is set to `None`
@@ -989,6 +994,9 @@ class Network:
         
         transition = "\n# " + "-" * nb_dashes_in_transition + " #"
         
+        # by default (it's also an empirical value)
+        progress_bar_size = 11 + precision_epoch_history
+        
         # ================================================================== #
         
         # variables that will only be used if there is an "early stopping"
@@ -1053,7 +1061,7 @@ class Network:
                     seed += 1 # the increment value is arbitrary
                 
                 # initializing the training loss and accuracy
-                train_loss     = cast(0, utils.DEFAULT_DATATYPE)
+                train_loss     = self._zero
                 train_accuracy = 0
                 
                 # initializing the index of the current batch of training data
@@ -1115,7 +1123,7 @@ class Network:
                         current_progress_bar = progress_bar(
                             train_batch_index,
                             nb_train_batches,
-                            progress_bar_size=15, # by default
+                            progress_bar_size=progress_bar_size,
                             enable_checks=False
                         )
                         
@@ -1128,7 +1136,7 @@ class Network:
                 # generated during the current epoch)
                 assert train_batch_index == nb_train_batches
                 
-                train_loss /= cast(nb_train_samples, utils.DEFAULT_DATATYPE)
+                train_loss /= cast_nb_train_samples
                 check_dtype(train_loss, utils.DEFAULT_DATATYPE)
                 train_accuracy = float(train_accuracy) / nb_train_samples
                 
@@ -1138,7 +1146,7 @@ class Network:
                 
                 if _has_validation_data:
                     # initializing the validation loss and accuracy
-                    val_loss     = cast(0, utils.DEFAULT_DATATYPE)
+                    val_loss     = self._zero
                     val_accuracy = 0
                     
                     for X_val_batch, y_val_batch in zip(val_batches_data, val_batches_labels):
@@ -1167,7 +1175,7 @@ class Network:
                             enable_checks=enable_checks
                         )
                     
-                    val_loss /= cast(nb_val_samples, utils.DEFAULT_DATATYPE)
+                    val_loss /= cast_nb_val_samples
                     check_dtype(val_loss, utils.DEFAULT_DATATYPE)
                     val_accuracy = float(val_accuracy) / nb_val_samples
                 
@@ -1565,6 +1573,8 @@ class Network:
         )
         
         nb_test_samples = used_X_test.shape[0]
+        cast_nb_test_samples = cast(nb_test_samples, utils.DEFAULT_DATATYPE)
+        
         nb_classes = y_test_categorical.shape[1]
         
         assert isinstance(top_N_accuracy, int)
@@ -1603,7 +1613,7 @@ class Network:
         
         # initializing the testing loss, the testing accuracy and the mean
         # confidence levels
-        test_loss     = cast(0, utils.DEFAULT_DATATYPE)
+        test_loss     = self._zero
         test_accuracy = 0
         mean_confidence_level_correct_predictions = 0.0
         mean_confidence_level_false_predictions   = 0.0
@@ -1664,7 +1674,7 @@ class Network:
         assert (mean_confidence_level_correct_predictions >= 0) and (mean_confidence_level_correct_predictions <= 100)
         assert (mean_confidence_level_false_predictions >= 0) and (mean_confidence_level_false_predictions <= 100)
         
-        test_loss /= cast(nb_test_samples, utils.DEFAULT_DATATYPE)
+        test_loss /= cast_nb_test_samples
         check_dtype(test_loss, utils.DEFAULT_DATATYPE)
         test_accuracy = float(test_accuracy) / nb_test_samples
         
@@ -2119,7 +2129,7 @@ class Network:
         
         t_beginning_network_loading = perf_counter()
         
-        pickled_network = b""
+        pickled_network: bytes = b""
         
         # actually loading the network from the disk
         with gzip_open(saved_network_path, "rb") as COMPRESSED_NETWORK_FILE:        

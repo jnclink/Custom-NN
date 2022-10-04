@@ -516,7 +516,7 @@ def main():
     #     - "SGD" (Stochastic Gradient Descent)
     #     - "Adam"
     #     - "RMSprop"
-    optimizer_name = "RMSprop"
+    optimizer_name = "Adam"
     
     # NB : For the "SGD" optimizer, the value of the learning rate usually
     #      needs to be a bit higher than for the "Adam" and "RMSprop"
@@ -603,7 +603,8 @@ def main():
     
     # NB : If you set the `enable_checks` kwarg to `False` (to slightly speed
     #      up the training), please first make sure your network runs a couple
-    #      of epochs without errors when the same kwarg is set to `True` !
+    #      of epochs without raising any exceptions when the same kwarg is set
+    #      to `True` !
     
     network.fit(
         X_train,

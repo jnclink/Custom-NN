@@ -41,10 +41,7 @@ class Optimizer(ABC):
         learning_rate = cast(learning_rate, utils.DEFAULT_DATATYPE)
         assert (learning_rate > 0) and (learning_rate < 1)
         
-        # generic type representing the global datatype
-        Float = np.dtype(utils.DEFAULT_DATATYPE).type
-        
-        self.learning_rate: Float = learning_rate
+        self.learning_rate: float = learning_rate
         
         # ------------------------------------------------------------------ #
         
@@ -53,7 +50,8 @@ class Optimizer(ABC):
         self._has_regularizer: bool = False
         
         # defined for convenience purposes
-        self._one = cast(1, utils.DEFAULT_DATATYPE)
+        self._zero = cast(0, utils.DEFAULT_DATATYPE)
+        self._one  = cast(1, utils.DEFAULT_DATATYPE)
         
         self._L1_coeff = None
         self._L2_coeff = None
@@ -81,8 +79,11 @@ class Optimizer(ABC):
     
     def __str__(self) -> str:
         # default string representation of the optimizer classes
+        
         precision_learning_rate = max(2, count_nb_decimals_places(self.learning_rate))
-        return f"{self.__class__.__name__}(learning_rate={self.learning_rate:.{precision_learning_rate}f})"
+        str_learning_rate = f"{self.learning_rate:.{precision_learning_rate}f}"
+        
+        return f"{self.__class__.__name__}(learning_rate={str_learning_rate})"
     
     def __repr__(self) -> str:
         return str(self)
@@ -189,6 +190,8 @@ class SgdOptimizer(Optimizer):
                 weight_decay_factor = self._get_weight_decay_factor(weight)
                 decayed_weight = weight_decay_factor * weight
             
+            # NB : For the SGD optimizer, the weight gradient isn't "normalized"
+            #      (unlike the Adam and RMSprop optimizers)
             optimized_weight = decayed_weight - self.learning_rate * weight_gradient
             
             # -------------------------------------------------------------- #
@@ -217,24 +220,21 @@ class AdamOptimizer(Optimizer):
         
         super().__init__(learning_rate, regularizer=regularizer)
         
-        # generic type representing the global datatype
-        Float = np.dtype(utils.DEFAULT_DATATYPE).type
-        
         # first order momentum (default value)
-        self.beta_1: Float = cast(0.9, utils.DEFAULT_DATATYPE)
+        self.beta_1: float = cast(0.9, utils.DEFAULT_DATATYPE)
         assert (self.beta_1 > 0) and (self.beta_1 < 1)
         
         # second order momentum (default value)
-        self.beta_2: Float = cast(0.999, utils.DEFAULT_DATATYPE)
+        self.beta_2: float = cast(0.999, utils.DEFAULT_DATATYPE)
         assert (self.beta_2 > 0) and (self.beta_2 < 1)
         
-        self._beta_1_inverse: Float = self._one - self.beta_1
-        self._beta_2_inverse: Float = self._one - self.beta_2
+        self._beta_1_inverse: float = self._one - self.beta_1
+        self._beta_2_inverse: float = self._one - self.beta_2
         check_dtype(self._beta_1_inverse, utils.DEFAULT_DATATYPE)
         check_dtype(self._beta_2_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
-        self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
+        self.epsilon: float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
         # if the scaling factors become *really close* to one, then there's
@@ -243,8 +243,8 @@ class AdamOptimizer(Optimizer):
         self._stop_computing_scaling_factor_2: bool = False
         
         # initializing the list that will contain the first and second moments
-        self.first_moments:  list[Union[Float, np.ndarray]] = []
-        self.second_moments: list[Union[Float, np.ndarray]] = []
+        self.first_moments:  list[Union[float, np.ndarray]] = []
+        self.second_moments: list[Union[float, np.ndarray]] = []
         
         # initializing the timestep
         self.t: int = 0
@@ -314,12 +314,11 @@ class AdamOptimizer(Optimizer):
             
             if self.t == 1:
                 if np.isscalar(weight):
-                    zero = cast(0, utils.DEFAULT_DATATYPE)
+                    zero = self._zero
                     self.first_moments.append(zero)
                     self.second_moments.append(zero)
                 else:
-                    output_size = weight.shape[1]
-                    zeros = np.zeros((1, output_size), dtype=utils.DEFAULT_DATATYPE)
+                    zeros = np.zeros(weight.shape, dtype=utils.DEFAULT_DATATYPE)
                     self.first_moments.append(zeros)
                     self.second_moments.append(zeros.copy())
             
@@ -339,7 +338,38 @@ class AdamOptimizer(Optimizer):
             self.second_moments[weight_index] = second_moment_estimate
             bias_corrected_second_moment_estimate = scaling_factor_2 * second_moment_estimate
             
-            optimized_weight_gradient = bias_corrected_first_moment_estimate / (np.sqrt(bias_corrected_second_moment_estimate) + self.epsilon)
+            """
+            As `t` increases, the "normalized weight gradient" will approach the
+            following matrix :
+            
+                f(t) * sign(weight_gradient)
+            
+            Where :
+                f(t) = sqrt(1 - beta_2**t) / (1 - beta_1**t)
+            
+            Therefore, if `t` is large enough, the normalized weight gradient
+            will approach the sign of the original weight gradient, just like
+            the RMSprop optimizer !
+            
+            It's interesting to note that, for example, if `beta_1` equals
+            0.9 and `beta_2` equals 0.999, then `f(t)` will decrease for
+            1 <= `t` <= 12 (from 0.316 to 0.152), then increase for `t` >= 12
+            (from 0.152 to 1). The function `f` thus acts as a third "weight
+            gradient attenuator", in addition to `beta_1` and `beta_2` themselves !
+            
+            The fact that the normalized weight gradient approaches the sign of
+            the original weight gradient explains why the learning rate has to
+            be relatively small compared to the SGD optimizer (assuming all the
+            other hyperparameters of the network are the same). Indeed, here the
+            values of `normalized_weight_gradient` will typically be equal to
+            `+/- learning_rate` for `t` >> 1, while they will be at most equal
+            to `+/- learning_rate * max(abs(weight_gradient))` for the SGD
+            optimizer (for all `t` >= 1). Therefore, for `t` >> 1, the update
+            of the weight gradients will become "additive" for the RMSprop
+            optimizer, while the update is *always* multiplicative for the SGD
+            optimizer !
+            """
+            normalized_weight_gradient = bias_corrected_first_moment_estimate / (np.sqrt(bias_corrected_second_moment_estimate) + self.epsilon)
             
             if not(self._has_regularizer):
                 decayed_weight = weight
@@ -347,7 +377,7 @@ class AdamOptimizer(Optimizer):
                 weight_decay_factor = self._get_weight_decay_factor(weight)
                 decayed_weight = weight_decay_factor * weight
             
-            optimized_weight = decayed_weight - self.learning_rate * optimized_weight_gradient
+            optimized_weight = decayed_weight - self.learning_rate * normalized_weight_gradient
             
             # -------------------------------------------------------------- #
             
@@ -375,22 +405,19 @@ class RMSpropOptimizer(Optimizer):
         
         super().__init__(learning_rate, regularizer=regularizer)
         
-        # generic type representing the global datatype
-        Float = np.dtype(utils.DEFAULT_DATATYPE).type
-        
         # momentum (default value)
-        self.beta: Float = cast(0.9, utils.DEFAULT_DATATYPE)
+        self.beta: float = cast(0.9, utils.DEFAULT_DATATYPE)
         assert (self.beta > 0) and (self.beta < 1)
         
-        self._beta_inverse: Float = self._one - self.beta
+        self._beta_inverse: float = self._one - self.beta
         check_dtype(self._beta_inverse, utils.DEFAULT_DATATYPE)
         
         # by default (used for numerical stability)
-        self.epsilon: Float = cast(1e-5, utils.DEFAULT_DATATYPE)
+        self.epsilon: float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
         # initializing the list that will contain the moments
-        self.moments: list[Union[Float, np.ndarray]] = []
+        self.moments: list[Union[float, np.ndarray]] = []
         
         self._moments_are_initialized: bool = False
     
@@ -439,11 +466,10 @@ class RMSpropOptimizer(Optimizer):
             
             if not(self._moments_are_initialized):
                 if np.isscalar(weight):
-                    zero = cast(0, utils.DEFAULT_DATATYPE)
+                    zero = self._zero
                     self.moments.append(zero)
                 else:
-                    output_size = weight.shape[1]
-                    zeros = np.zeros((1, output_size), dtype=utils.DEFAULT_DATATYPE)
+                    zeros = np.zeros(weight.shape, dtype=utils.DEFAULT_DATATYPE)
                     self.moments.append(zeros)
             
             # -------------------------------------------------------------- #
@@ -455,7 +481,22 @@ class RMSpropOptimizer(Optimizer):
             moment_estimate = self.beta * moment + self._beta_inverse * np.square(weight_gradient)
             self.moments[weight_index] = moment_estimate
             
-            optimized_weight_gradient = weight_gradient / (np.sqrt(moment_estimate) + self.epsilon)
+            """
+            As the number of iterations increases, the "normalized weight
+            gradient" will approach the sign of the original weight gradient,
+            just like the Adam optimizer !
+            
+            Therefore the only "weight gradient attenuator" of the RMSprop
+            optimizer is `beta`
+            
+            Just like for the Adam optimizer, the fact that the normalized
+            weight gradient approaches the sign of the original weight gradient
+            explains why the learning rate has to be relatively small compared
+            to the SGD optimizer (assuming all the other hyperparameters of the
+            network are the same). See the `AdamOptimizer.optimize_weights`
+            method for more details
+            """
+            normalized_weight_gradient = weight_gradient / (np.sqrt(moment_estimate) + self.epsilon)
             
             if not(self._has_regularizer):
                 decayed_weight = weight
@@ -463,7 +504,7 @@ class RMSpropOptimizer(Optimizer):
                 weight_decay_factor = self._get_weight_decay_factor(weight)
                 decayed_weight = weight_decay_factor * weight
             
-            optimized_weight = decayed_weight - self.learning_rate * optimized_weight_gradient
+            optimized_weight = decayed_weight - self.learning_rate * normalized_weight_gradient
             
             # -------------------------------------------------------------- #
             
