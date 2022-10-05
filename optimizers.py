@@ -347,9 +347,9 @@ class AdamOptimizer(Optimizer):
             Where :
                 f(t) = sqrt(1 - beta_2**t) / (1 - beta_1**t)
             
-            Therefore, if `t` is large enough, the normalized weight gradient
-            will approach the sign of the original weight gradient, just like
-            the RMSprop optimizer !
+            Since f(t) ~ 1 for `t` >> 1, if `t` is large enough, the normalized
+            weight gradient will approach the sign of the original weight
+            gradient, just like the RMSprop optimizer !
             
             It's interesting to note that, for example, if `beta_1` equals
             0.9 and `beta_2` equals 0.999, then `f(t)` will decrease for
@@ -365,7 +365,7 @@ class AdamOptimizer(Optimizer):
             `+/- learning_rate` for `t` >> 1, while they will be at most equal
             to `+/- learning_rate * max(abs(weight_gradient))` for the SGD
             optimizer (for all `t` >= 1). Therefore, for `t` >> 1, the update
-            of the weight gradients will become "additive" for the RMSprop
+            of the weight gradients will become "additive" for the Adam
             optimizer, while the update is *always* multiplicative for the SGD
             optimizer !
             """
@@ -486,7 +486,7 @@ class RMSpropOptimizer(Optimizer):
             gradient" will approach the sign of the original weight gradient,
             just like the Adam optimizer !
             
-            Therefore the only "weight gradient attenuator" of the RMSprop
+            Therefore, the only "weight gradient attenuator" of the RMSprop
             optimizer is `beta`
             
             Just like for the Adam optimizer, the fact that the normalized

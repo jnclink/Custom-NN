@@ -1927,7 +1927,7 @@ class Network:
         """
         variables_of_current_network = self.__dict__.copy()
         
-        # the `_layers`, `_loss` and `_loss_prime` variables aren't
+        # the `_layers`, `_loss` and `_loss_prime` attributes aren't
         # pickleable/serializable
         variables_of_current_network.pop("_layers")
         variables_of_current_network.pop("_loss")
@@ -1969,7 +1969,7 @@ class Network:
             assert isinstance(variable_name, str)
             setattr(loaded_network, variable_name, variable)
         
-        # setting the `_loss` and `_loss_prime` variables
+        # setting the `_loss` and `_loss_prime` attributes
         loss_name = loaded_network.loss_name
         if loss_name is not None:
             loaded_network.set_loss_function(loss_name, verbose=False)

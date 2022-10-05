@@ -284,7 +284,7 @@ class Layer(ABC):
         """
         variables_of_current_layer = self.__dict__.copy()
         
-        # the `regularizer`, `_optimizer` and `_optimize_weights` variables
+        # the `regularizer`, `_optimizer` and `_optimize_weights` attributes
         # aren't pickleable/serializable
         variables_of_current_layer.pop("regularizer")
         variables_of_current_layer.pop("_optimizer")
@@ -317,21 +317,22 @@ class Layer(ABC):
             assert isinstance(variable_name, str)
             setattr(loaded_layer, variable_name, variable)
         
-        # setting the `regularizer` variable
+        # setting the `regularizer` attribute
         L1_coeff = loaded_layer._L1_coeff
         L2_coeff = loaded_layer._L2_coeff
         if (L1_coeff is None) and (L2_coeff is None):
-            loaded_layer.regularizer = None
+            regularizer = None
         elif (L1_coeff is not None) and (L2_coeff is None):
-            loaded_layer.regularizer = L1(L1_coeff)
+            regularizer = L1(L1_coeff)
         elif (L1_coeff is None) and (L2_coeff is not None):
-            loaded_layer.regularizer = L2(L2_coeff)
+            regularizer = L2(L2_coeff)
         else:
             # in this case, `L1_coeff` and `L2_coeff` are both different
             # from `None`
-            loaded_layer.regularizer = L1_L2(L1_coeff, L2_coeff)
+            regularizer = L1_L2(L1_coeff, L2_coeff)
+        loaded_layer.regularizer = regularizer
         
-        # setting the `_optimizer` and `_optimize_weights` variables
+        # setting the `_optimizer` and `_optimize_weights` attributes
         optimizer_name = loaded_layer.optimizer_name
         learning_rate  = loaded_layer._learning_rate
         if learning_rate is not None:
