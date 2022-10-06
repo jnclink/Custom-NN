@@ -460,7 +460,7 @@ def is_being_run_on_jupyter_notebook() -> bool:
             raise ImportError("The `display` method (from the `IPython.display` module) should have been imported, since, in theory, the code is being run on a Jupyter notebook (which itself runs on an IPython backend) !")
         
         return jupyter_notebook
-    except (Exception, NameError):
+    except (Exception, UnboundLocalError, NameError):
         return False
 
 
@@ -472,8 +472,11 @@ def count_nb_decimals_places(
     """
     Returns the number of decimal places of the real number `x`
     
-    If the fractional part of `x` is non-zero and is stricly less than
-    `10**(-max_precision)` (or if `x` is an integer), then `0` will be returned
+    If the fractional part of `x` is non-zero and is either :
+        - stricly less than `10**(-max_precision) / 2`
+        - strictly higher than `1 - 10**(-max_precision) / 2`
+    then `0` will be returned
+    If `x` is an integer, then `0` will also be returned
     """
     # ---------------------------------------------------------------------- #
     
@@ -501,20 +504,22 @@ def count_nb_decimals_places(
     
     if x == 0:
         # in this case, the original `x` was either an integer, or had a (non-zero)
-        # fractional part that was strictly less than `10**(-max_precision)`
-        return 0
-    
-    # here, `x` is a float in the range ]0, 1[, or, more, precisely, in the
-    # range [10**(-max_precision), 1[
-    assert x >= 10**(-max_precision)
-    
-    # we're doing this just in case the string representation of `x` uses the
-    # scientific notation (like `1e-05` for instance)
-    str_x = f"{x:.{max_precision}f}".rstrip("0")
-    assert len(str_x) >= 3
-    
-    # getting rid of the leading "0." (which has a length of 2)
-    nb_decimal_places = len(str_x) - 2
+        # fractional part that was either strictly less than `10**(-max_precision) / 2`
+        # or strictly higher than `1 - 10**(-max_precision) / 2`
+        nb_decimal_places = 0
+    else:
+        # here, `x` is a float in the range ]0, 1[, or, more precisely, in the
+        # range [10**(-max_precision) / 2, 1 - 10**(-max_precision) / 2]
+        assert (x >= 10**(-max_precision) / 2) and (x <= 1 - 10**(-max_precision) / 2)
+        
+        # we're doing this just in case the string representation of `x` uses
+        # the scientific notation (like `1e-05` for instance)
+        str_x = f"{x:.{max_precision}f}".rstrip("0")
+        assert len(str_x) >= 3
+        
+        # getting rid of (the information related to the) the leading "0.",
+        # which has a length of 2
+        nb_decimal_places = len(str_x) - 2
     
     return nb_decimal_places
 
