@@ -48,7 +48,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 - Added the **L1** and **L2** regularizers
 
-- Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous layer to add a new Dense layer ! Also, for the Activation layers, you can now simply input the name of the loss function (which is a string) instead of inputting the functions `activation` and `activation_prime` !
+- Building the network's architecture is now a bit more user-friendly : you no longer need to keep track of the output size of the previous layer to add a new Dense layer ! Also, for the Activation layers, you can now simply input the name of the activation function (which is a string) instead of inputting the functions `activation` and `activation_prime` !
 
 - There are now **two ways of building the network's architecture** : one using the **`Network.add` method**, and one using the **`__call__` API**. Simply speaking, the `__call__` API allows you to build a network using code that is similar to the following code block :
 
