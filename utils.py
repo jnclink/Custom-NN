@@ -277,7 +277,7 @@ def list_to_string(L: list) -> str:
     return str_L
 
 
-ID = int(time()) # global variable, will only be initialized *once*
+ID = int(time()) # global variable (therefore it will only be initialized *once*)
 def generate_unique_ID() -> int:
     """
     Generates a unique identifier (as an integer)
@@ -808,7 +808,7 @@ def _validate_one_hot_encoded_array(array: np.ndarray) -> None:
     
     # checking that there is only one `1` per row (assuming the previous
     # condition was met)
-    assert np.allclose(np.sum((array.sum(axis=-1) - 1)**2), 0), "The specified array has rows that don't contain exactly one `1` in them !"
+    assert np.allclose(np.sum(np.abs(array.sum(axis=-1) - 1)), 0), "The specified array has rows that don't contain exactly one `1` in them !"
 
 
 def _validate_split_data_into_batches_inputs(
@@ -1189,7 +1189,7 @@ def highlight_all_cells(
     
     assert isinstance(value, (str, np.str_, float, np.float_))
     if isinstance(value, (str, np.str_)):
-        # getting rid of the trailing " %"
+        # getting rid of the trailing " %", which has a length of 2
         value = float(value[ : -2])
     assert (value >= 0) and (value <= 100) # `value` is a percentage
     
@@ -1271,9 +1271,9 @@ def print_confusion_matrix(
     
     assert isinstance(normalize, str)
     normalize = normalize.strip().lower()
-    possible_values_for_normalize_kwarg = ["no", "columns", "rows"]
-    if normalize not in possible_values_for_normalize_kwarg:
-        raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(possible_values_for_normalize_kwarg)})")
+    AVAILABLE_NORMALIZATIONS = ["no", "columns", "rows"]
+    if normalize not in AVAILABLE_NORMALIZATIONS:
+        raise ValueError(f"get_confusion_matrix_as_dataframe (utils.py) - Unrecognized value for the `normalize` kwarg : \"{normalize}\" (possible values : {list_to_string(AVAILABLE_NORMALIZATIONS)})")
     
     if normalize != "no":
         assert isinstance(precision, int)
@@ -1300,14 +1300,14 @@ def print_confusion_matrix(
     if color not in COLORS_AND_COLORMAPS:
         raise ValueError(f"print_confusion_matrix (utils.py) - Unrecognized value for the `color` kwarg : \"{color}\" (possible color names : {list_to_string(list(COLORS_AND_COLORMAPS))})")
     
-    jupyter_notebook = is_being_run_on_jupyter_notebook()
+    jupyter_notebook: bool = is_being_run_on_jupyter_notebook()
     
     if not(jupyter_notebook):
         assert isinstance(offset_spacing, int)
         assert offset_spacing >= 0
         
         assert isinstance(display_with_line_breaks, bool)
-        set_option("display.expand_frame_repr", display_with_line_breaks) # option of the Pandas module
+        set_option("display.expand_frame_repr", display_with_line_breaks) # display option of the Pandas module
     
     # ====================================================================== #
     

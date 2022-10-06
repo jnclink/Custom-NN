@@ -635,7 +635,8 @@ class Network:
             verbose: bool = True
         ) -> None:
         """
-        Sets the loss function of the network
+        Sets the loss function of the network. The name of the loss function
+        is case insensitive
         """
         # ------------------------------------------------------------------ #
         
@@ -1000,7 +1001,7 @@ class Network:
         # ================================================================== #
         
         # variables that will only be used if there is an "early stopping"
-        # callback or a KeyboardInterrupt exception during the training loop
+        # callback or a `KeyboardInterrupt` exception during the training loop
         
         jupyter_notebook = is_being_run_on_jupyter_notebook()
         

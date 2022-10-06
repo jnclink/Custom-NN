@@ -486,8 +486,8 @@ def format_raw_MNIST_dataset(
     # ====================================================================== #
     
     # step 2/6 : splitting the data into train/test or train/val/test
-    #            sub-datasets, such that the resulting class distributions
-    #            are roughly the same as the initial raw data 
+    #            subsets, such that the resulting class distributions are
+    #            roughly the same as the initial raw data 
     
     if _return_validation_data:
         # getting the formatted "train" and "val" datasets (from the raw "train" data)

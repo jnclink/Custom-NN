@@ -18,7 +18,7 @@ class Regularizer:
     """
     Base regularizer class (created for structural purposes only)
     
-    The regularizer classes are only used as "decorative classes"
+    NB : The regularizer classes are only used as "decorative classes"
     """
     def __init__(self) -> None:
         pass

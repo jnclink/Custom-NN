@@ -241,7 +241,7 @@ def split_data_into_batches(
 
 
 # Functions related to the accuracy metric (they will basically return the
-# same output as the associated functions of the `sklearn.metrics` module)
+# same output as their counterparts of the `sklearn.metrics` module)
 
 
 def accuracy_score(
@@ -253,7 +253,7 @@ def accuracy_score(
     ) -> Union[float, int]:
     """
     Returns the proportion of the correctly predicted samples. The returned
-    proportion lies between 0 and 1
+    proportion lies between 0 and 1 (if `normalize` is set to `True`)
     
     Here, `y_true` and `y_pred` are 1D vectors of INTEGER labels
     """
@@ -329,7 +329,7 @@ def train_test_split(
         X: np.ndarray,
         y: np.ndarray,
         *,
-        test_size: Optional[Union[float, int]] = None,
+        test_size:  Optional[Union[float, int]] = None,
         train_size: Optional[Union[float, int]] = None,
         stratify: bool = False,
         shuffle: bool = True,
@@ -496,8 +496,8 @@ def train_test_split(
                 partial_nb_test_samples  = max(1, int(round(class_proportion * nb_test_samples)))
                 
                 # potentially correcting the partial number of train/test
-                # samples (usually by not much)
-                excess_nb_samples =  (partial_nb_train_samples + partial_nb_test_samples) - partial_nb_samples
+                # samples, due to (small) rounding errors
+                excess_nb_samples = (partial_nb_train_samples + partial_nb_test_samples) - partial_nb_samples
                 if excess_nb_samples > 0:
                     nb_partial_train_samples_to_remove = int(round(relative_proportion_of_train_samples * excess_nb_samples))
                     nb_partial_test_samples_to_remove  = excess_nb_samples - nb_partial_train_samples_to_remove

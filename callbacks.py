@@ -49,7 +49,7 @@ class EarlyStoppingCallback(Callback):
     """
     
     # class variable
-    MONITORED_VALUES: list[str] = [
+    AVAILABLE_MONITORED_VALUES: list[str] = [
         "train_loss",
         "train_accuracy",
         "val_loss",
@@ -67,8 +67,8 @@ class EarlyStoppingCallback(Callback):
         assert isinstance(monitor, str)
         assert len(monitor.strip()) > 0
         monitor = monitor.strip().lower().replace(" ", "_")
-        if monitor not in EarlyStoppingCallback.MONITORED_VALUES:
-            raise ValueError(f"EarlyStoppingCallback.__init__ - Unrecognized value for the `monitor` kwarg : \"{monitor}\" (possible values for this kwarg : {list_to_string(EarlyStoppingCallback.MONITORED_VALUES)})")
+        if monitor not in EarlyStoppingCallback.AVAILABLE_MONITORED_VALUES:
+            raise ValueError(f"EarlyStoppingCallback.__init__ - Unrecognized value for the `monitor` kwarg : \"{monitor}\" (possible values for this kwarg : {list_to_string(EarlyStoppingCallback.AVAILABLE_MONITORED_VALUES)})")
         self.monitor: str = monitor
         
         # checking the validity of the `patience` kwarg
@@ -80,12 +80,12 @@ class EarlyStoppingCallback(Callback):
             # the loss needs to be *minimized*, therefore here we'll
             # check if the loss has *only been increasing* over the past
             # `self.patience` epochs
-            self.comparison_function: Callable = max
+            self._comparison_function: Callable = max
         elif self.monitor in ["train_accuracy", "val_accuracy"]:
             # the accuracy needs to be *maximized*, therefore here we'll
             # check if the accuracy has *only been decreasing* over the past
             # `self.patience` epochs
-            self.comparison_function: Callable = min
+            self._comparison_function: Callable = min
     
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(monitor=\"{self.monitor}\", patience={self.patience})"
@@ -118,7 +118,7 @@ class EarlyStoppingCallback(Callback):
             for key, value in history.items():
                 assert isinstance(key, str)
                 if key != "epoch":
-                    assert key in EarlyStoppingCallback.MONITORED_VALUES
+                    assert key in EarlyStoppingCallback.AVAILABLE_MONITORED_VALUES
                 
                 assert isinstance(value, list)
                 assert len(value) > 0
@@ -147,7 +147,7 @@ class EarlyStoppingCallback(Callback):
                 # checking if the sequence formed by `value_of_interest` and
                 # `next_value_of_interest` is strictly monotonous (in the
                 # "wrong direction")
-                compared_value = self.comparison_function(value_of_interest, next_value_of_interest)
+                compared_value = self._comparison_function(value_of_interest, next_value_of_interest)
                 if np.allclose(compared_value, value_of_interest):
                     return False
             
