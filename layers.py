@@ -354,7 +354,7 @@ class Layer(ABC):
         layer_copy = self.__class__._load(self._pickle())
         
         assert type(layer_copy) == type(self)
-        assert sorted(list(layer_copy.__dict__.keys())) == sorted(list(self.__dict__.keys()))
+        assert sorted(list(layer_copy.__dict__)) == sorted(list(self.__dict__))
         assert layer_copy is not self
         
         return layer_copy

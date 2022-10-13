@@ -247,8 +247,8 @@ def main():
     # Main hyperparameters
     
     # The following list defines the output sizes (or the "number of neurons")
-    # of each Dense layer of the network (in chronological order), excluding
-    # the input and output Dense layers
+    # of each Dense layer of the network (in chronological order), *excluding
+    # the output Dense layer*
     nb_neurons_in_hidden_dense_layers = [
         256,
         64,
@@ -513,9 +513,9 @@ def main():
     
     # Defining the name of the weight optimization algorithm (case insensitive).
     # Relevant choices here :
-    #     - "SGD" (Stochastic Gradient Descent)
-    #     - "Adam"
-    #     - "RMSprop"
+    #     - "SGD"     (Stochastic Gradient Descent)
+    #     - "Adam"    (Adaptive Moment Estimation)
+    #     - "RMSprop" (Root Mean Square Propagation)
     optimizer_name = "Adam"
     
     # NB : For the "SGD" optimizer, the value of the learning rate usually

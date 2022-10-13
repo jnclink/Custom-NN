@@ -999,7 +999,9 @@ def _download_progress_bar(
     
     block_index_update_step = total_nb_blocks // nb_progress_bar_updates
     
-    if (block_index % block_index_update_step == 0) or (block_index == 1) or (block_index == total_nb_blocks):
+    update_progress_bar = ((block_index % block_index_update_step == 0) or (block_index == 1) or (block_index == total_nb_blocks))
+    
+    if update_progress_bar:
         size_of_already_downloaded_data_in_bytes = block_index * block_size_in_bytes
         
         if block_index == total_nb_blocks:

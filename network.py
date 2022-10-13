@@ -157,6 +157,47 @@ class Network:
         return str(self)
     
     
+    def _set_layer_name(self, layer: Layer) -> None:
+        """
+        Sets the `_name` attribute of the specified layer
+        """
+        assert issubclass(type(layer), Layer)
+        
+        layer_name = layer.__class__.__name__
+        layer_name_abbreviation = layer_name.lower().replace("layer", "")
+        
+        if layer._name is None:
+            self._layer_counter[layer_name] += 1
+            layer_index = self._layer_counter[layer_name]
+            full_name_of_layer = f"{layer_name_abbreviation}_{layer_index}"
+        else:
+            # here, that means that we've (most likely) reused a layer from
+            # another Network instance (e.g. for Transfer Learning purposes)
+            self._layer_counter[self._key_name_for_reused_layers] += 1
+            reused_layer_index = self._layer_counter[self._key_name_for_reused_layers]
+            full_name_of_layer = f"{layer_name_abbreviation}_reused_{reused_layer_index}"
+        
+        layer._name = full_name_of_layer
+    
+    
+    def get_layer_by_name(self, layer_name: str) -> Layer:
+        """
+        Returns a copy of the layer that has the specified layer name
+        (e.g. "dense_1")
+        """
+        # checking the specified layer name
+        assert isinstance(layer_name, str)
+        assert len(layer_name.strip()) > 0
+        layer_name = layer_name.strip().lower().replace("layer", "").replace(" ", "_")
+        
+        for layer in self._layers:
+            assert layer._name is not None
+            if layer_name == layer._name:
+                return layer.copy()
+        
+        raise ValueError(f"Network.get_layer_by_name - The specified layer name (= \"{layer_name}\") doesn't exist !")
+    
+    
     def add(self, layer: Layer) -> None:
         """
         Adds a layer to the network
@@ -194,19 +235,7 @@ class Network:
             output_size = input_size
         
         # setting the name of the currently added layer
-        layer_name = used_layer.__class__.__name__
-        layer_name_abbreviation = layer_name.lower().replace("layer", "")
-        if used_layer._name is None:
-            self._layer_counter[layer_name] += 1
-            layer_index = self._layer_counter[layer_name]
-            full_name_of_layer = f"{layer_name_abbreviation}_{layer_index}"
-        else:
-            # here, that means that we've (most likely) reused a layer from
-            # another Network instance (e.g. for Transfer Learning purposes)
-            self._layer_counter[self._key_name_for_reused_layers] += 1
-            reused_layer_index = self._layer_counter[self._key_name_for_reused_layers]
-            full_name_of_layer = f"{layer_name_abbreviation}_reused_{reused_layer_index}"
-        used_layer._name = full_name_of_layer
+        self._set_layer_name(used_layer)
         
         # actually updating the layers and the associated input/output sizes
         self._layers.append(used_layer)
@@ -275,24 +304,6 @@ class Network:
         Layer.clear_temporary_network_layers()
         
         return self
-    
-    
-    def get_layer_by_name(self, layer_name: str) -> Layer:
-        """
-        Returns a copy of the layer that has the specified layer name
-        (e.g. "dense_1")
-        """
-        # checking the specified layer name
-        assert isinstance(layer_name, str)
-        assert len(layer_name.strip()) > 0
-        layer_name = layer_name.strip().lower().replace("layer", "").replace(" ", "_")
-        
-        for layer in self._layers:
-            assert layer._name is not None
-            if layer_name == layer._name:
-                return layer.copy()
-        
-        raise ValueError(f"Network.get_layer_by_name - The specified layer name (= \"{layer_name}\") doesn't exist !")
     
     
     def _get_total_nb_of_trainable_params(self) -> int:
@@ -625,7 +636,8 @@ class Network:
         
         if verbose:
             learning_rate_precision = max(2, count_nb_decimals_places(learning_rate))
-            print(f"\nThe network's optimizer was successfully set to \"{self.optimizer_name}\" (learning_rate={learning_rate:.{learning_rate_precision}f})")
+            str_learning_rate = f"{learning_rate:.{learning_rate_precision}f}"
+            print(f"\nThe network's optimizer was successfully set to \"{self.optimizer_name}\" (learning_rate={str_learning_rate})")
     
     
     def set_loss_function(
@@ -762,7 +774,7 @@ class Network:
         """
         Trains the network over `nb_epochs` epochs
         
-        By design, the network cannot be trained more than once
+        By design, the network can only be trained *once*
         """
         # ================================================================== #
         
@@ -830,7 +842,7 @@ class Network:
                     _early_stopping_callback = callback
                 
                 # NB : Add an instance check here if you added another
-                #      callback in the "callbacks.py" script
+                #      callback class in the "callbacks.py" script
         
         # ------------------------------------------------------------------ #
         
@@ -944,8 +956,6 @@ class Network:
             # just that, since the order of the data/label batches of the
             # validation set will NOT affect the resulting validation losses and
             # accuracies, you might as well set `nb_shuffles` to zero (to save time)
-            # NB : Since the validation batches can (and will) be reused as
-            #      they are, here `val_batches` doesn't have to be a generator
             val_batches = split_data_into_batches(
                 used_X_val,
                 val_batch_size,
@@ -958,6 +968,8 @@ class Network:
             val_batches_labels = val_batches["labels"]
             
             nb_val_batches = len(val_batches_data)
+        
+        t_end_last_completed_epoch = None
         
         # ================================================================== #
         
@@ -1041,9 +1053,9 @@ class Network:
                 
                 print(epoch_header)
                 
+                # NB : Here, `train_batches` is a generator
                 if nb_shuffles_before_each_train_batch_split != 0:
-                    # splitting the training data into batches (NB : here, `train_batches`
-                    # is a generator)
+                    # splitting the training data into batches
                     train_batches = split_data_into_batches(
                         used_X_train,
                         train_batch_size,
@@ -1115,7 +1127,9 @@ class Network:
                         # terms from the L1/L2 regularizations (if there are any)
                         train_loss += layer.loss_leftovers
                     
-                    if (train_batch_index % train_batch_index_update_step == 0) or (train_batch_index == 1) or (train_batch_index == nb_train_batches):
+                    update_progress_bar = ((train_batch_index % train_batch_index_update_step == 0) or (train_batch_index == 1) or (train_batch_index == nb_train_batches))
+                    
+                    if update_progress_bar:
                         # displaying the progress bar related to the number of
                         # processed batches (within the current epoch)
                         
@@ -1231,6 +1245,10 @@ class Network:
                         nb_epochs = epoch_index
                         
                         break
+                
+                # -------------------------------------------------------------- #
+                
+                t_end_last_completed_epoch = perf_counter()
             
             except KeyboardInterrupt:
                 _training_loop_was_prematurely_stopped = True
@@ -1252,15 +1270,20 @@ class Network:
                 
                 print(keyboard_interrupt_message)
                 
-                # updating the actual number of completed epochs (+ the very
-                # last one)
-                nb_epochs = epoch_index
+                # updating the actual number of completed epochs
+                nb_epochs = max(1, epoch_index - 1)
                 
                 break
         
         # ================================================================== #
         
-        t_end_training = perf_counter()
+        if t_end_last_completed_epoch is not None:
+            t_end_training = t_end_last_completed_epoch
+        else:
+            # in this case, it means that the training loop was interrupted
+            # during the very first epoch
+            t_end_training = t_beginning_training
+        
         duration_training = t_end_training - t_beginning_training
         
         # ================================================================== #
@@ -2026,7 +2049,7 @@ class Network:
         network_copy = self.__class__._load(self._pickle())
         
         assert type(network_copy) == type(self)
-        assert sorted(list(network_copy.__dict__.keys())) == sorted(list(self.__dict__.keys()))
+        assert sorted(list(network_copy.__dict__)) == sorted(list(self.__dict__))
         assert network_copy is not self
         
         return network_copy

@@ -314,9 +314,8 @@ class AdamOptimizer(Optimizer):
             
             if self.t == 1:
                 if np.isscalar(weight):
-                    zero = self._zero
-                    self.first_moments.append(zero)
-                    self.second_moments.append(zero)
+                    self.first_moments.append(self._zero)
+                    self.second_moments.append(self._zero)
                 else:
                     zeros = np.zeros(weight.shape, dtype=utils.DEFAULT_DATATYPE)
                     self.first_moments.append(zeros)
@@ -466,8 +465,7 @@ class RMSpropOptimizer(Optimizer):
             
             if not(self._moments_are_initialized):
                 if np.isscalar(weight):
-                    zero = self._zero
-                    self.moments.append(zero)
+                    self.moments.append(self._zero)
                 else:
                     zeros = np.zeros(weight.shape, dtype=utils.DEFAULT_DATATYPE)
                     self.moments.append(zeros)
