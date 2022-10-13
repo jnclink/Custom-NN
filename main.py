@@ -70,14 +70,14 @@ def main():
     #     - The string "all", if you want to work with all the classes (default)
     #     - A list/tuple/1D-array containing the specific class indices you
     #       want to work with (e.g. [2, 4, 7]). Note that, for the MNIST data,
-    #       the class indices are equivalent to the digits themselves
+    #       the class indices are *equal* to the digits themselves
     selected_classes = "all"
     
     # If not set to `None`, `dict_of_real_class_names` is a dictionary with :
     #     - as its keys   : all the selected class indices (as integers)
     #     - as its values : the REAL names of the associated classes (as strings)
     # For instance, if you set `selected_classes` to `[2, 4, 7]`, then you
-    # could, for instance, set `dict_of_real_class_names` to the following
+    # could, if you want, set `dict_of_real_class_names` to the following
     # dictionary :
     # dict_of_real_class_names = {
     #     2 : "TWO",
