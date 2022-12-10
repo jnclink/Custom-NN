@@ -22,7 +22,7 @@ from utils import (
 
 """
 Template for defining activation functions and their derivatives (with these
-exact signatures):
+exact signatures) :
 """
 
 

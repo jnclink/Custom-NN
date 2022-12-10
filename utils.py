@@ -820,7 +820,7 @@ def _validate_split_data_into_batches_inputs(
     ) -> None:
     """
     Checks the validity of the specified arguments (as inputs of the functions
-    used to split the data into batches, defined in this script)
+    used to split the data into batches, defined in the "core.py" script)
     """
     # checking the validity of the argument `data`
     assert isinstance(data, np.ndarray)
@@ -899,7 +899,7 @@ def _validate_leaky_ReLU_coeff(leaky_ReLU_coeff: float) -> float:
 ##############################################################################
 
 
-# Functions related to the downloading of online data
+# Functions related to the download of online data
 
 
 def _validate_hash_of_downloaded_data(
@@ -958,7 +958,7 @@ def _download_progress_bar(
         total_size_of_data_in_bytes: int
     ) -> None:
     """
-    Prints the progress bar related to the online downloading of data, using
+    Prints the progress bar related to the download of online data, using
     the `urllib.request.urlretrieve` method
     
     NB : The signature of this function is imposed by the `reporthook` kwarg
@@ -973,8 +973,7 @@ def _download_progress_bar(
     
     if block_index == 0:
         # when `block_index` is equal to zero, it's to signal that the
-        # downloading process has just begun, but no data has actually
-        # been retrieved yet
+        # download has just begun, but no data has actually been retrieved yet
         return
     
     assert isinstance(block_size_in_bytes, int)
@@ -1088,7 +1087,7 @@ def _download_data(
     if download_is_required:
         try:
             print(f"\nDownloading the data from the URL \"{data_URL}\". This might take a couple of seconds ...\n")
-            t_beginning_downloading = perf_counter()
+            t_beginning_download = perf_counter()
             
             # actually downloading the raw MNIST data from `data_URL`, and
             # saving it to the location `default_path_of_downloaded_data`
@@ -1100,9 +1099,9 @@ def _download_data(
             
             assert os.path.exists(path_of_downloaded_data)
             
-            t_end_downloading = perf_counter()
-            duration_downloading = t_end_downloading - t_beginning_downloading
-            print(f"\n\nSuccessfully downloaded the data to the location \"{path_of_downloaded_data}\". Done in {duration_downloading:.3f} seconds")
+            t_end_download = perf_counter()
+            duration_download = t_end_download - t_beginning_download
+            print(f"\n\nSuccessfully downloaded the data to the location \"{path_of_downloaded_data}\". Done in {duration_download:.3f} seconds")
         except (Exception, KeyboardInterrupt):
             print("\n")
             if os.path.exists(path_of_downloaded_data):

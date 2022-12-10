@@ -131,7 +131,7 @@ class EarlyStoppingCallback(Callback):
         nb_completed_epochs = len(monitored_values)
         
         if nb_completed_epochs >= self.patience:
-            # we're only interest in the last `self.patience` epochs
+            # we're only interested in the last `self.patience` epochs
             values_of_interest = monitored_values[-self.patience : ]
             assert len(values_of_interest) == self.patience # necessary check
             

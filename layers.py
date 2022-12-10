@@ -940,7 +940,7 @@ class BatchNormLayer(Layer):
         Forward propagation of the BatchNorm layer
         
         Returns the standardized (and rescaled) input along the first axis, i.e.
-        along the batch samples (or the rows)
+        along the batch samples (i.e. along the rows)
         """
         assert isinstance(enable_checks, bool)
         
@@ -1144,7 +1144,7 @@ class DropoutLayer(Layer):
                 dtype=self.input.dtype,
                 enable_checks=False
             )
-            self.output =  self.input * self.dropout_matrix
+            self.output = self.input * self.dropout_matrix
         else:
             # the "dropout process" does NOT apply during the validation and
             # testing phases

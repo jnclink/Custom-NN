@@ -21,7 +21,7 @@ from utils import (
 
 """
 Template for defining loss functions and their derivatives (with these
-exact signatures):
+exact signatures) :
 """
 
 
