@@ -91,7 +91,7 @@ class Network:
         "mse" : (MSE, MSE_prime)  # MSE = Mean Squared Error
     }
     
-    DEFAULT_SAVED_IMAGES_FOLDER_NAME = "saved_plots"
+    DEFAULT_SAVED_PLOTS_FOLDER_NAME = "saved_plots"
     
     DEFAULT_SAVED_NETWORKS_FOLDER_NAME = "saved_networks"
     
@@ -1435,8 +1435,8 @@ class Network:
         
         if save_plot_to_disk:
             # creating the folder containing the saved plots (if it doesn't exist)
-            if not(os.path.exists(Network.DEFAULT_SAVED_IMAGES_FOLDER_NAME)):
-                os.mkdir(Network.DEFAULT_SAVED_IMAGES_FOLDER_NAME)
+            if not(os.path.exists(Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME)):
+                os.mkdir(Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME)
             
             # the PNG extension was mainly chosen as the default extension
             # because it is supported by all the Matplotlib backends
@@ -1449,7 +1449,7 @@ class Network:
             # getting the absolute path of the saved plot
             saved_image_path = os.path.join(
                 os.getcwd(),
-                Network.DEFAULT_SAVED_IMAGES_FOLDER_NAME,
+                Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME,
                 saved_image_full_name
             )
             

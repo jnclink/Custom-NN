@@ -671,8 +671,6 @@ def _validate_label_vector(
     ) -> None:
     """
     Checks the validity of the label vector `y`
-    
-    Here, the default value of `max_class` (= 9) is specific to the MNIST dataset
     """
     assert isinstance(is_whole_label_vector, bool)
     
@@ -1089,8 +1087,8 @@ def _download_data(
             print(f"\nDownloading the data from the URL \"{data_URL}\". This might take a couple of seconds ...\n")
             t_beginning_download = perf_counter()
             
-            # actually downloading the raw MNIST data from `data_URL`, and
-            # saving it to the location `default_path_of_downloaded_data`
+            # actually downloading the raw data from `data_URL`, and saving
+            # it to the location `default_path_of_downloaded_data`
             urlretrieve(
                 url=data_URL,
                 filename=path_of_downloaded_data,

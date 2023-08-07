@@ -321,7 +321,7 @@ def confusion_matrix(
 ##############################################################################
 
 
-# Main function used to split the raw MNIST data into train/test or
+# Main function used to split the raw data into train/test or
 # train/val/test subsets
 
 

@@ -1,5 +1,5 @@
 <center><h1>Custom-NN</h1></center>
-<center><h3>Implementing a neural network from scratch using Python</h3></center>
+<center><h3>Custom implementation of a neural network from scratch using Python</h3></center>
 <center><h4><i>NumPy is all you need</i></h4></center>
 
 <br/>
