@@ -47,7 +47,7 @@ def split_data_into_batches_as_generator_function(
     INTEGER labels or its one-hot encoded equivalent (in that case, `labels`
     will be a 2D matrix)
     
-    This function will essentially be used for the training and testing data
+    This function will essentially be used for the training and test data
     """
     # ---------------------------------------------------------------------- #
     

@@ -30,7 +30,6 @@ from utils import (
     categorical_to_vector,
     list_to_string,
     generate_unique_ID,
-    clear_currently_printed_row,
     progress_bar,
     is_being_run_on_jupyter_notebook,
     count_nb_decimals_places,
@@ -679,7 +678,7 @@ class Network:
             output_size_of_network: Optional[int] = None,
         ) -> Union[np.ndarray, tuple[np.ndarray]]:
         """
-        Checks if the specified (training, validation or testing) data is
+        Checks if the specified (training, validation or test) data is
         valid or not
         
         If `y` is not equal to `None`, `y` can either be a 1D vector of INTEGER
@@ -1127,7 +1126,13 @@ class Network:
                         # terms from the L1/L2 regularizations (if there are any)
                         train_loss += layer.loss_leftovers
                     
-                    update_progress_bar = ((train_batch_index % train_batch_index_update_step == 0) or (train_batch_index == 1) or (train_batch_index == nb_train_batches))
+                    update_progress_bar = (
+                        (train_batch_index % train_batch_index_update_step == 0)
+                        or
+                        (train_batch_index == 1)
+                        or
+                        (train_batch_index == nb_train_batches)
+                    )
                     
                     if update_progress_bar:
                         # displaying the progress bar related to the number of
@@ -1143,8 +1148,6 @@ class Network:
                         )
                         
                         train_batch_progress_row = f"{offset_spacing}{current_progress_bar} batch {formatted_batch_index}/{nb_train_batches}"
-                        
-                        clear_currently_printed_row()
                         print(train_batch_progress_row, end="\r")
                 
                 # necessary check (to see if the correct number of batches were
@@ -1215,7 +1218,6 @@ class Network:
                 else:
                     epoch_history += f"train_loss={train_loss:.{precision_epoch_history}f} - train_accuracy={train_accuracy:.{precision_epoch_history}f}"
                 
-                clear_currently_printed_row()
                 print(epoch_history)
                 
                 # -------------------------------------------------------------- #
@@ -1513,20 +1515,20 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        # potentially normalizing/standardizing the input testing data
+        # potentially normalizing/standardizing the input test data
         
         if self._standardize_input_data:
             used_X_test = standardize_data(used_X_test)
         
         # ------------------------------------------------------------------ #
         
-        # Splitting the testing data into batches. Here, the `nb_shuffles` kwarg
-        # has to be set to zero, otherwise, to compute the testing loss and accuracy
+        # Splitting the test data into batches. Here, the `nb_shuffles` kwarg
+        # has to be set to zero, otherwise, to compute the test loss and accuracy
         # (in the `Network.evaluate` method), we would need the shuffled labels
         # too. Yet, by design, this function doesn't take in any labels as inputs.
         # Just like for the validation set, while it is true that the order of the
-        # data/label batches of the testing set will NOT affect the resulting
-        # testing losses and accuracies, this assumes that the generated testing
+        # data/label batches of the test set will NOT affect the resulting
+        # test losses and accuracies, this assumes that the generated test
         # batches contain the information of the label batches as well, which
         # is NOT the case here (by design) !
         # NB : Here, `test_batches` is a generator
@@ -1573,7 +1575,7 @@ class Network:
         ) -> tuple[Union[float, np.ndarray]]:
         """
         Computes the network's prediction of `X_test` (i.e. `y_pred`), and
-        returns the accuracy score, the "top-N accuracy score", the testing
+        returns the accuracy score, the "top-N accuracy score", the test
         loss, the mean confidence levels (of the correct and false predictions)
         and the raw confusion matrix of the network
         
@@ -1626,16 +1628,16 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        # computing the testing loss, the testing accuracy and the mean
+        # computing the test loss, the test accuracy and the mean
         # confidence levels
         
-        # NB : For the testing accuracy, we could simply call :
+        # NB : For the test accuracy, we could simply call :
         #      `100 * accuracy_score(y_test_flat, y_pred_flat)`
         #      but, to simulate the fact that we've only got access to one
-        #      testing batch at a time, we're computing it batch by batch.
-        #      The same goes for the testing loss and the mean confidence levels
+        #      test batch at a time, we're computing it batch by batch.
+        #      The same goes for the test loss and the mean confidence levels
         
-        # initializing the testing loss, the testing accuracy and the mean
+        # initializing the test loss, the test accuracy and the mean
         # confidence levels
         test_loss     = self._zero
         test_accuracy = 0
@@ -1648,7 +1650,7 @@ class Network:
             y_test_batch = y_test_categorical[first_index_of_test_batch : last_index_of_test_batch, :]
             y_pred_batch = y_pred[first_index_of_test_batch : last_index_of_test_batch, :]
             
-            # updating the (raw) testing loss
+            # updating the (raw) test loss
             test_loss += np.sum(self._loss(
                 y_test_batch,
                 y_pred_batch,
@@ -1659,7 +1661,7 @@ class Network:
             y_test_flat_batch = y_test_flat[first_index_of_test_batch : last_index_of_test_batch]
             y_pred_flat_batch = y_pred_flat[first_index_of_test_batch : last_index_of_test_batch]
             
-            # updating the (raw) testing accuracy
+            # updating the (raw) test accuracy
             test_accuracy += accuracy_score(
                 y_test_flat_batch,
                 y_pred_flat_batch,
@@ -1735,7 +1737,7 @@ class Network:
         
         # ------------------------------------------------------------------ #
         
-        testing_results = (
+        test_results = (
             acc_score,
             top_N_acc_score,
             test_loss,
@@ -1744,7 +1746,7 @@ class Network:
             conf_matrix
         )
         
-        return testing_results
+        return test_results
     
     
     def display_some_predictions(

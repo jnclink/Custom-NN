@@ -28,11 +28,11 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 - At the very beginning of the main script, you can also, if you want, **select a specific subset of class indices to work with**. For instance, if you only want to work with the class indices `2`, `4` and `7` (and not with all the class indices ranging from `0` to `9` for example), then all you need to do is set the variable `selected_classes` to the list `[2, 4, 7]` (in the main script) !
 
-- **[<ins>Specific to the MNIST dataset</ins>]** Automated the creation of the (formatted) training, validation and testing sets by only specifying their respective number of samples at the beginning of the main script. Those 3 sets will have a **uniform class distribution**. In particular, if **all** the class indices are selected, then those 3 sets will have (roughly) the **same class distribution** as the initial raw MNIST data (since the latter also has a uniform class distribution) !
+- **[<ins>Specific to the MNIST dataset</ins>]** Automated the creation of the (formatted) training, validation and test sets by only specifying their respective number of samples at the beginning of the main script. Those 3 sets will have a **uniform class distribution**. In particular, if **all** the class indices are selected, then those 3 sets will have (roughly) the **same class distribution** as the initial raw MNIST data (since the latter also has a uniform class distribution) !
 
 - Added a **validation step** at each epoch. Even though this step is **optional**, it's highly recommended !
 
-- Added **batch processing** for the training, validation *and* testing phases ! Note that, for the validation and testing phases, the batch size will *not* affect the resulting losses and accuracies. Therefore, for those 2 phases, you might want to put the maximum batch size your CPU can handle, in order to speed up the computations (`val_batch_size` and `test_batch_size` are set to `32` by default in the main script). The batch size also doesn't have to perfectly divide the number of samples of the data that is going to be split into batches ! In addition, in order to save memory during training, the (training) batches are created using a **generator function** (this is also done during testing)
+- Added **batch processing** for the training, validation *and* test phases ! Note that, for the validation and test phases, the batch size will *not* affect the resulting losses and accuracies. Therefore, for those 2 phases, you might want to put the maximum batch size your CPU can handle, in order to speed up the computations (`val_batch_size` and `test_batch_size` are set to `32` by default in the main script). The batch size also doesn't have to perfectly divide the number of samples of the data that is going to be split into batches ! In addition, in order to save memory during training, the (training) batches are created using a **generator function** (this is also done during testing)
 
 - The input data can be normalized such that each (input) sample has a mean of `0` and a standard deviation of `1` (i.e. the data can be **standardized**). This feature is enabled when you instantiate the `Network` class with the `standardize_input_data` kwarg set to `True` (which is done by default)
 
@@ -78,7 +78,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 - The network can also be **saved to the disk**, even if it's not trained. The network will be saved in the `saved_networks` folder by default
 
-- The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **testing loss**, the **mean confidence levels** (of the correct *and* false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
+- The final results are more detailed. They include : the **global accuracy score**, the **global "top-N accuracy score"** (where `N` can be defined), the **test loss**, the **mean confidence levels** (of the correct *and* false predictions), the **raw confusion matrix** and the **normalized confusion matrices** (related to the **precision** and the **recall**) of the network
 
 - For testing purposes, you can also **plot some predictions of the network** (after it's trained) !
 
@@ -102,7 +102,7 @@ This project is an improvement of [this GitHub repo](https://github.com/OmarAfla
 
 <ins>Python version</ins> : has to be greater than or equal to **`3.7`**
 
-Run : `pip install -r requirements.txt`
+Run : `pip install -U -r requirements.txt`
 
 <br/>
 

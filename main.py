@@ -167,7 +167,7 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # NB : Assuming your data meets all the conditons described in the README,
+    # NB : Assuming your data meets all the conditions described in the README,
     #      you don't need to change anything in this section
     
     # ---------------------------------------------------------------------- #
@@ -182,7 +182,7 @@ def main():
         assert X_train.shape[1] == X_test.shape[1], "X_train and X_test don't have the same number of features per sample !"
         assert y_train.shape[1] == y_test.shape[1], "y_train and y_test don't have the same number of classes !"
     except (UnboundLocalError, NameError):
-        raise Exception("Some training and/or testing data is not defined !")
+        raise Exception("Some training and/or test data is not defined !")
     
     # ---------------------------------------------------------------------- #
     
@@ -353,10 +353,10 @@ def main():
     # Initializing the network
     
     # If you set the `standardize_input_data` kwarg to `True`, the training,
-    # testing and/or validation sets will be normalized such that their mean
+    # test and/or validation sets will be normalized such that their mean
     # is 0 and their standard deviation is 1 (i.e. they will be standardized).
-    # It's highly recommended to set `normalize_input_data` to `True`, in order
-    # to get better results
+    # It's highly recommended to set `standardize_input_data` to `True`, in
+    # order to get better results
     network = Network(standardize_input_data=True)
     
     # ---------------------------------------------------------------------- #
@@ -637,7 +637,7 @@ def main():
         test_accuracy_of_loaded_network = loaded_network.evaluate(X_test, y_test)[0]
         
         precision_accuracy = 2 # by default
-        print(f"\nTesting accuracy of the loaded network : {test_accuracy_of_loaded_network:.{precision_accuracy}f} %\n")
+        print(f"\nTest accuracy of the loaded network : {test_accuracy_of_loaded_network:.{precision_accuracy}f} %\n")
     
     # ====================================================================== #
     
@@ -656,7 +656,7 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # Computing the global accuracy scores, the testing loss, the mean confidence
+    # Computing the global accuracy scores, the test loss, the mean confidence
     # levels and the raw confusion matrix of the network
     
     # The "top-N accuracy" is defined as the proportion of the true classes
@@ -664,21 +664,21 @@ def main():
     # actually `top_N_accuracy`)
     top_N_accuracy = 2
     
-    testing_results = network.evaluate(
+    test_results = network.evaluate(
         X_test,
         y_test,
         top_N_accuracy=top_N_accuracy,
         test_batch_size=32 # default value
     )
     
-    assert len(testing_results) == 6
+    assert len(test_results) == 6
     
-    acc_score, top_N_acc_score, test_loss = testing_results[ : 3]
+    acc_score, top_N_acc_score, test_loss = test_results[ : 3]
     
-    mean_confidence_level_correct_predictions = testing_results[3]
-    mean_confidence_level_false_predictions   = testing_results[4]
+    mean_confidence_level_correct_predictions = test_results[3]
+    mean_confidence_level_false_predictions   = test_results[4]
     
-    conf_matrix = testing_results[5]
+    conf_matrix = test_results[5]
     
     # ---------------------------------------------------------------------- #
     
@@ -698,11 +698,11 @@ def main():
     
     # ---------------------------------------------------------------------- #
     
-    # Displaying the testing loss, the global accuracy scores and the mean
+    # Displaying the test loss, the global accuracy scores and the mean
     # confidence levels of the network
     
     precision_loss = 4 # by default
-    print(f"\nTESTING LOSS    : {test_loss:.{precision_loss}f}")
+    print(f"\nTEST LOSS       : {test_loss:.{precision_loss}f}")
     
     precision_accuracy = 2 # by default
     print(f"\nGLOBAL ACCURACY : {acc_score:.{precision_accuracy}f} %")

@@ -159,9 +159,6 @@ cython_debug/
 # PyCharm
 .idea/
 
-# Profiling stats (for performance analysis)
-*.prof
-
 # ----------------------------------------------------------------------- #
 
 # Project-related folders and files
@@ -173,5 +170,8 @@ saved_plots/
 # Folder that will contain all the saved networks/models
 # (if you specifically requested to save them)
 saved_networks/
+
+# Profiling stats (for performance analysis)
+*.prof
 
 # ----------------------------------------------------------------------- #

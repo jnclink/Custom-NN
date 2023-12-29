@@ -5,5 +5,8 @@ numpy
 pandas
 matplotlib
 
+# `pandas.io.formats.style.Styler` objects require the latest version of `jinja2` to be installed
+jinja2
+
 # only used to print colored text in Python consoles/terminals
 colorama

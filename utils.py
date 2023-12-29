@@ -13,7 +13,8 @@ from hashlib import sha256
 from typing import Union, Optional
 
 try:
-    from IPython.display import display
+    from IPython.display import display as IPython_display
+    from IPython.core.getipython import get_ipython
 except ImportError:
     # The `IPython.display.display` method will only be called if the
     # `print_confusion_matrix` function (of this script) is run from a
@@ -22,7 +23,7 @@ except ImportError:
     # backend is not available, which in turn implies that the code is not
     # being run on a Jupyter notebook, meaning that the `IPython.display.display`
     # method would have never been called anyway !
-    display = None
+    IPython_display, get_ipython = None, None
 
 import numpy as np
 from pandas import DataFrame, set_option
@@ -287,19 +288,6 @@ def generate_unique_ID() -> int:
     return ID
 
 
-def clear_currently_printed_row(*, max_size_of_row: int = 150) -> None:
-    """
-    Clears the currently printed row, and sets the pointer of the `print`
-    function at the very beginning of that same row
-    """
-    # checking the specified argument
-    assert isinstance(max_size_of_row, int)
-    assert max_size_of_row >= 0
-    
-    blank_row = " " * max_size_of_row
-    print(blank_row, end="\r")
-
-
 def progress_bar(
         current_index: int,
         total_nb_elements: int,
@@ -450,18 +438,14 @@ def is_being_run_on_jupyter_notebook() -> bool:
     Returns a boolean indicating whether the code is currently being run on
     a Jupyter notebook or not
     """
-    try:
-        current_IPython_shell_name = get_ipython().__class__.__name__
-        jupyter_notebook = (current_IPython_shell_name == "ZMQInteractiveShell")
-        
-        global display
-        if jupyter_notebook and (display is None):
-            # cf. the note at the very beginning of this script
-            raise ImportError("The `display` method (from the `IPython.display` module) should have been imported, since, in theory, the code is being run on a Jupyter notebook (which itself runs on an IPython backend) !")
-        
-        return jupyter_notebook
-    except (Exception, UnboundLocalError, NameError):
-        return False
+    if get_ipython is not None:
+        try:
+            current_IPython_shell_name = get_ipython().__class__.__name__
+            jupyter_notebook = (current_IPython_shell_name == "ZMQInteractiveShell")
+            return jupyter_notebook
+        except (Exception, UnboundLocalError, NameError):
+            return False
+    return False
 
 
 def count_nb_decimals_places(
@@ -1025,15 +1009,11 @@ def _download_progress_bar(
         str_size_of_already_downloaded_data_in_megabytes = f"{size_of_already_downloaded_data_in_megabytes:.{precision_sizes}f}"
         str_total_size_of_data_in_megabytes = f"{total_size_of_data_in_megabytes:.{precision_sizes}f}"
         
-        nb_additional_zeros = len(str_total_size_of_data_in_megabytes) - len(str_size_of_already_downloaded_data_in_megabytes)
-        assert nb_additional_zeros >= 0
-        if nb_additional_zeros != 0:
-            additional_zeros = "0" * nb_additional_zeros
-            str_size_of_already_downloaded_data_in_megabytes = additional_zeros + str_size_of_already_downloaded_data_in_megabytes
+        str_size_of_already_downloaded_data_in_megabytes = str_size_of_already_downloaded_data_in_megabytes.zfill(
+            len(str_total_size_of_data_in_megabytes)
+        )
         
         current_progress_bar += f" Downloaded {str_size_of_already_downloaded_data_in_megabytes}/{str_total_size_of_data_in_megabytes} MB"
-        
-        clear_currently_printed_row()
         print(current_progress_bar, end="\r")
 
 
@@ -1399,7 +1379,7 @@ def print_confusion_matrix(
             # will be highlighted in a color whose intensity is proportional
             # to the value they hold (relative to the used colormap), i.e.
             # the returned confusion matrix will have a background gradient
-            conf_matrix_styler = conf_matrix_as_dataframe.style.applymap(
+            conf_matrix_styler = conf_matrix_as_dataframe.style.map(
                 highlight_all_cells,
                 colormap=colormap
             )
@@ -1428,7 +1408,7 @@ def print_confusion_matrix(
         #       DataFrame object
         
         print(conf_matrix_header)
-        display(conf_matrix_styler)
+        IPython_display(conf_matrix_styler)
         
         return
     

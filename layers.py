@@ -225,7 +225,7 @@ class Layer(ABC):
         """
         Computes the output Y of a layer for a given input X. The `training`
         kwarg indicates whether we're currently in the training phase or not
-        (`training` will only be set to `False` during the validation and testing
+        (`training` will only be set to `False` during the validation and test
          phases)
         """
         pass
@@ -1147,7 +1147,7 @@ class DropoutLayer(Layer):
             self.output = self.input * self.dropout_matrix
         else:
             # the "dropout process" does NOT apply during the validation and
-            # testing phases
+            # test phases
             self.output = self.input
         
         if enable_checks:
