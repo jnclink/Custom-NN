@@ -42,7 +42,8 @@ from utils import (
 from core import (
     split_data_into_batches,
     accuracy_score,
-    confusion_matrix
+    confusion_matrix,
+    train_test_split
 )
 
 from losses import (
@@ -638,6 +639,14 @@ class Network:
             str_learning_rate = f"{learning_rate:.{learning_rate_precision}f}"
             print(f"\nThe network's optimizer was successfully set to \"{self.optimizer_name}\" (learning_rate={str_learning_rate})")
     
+
+    def reset_optimizer(self) -> None:
+        """
+        Resets the optimizer of (all the layers of) the network
+        """
+        for layer in self._layers:
+            layer.reset_optimizer()
+    
     
     def set_loss_function(
             self,
@@ -1071,6 +1080,9 @@ class Network:
                     # updating the seed in order to make the shuffling of the
                     # training data different at each epoch
                     seed += 1 # the increment value is arbitrary
+                
+                # re-initializing the network's optimizer
+                self.reset_optimizer()
                 
                 # initializing the training loss and accuracy
                 train_loss     = self._zero
@@ -1880,14 +1892,30 @@ class Network:
         
         nb_predictions = nb_rows * nb_columns
         nb_test_samples = used_X_test.shape[0]
-        
-        np.random.seed(seed)
-        random_test_indices = np.random.choice(np.arange(nb_test_samples), size=(nb_predictions, ), replace=False)
-        np.random.seed(None) # resetting the seed
-        
-        random_test_samples = used_X_test[random_test_indices, :]
-        logits = self.predict(random_test_samples) # = y_pred
-        
+
+        if nb_predictions >= nb_classes:
+            random_test_samples, _, random_test_labels, _ = train_test_split(
+                used_X_test,
+                y_test_flat,
+                train_size=nb_predictions,
+                stratify=True, # keeping the same class distribution as `y_test_flat`
+                random_state=seed
+            )
+        else:
+            np.random.seed(seed)
+            random_test_indices = np.random.choice(
+                np.arange(nb_test_samples),
+                size=(nb_predictions, ),
+                replace=False
+            )
+            np.random.seed(None) # resetting the seed
+
+            random_test_samples = used_X_test[random_test_indices, :]
+            random_test_labels  = y_test_flat[random_test_indices]
+
+        # actually computing the logits (i.e. `y_pred`)
+        logits = self.predict(random_test_samples)
+
         # getting the class indices of the "top-2 integer predictions"
         predicted_class_indices = np.fliplr(np.argsort(logits, axis=1))[:, 0 : 2]
         
@@ -1921,7 +1949,7 @@ class Network:
             second_choice_predicted_class_name = class_names[second_choice_predicted_class_index]
             confidence_level_second_choice = 100 * logits[image_index, second_choice_predicted_class_index]
             
-            actual_class_index = y_test_flat[random_test_indices[image_index]]
+            actual_class_index = random_test_labels[image_index]
             actual_class_name = class_names[actual_class_index]
             
             random_test_image = random_test_samples[image_index, :].reshape(default_image_shape)
@@ -1931,7 +1959,7 @@ class Network:
             
             if len(default_image_shape) == 2:
                 ax[row_index, column_index].imshow(random_test_image, cmap="gray")
-            if len(default_image_shape) == 3:
+            elif len(default_image_shape) == 3:
                 ax[row_index, column_index].imshow(random_test_image)
             
             subplot_title = f"1st prediction : {predicted_class_name} ({confidence_level_first_choice:.{confidence_level_precision}f}%)"

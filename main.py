@@ -502,10 +502,10 @@ def main():
     
     # If you lower the batch size, you might also want to lower the learning
     # rate, in order to prevent the network from overfitting
-    train_batch_size = 20
+    train_batch_size = 16
     
     # The learning rate is a small positive constant in the range ]0, 1[
-    learning_rate = 0.00001
+    learning_rate = 1e-5
     
     # ---------------------------------------------------------------------- #
     

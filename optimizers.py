@@ -125,6 +125,13 @@ class Optimizer(ABC):
         """
         pass
 
+    @abstractmethod
+    def reset(self) -> None:
+        """
+        Resets the optimizer (if needed)
+        """
+        pass
+
 
 ##############################################################################
 
@@ -141,6 +148,12 @@ class SgdOptimizer(Optimizer):
         ) -> None:
         
         super().__init__(learning_rate, regularizer=regularizer)
+    
+    def reset(self) -> None:
+        """
+        Resets the optimizer
+        """
+        pass
     
     def optimize_weights(
             self,
@@ -237,16 +250,23 @@ class AdamOptimizer(Optimizer):
         self.epsilon: float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
         
+        # resetting the current Optimizer instance
+        self.reset()
+    
+    def reset(self) -> None:
+        """
+        Resets the optimizer
+        """
         # if the scaling factors become *really close* to one, then there's
         # no point in computing them anymore
         self._stop_computing_scaling_factor_1: bool = False
         self._stop_computing_scaling_factor_2: bool = False
-        
-        # initializing the list that will contain the first and second moments
+
+        # re-initializing the lists that will contain the first and second moments
         self.first_moments:  list[Union[float, np.ndarray]] = []
         self.second_moments: list[Union[float, np.ndarray]] = []
         
-        # initializing the timestep
+        # re-initializing the timestep
         self.t: int = 0
     
     def optimize_weights(
@@ -414,10 +434,18 @@ class RMSpropOptimizer(Optimizer):
         # by default (used for numerical stability)
         self.epsilon: float = cast(1e-5, utils.DEFAULT_DATATYPE)
         assert (self.epsilon > 0) and (self.epsilon < 1e-2)
-        
+
+        # resetting the current Optimizer instance
+        self.reset()
+    
+    def reset(self) -> None:
+        """
+        Resets the optimizer
+        """
         # initializing the list that will contain the moments
         self.moments: list[Union[float, np.ndarray]] = []
         
+        # boolean indicating whether the moments are initialized or not
         self._moments_are_initialized: bool = False
     
     def optimize_weights(

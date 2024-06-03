@@ -214,6 +214,13 @@ class Layer(ABC):
         """
         assert self.optimizer_name is not None
     
+    def reset_optimizer(self) -> None:
+        """
+        Resets the layer's optimizer
+        """
+        self._check_if_optimizer_is_set()
+        self._optimizer.reset()
+    
     @abstractmethod
     def forward_propagation(
             self,
