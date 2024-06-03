@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script containing some core functions of the project
 """
@@ -10,7 +8,7 @@ from typing import Union, Optional, Iterator
 
 import numpy as np
 
-from utils import (
+from src.utils import (
     basic_split,
     _validate_split_data_into_batches_inputs,
     _validate_label_vector,

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script defining the main layer classes
 """
@@ -12,8 +10,8 @@ from typing import Union, Optional, Callable
 
 import numpy as np
 
-import utils
-from utils import (
+import src.utils as utils
+from src.utils import (
     cast,
     check_dtype,
     list_to_string,
@@ -23,16 +21,16 @@ from utils import (
     _validate_leaky_ReLU_coeff
 )
 
-from optimizers import (
+from src.optimizers import (
     Optimizer,
     SgdOptimizer,
     AdamOptimizer,
     RMSpropOptimizer
 )
 
-from regularizers import Regularizer, L1, L2, L1_L2
+from src.regularizers import Regularizer, L1, L2, L1_L2
 
-from activations import (
+from src.activations import (
     ReLU,        ReLU_prime,
     leaky_ReLU,  leaky_ReLU_prime,
     tanh,        tanh_prime,

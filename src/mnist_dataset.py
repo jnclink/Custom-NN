@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script defining all the functions that are specific to the MNIST dataset
 """
@@ -13,8 +11,8 @@ from typing import Union, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
-import utils
-from utils import (
+import src.utils as utils
+from src.utils import (
     cast,
     check_dtype,
     get_dtype_of_array,
@@ -27,7 +25,7 @@ from utils import (
     _validate_selected_classes
 )
 
-from core import train_test_split
+from src.core import train_test_split
 
 
 ##############################################################################
@@ -270,7 +268,7 @@ def plot_random_images_from_raw_MNIST_dataset(
     
     data_types = ["train", "test"]
     
-    fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(16, 8))
+    _, ax = plt.subplots(nb_rows, nb_columns, figsize=(16, 8))
     plt.suptitle("\nRandom MNIST samples of each digit", fontsize=15)
     
     np.random.seed(seed)

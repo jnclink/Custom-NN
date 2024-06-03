@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script defining some optimizers that can be used during the training loop
 """
@@ -11,14 +9,14 @@ from typing import Union, Optional
 
 import numpy as np
 
-import utils
-from utils import (
+import src.utils as utils
+from src.utils import (
     cast,
     check_dtype,
     count_nb_decimals_places
 )
 
-from regularizers import Regularizer
+from src.regularizers import Regularizer
 
 
 ##############################################################################

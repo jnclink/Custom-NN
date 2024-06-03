@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script defining some regularizers
 """
@@ -8,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from utils import count_nb_decimals_places
+from src.utils import count_nb_decimals_places
 
 
 ##############################################################################

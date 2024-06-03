@@ -1,23 +1,21 @@
-# -*- coding: utf-8 -*-
-
 """
 Script debugging the whole custom neural network implementation
 """
 
-from utils import (
+from src.utils import (
     set_global_datatype,
     print_confusion_matrix
 )
 
-from mnist_dataset import (
+from src.mnist_dataset import (
     load_raw_MNIST_dataset_from_disk,
     plot_random_images_from_raw_MNIST_dataset,
     format_raw_MNIST_dataset
 )
 
-from network import Network
+from src.network import Network
 
-from layers import (
+from src.layers import (
     InputLayer,
     DenseLayer,
     ActivationLayer,
@@ -25,9 +23,9 @@ from layers import (
     DropoutLayer
 )
 
-from regularizers import L1, L2, L1_L2
+from src.regularizers import L1, L2, L1_L2
 
-from callbacks import EarlyStoppingCallback
+from src.callbacks import EarlyStoppingCallback
 
 
 ##############################################################################

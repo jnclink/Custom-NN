@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script defining the main network class
 """
@@ -21,8 +19,8 @@ from matplotlib.ticker import MaxNLocator
 # used to print colored text in a Python console/terminal
 from colorama import init, Fore, Style
 
-import utils
-from utils import (
+import src.utils as utils
+from src.utils import (
     cast,
     check_dtype,
     standardize_data,
@@ -39,19 +37,19 @@ from utils import (
     _validate_one_hot_encoded_array
 )
 
-from core import (
+from src.core import (
     split_data_into_batches,
     accuracy_score,
     confusion_matrix,
     train_test_split
 )
 
-from losses import (
+from src.losses import (
     CCE, CCE_prime,
     MSE, MSE_prime
 )
 
-from layers import (
+from src.layers import (
     Layer,
     InputLayer,
     DenseLayer,
@@ -60,7 +58,7 @@ from layers import (
     DropoutLayer
 )
 
-from callbacks import (
+from src.callbacks import (
     Callback,
     EarlyStoppingCallback
 )
@@ -102,7 +100,6 @@ class Network:
             *,
             standardize_input_data: bool = True
         ) -> None:
-        
         assert isinstance(standardize_input_data, bool)
         self._standardize_input_data: bool = standardize_input_data
         
@@ -1406,7 +1403,7 @@ class Network:
         
         # generating the plot
         
-        fig, ax = plt.subplots(1, 2, figsize=(16, 8))
+        _, ax = plt.subplots(1, 2, figsize=(16, 8))
         plt.suptitle(f"\nHistory of the network's training phase (over {nb_epochs} epochs)", fontsize=15)
         
         # losses subplot
@@ -1448,9 +1445,15 @@ class Network:
         # saving the plot (if requested)
         
         if save_plot_to_disk:
+            # absolute path of the folder containing all the saved plots
+            saved_plots_full_folder_name = os.path.join(
+                os.getcwd(),
+                Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME
+            )
+
             # creating the folder containing the saved plots (if it doesn't exist)
-            if not(os.path.exists(Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME)):
-                os.mkdir(Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME)
+            if not(os.path.exists(saved_plots_full_folder_name)):
+                os.mkdir(saved_plots_full_folder_name)
             
             # the PNG extension was mainly chosen as the default extension
             # because it is supported by all the Matplotlib backends
@@ -1462,8 +1465,7 @@ class Network:
             
             # getting the absolute path of the saved plot
             saved_image_path = os.path.join(
-                os.getcwd(),
-                Network.DEFAULT_SAVED_PLOTS_FOLDER_NAME,
+                saved_plots_full_folder_name,
                 saved_image_full_name
             )
             
@@ -1937,7 +1939,7 @@ class Network:
         
         # displaying the predictions
         
-        fig, ax = plt.subplots(nb_rows, nb_columns, figsize=(16, 8))
+        _, ax = plt.subplots(nb_rows, nb_columns, figsize=(16, 8))
         plt.suptitle(f"\nPredictions of {nb_predictions}/{nb_test_samples} random test samples (and their confidence level)", fontsize=15)
         
         for image_index in range(nb_predictions):
@@ -2108,10 +2110,16 @@ class Network:
             raise ValueError("Network.save - Please don't add sub-folder info to the specified `filename` kwarg ! Just type in the basename of the file that will contain the saved network")
         
         # ------------------------------------------------------------------ #
+
+        # absolute path of the folder containing all the saved networks
+        saved_networks_full_folder_name = os.path.join(
+            os.getcwd(),
+            Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME
+        )
         
         # creating the folder containing the saved networks (if it doesn't exist)
-        if not(os.path.exists(Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME)):
-            os.mkdir(Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME)
+        if not(os.path.exists(saved_networks_full_folder_name)):
+            os.mkdir(saved_networks_full_folder_name)
         
         # getting the corrected (full) basename of the saved network
         root_of_saved_network_name = os.path.splitext(filename)[0].replace(".", "_")
@@ -2119,8 +2127,7 @@ class Network:
         
         # getting the absolute path of the saved network
         saved_network_path = os.path.join(
-            os.getcwd(),
-            Network.DEFAULT_SAVED_NETWORKS_FOLDER_NAME,
+            saved_networks_full_folder_name,
             saved_network_full_name
         )
         

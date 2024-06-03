@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Script defining some callback classes that can be used during the training loop
 """
@@ -11,7 +9,7 @@ from typing import Callable
 
 import numpy as np
 
-from utils import list_to_string
+from src.utils import list_to_string
 
 
 ##############################################################################

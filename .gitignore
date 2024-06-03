@@ -174,4 +174,11 @@ saved_networks/
 # Profiling stats (for performance analysis)
 *.prof
 
+# Random backup files
+*.bak
+
+# Ignore any file inside the "src" folder that isn't a Python script
+src/*
+!src/*.py
+
 # ----------------------------------------------------------------------- #
