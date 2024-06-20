@@ -879,6 +879,11 @@ class ActivationLayer(Layer):
         else:
             # matrix multiplication (NOT element-wise multiplication)
             input_gradient = np.squeeze(np.expand_dims(output_gradient, axis=1) @ activation_prime_of_input)
+
+            # this has to be done, to prevent a bug from occurring when the
+            # batch size is equal to 1 (this is an edge case)
+            if input_gradient.ndim == 1:
+                input_gradient = np.expand_dims(input_gradient, axis=0)
         
         if enable_checks:
             check_dtype(input_gradient, utils.DEFAULT_DATATYPE)

@@ -1066,7 +1066,7 @@ def _download_data(
             t_beginning_download = perf_counter()
             
             # actually downloading the raw data from `data_URL`, and saving
-            # it to the location `default_path_of_downloaded_data`
+            # it to the location `path_of_downloaded_data`
             urlretrieve(
                 url=data_URL,
                 filename=path_of_downloaded_data,
