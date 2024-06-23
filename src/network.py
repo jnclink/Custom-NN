@@ -1721,13 +1721,15 @@ class Network:
         # ------------------------------------------------------------------ #
         
         # computing the accuracy scores and the raw confusion matrix
+
+        forced_nb_digits = 4
         
-        acc_score = 100 * test_accuracy
+        acc_score = round(100 * test_accuracy, forced_nb_digits)
         conf_matrix = confusion_matrix(y_test_flat, y_pred_flat)
         
         # checking that the accuracy score computed from the confusion matrix
         # is the same as the one computed by the `accuracy_score` function
-        acc_score_from_conf_matrix = 100 * float(np.sum(np.diag(conf_matrix))) / y_test_flat.size
+        acc_score_from_conf_matrix = round(100 * float(np.sum(np.diag(conf_matrix))) / y_test_flat.size, forced_nb_digits)
         assert np.allclose(acc_score_from_conf_matrix, acc_score)
         
         if top_N_accuracy == 1:
@@ -1745,7 +1747,7 @@ class Network:
                 if test_label in top_N_predictions:
                     top_N_acc_score += 1
             
-            top_N_acc_score = 100 * float(top_N_acc_score) / nb_test_samples
+            top_N_acc_score = round(100 * float(top_N_acc_score) / nb_test_samples, forced_nb_digits)
         
         assert top_N_acc_score >= acc_score
         
