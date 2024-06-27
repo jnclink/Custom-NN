@@ -31,6 +31,7 @@ from src.utils import (
     progress_bar,
     is_being_run_on_jupyter_notebook,
     count_nb_decimals_places,
+    format_runtime,
     _validate_label_vector,
     _validate_selected_classes,
     _validate_numpy_dtype,
@@ -1302,10 +1303,10 @@ class Network:
         # termination of the training loop
         
         average_epoch_duration = duration_training / nb_epochs
-        if _has_validation_data:
-            average_batch_duration = average_epoch_duration / (nb_train_batches + nb_val_batches)
-        else:
-            average_batch_duration = average_epoch_duration / nb_train_batches
+
+        # NB : this is an approximation of the average processing time of
+        # a single *training* batch !
+        average_batch_duration = average_epoch_duration / nb_train_batches
         average_batch_duration_in_milliseconds = 1000 * average_batch_duration
         
         space_or_newline = " " * int(_has_validation_data) + f"\n{offset_spacing}" * int(not(_has_validation_data))
@@ -1314,7 +1315,8 @@ class Network:
         if not(_training_loop_was_prematurely_stopped):
             conclusion += f"\n{offset_spacing}Training complete !\n"
         time_precision = 1 # by default
-        conclusion += f"\n{offset_spacing}Done in {duration_training:.{time_precision}f} seconds{space_or_newline}({average_epoch_duration:.{time_precision}f} s/epoch, {average_batch_duration_in_milliseconds:.{time_precision}f} ms/batch)"
+        formatted_duration_training = format_runtime(duration_training, decimal_precision=time_precision)
+        conclusion += f"\n{offset_spacing}Done in {formatted_duration_training}{space_or_newline}({average_epoch_duration:.{time_precision}f} s/epoch, {average_batch_duration_in_milliseconds:.{time_precision}f} ms/batch)"
         print(conclusion)
         
         print(transition)

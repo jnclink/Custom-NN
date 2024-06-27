@@ -640,6 +640,103 @@ def display_class_distributions(
     print(displayed_string)
 
 
+def format_runtime(runtime_in_seconds: float, decimal_precision: int = 1) -> str:
+    """
+    Returns the formatted input runtime
+    """
+    # quick input checks
+    assert isinstance(runtime_in_seconds, (float, int)) and (runtime_in_seconds >= 0)
+    assert isinstance(decimal_precision, int) and (decimal_precision >= 0)
+
+    # computing the (rounded) decimal part of `runtime_in_seconds`
+    decimal_part = round(float(runtime_in_seconds) - int(runtime_in_seconds), decimal_precision)
+
+    # converting `runtime_in_seconds` to an integer
+    runtime_in_seconds = int(runtime_in_seconds)
+
+    # computing `nb_days`, `nb_hours`, `nb_minutes`, `nb_seconds`
+    # and `nb_seconds_with_decimal_part`
+    nb_days, remaining_runtime_in_seconds = divmod(runtime_in_seconds, 86400)
+    nb_hours, remaining_runtime_in_seconds = divmod(remaining_runtime_in_seconds, 3600)
+    nb_minutes, nb_seconds = divmod(remaining_runtime_in_seconds, 60)
+    nb_seconds_with_decimal_part = round(nb_seconds + decimal_part, decimal_precision)
+
+    # defining some useful auxiliary boolean variables, that'll be used
+    # to format `nb_days`, `nb_hours`, `nb_minutes` and `nb_seconds_with_decimal_part`
+    formatted_nb_days_is_empty_string = (nb_days == 0)
+    formatted_nb_hours_is_empty_string = (
+        (nb_hours == 0)
+        and
+        formatted_nb_days_is_empty_string
+    )
+    formatted_nb_minutes_is_empty_string = (
+        (nb_minutes == 0)
+        and
+        formatted_nb_hours_is_empty_string
+    )
+    formatted_nb_seconds_is_empty_string = False # we always want the seconds info
+    add_extra_s_to_formatted_nb_days = (nb_days > 1)
+    add_extra_s_to_formatted_nb_hours = (
+        (nb_hours > 1)
+        or
+        (
+            (nb_days > 0)
+            and
+            (nb_hours == 0)
+        )
+    )
+    add_extra_s_to_formatted_nb_minutes = (
+        (nb_minutes > 1)
+        or
+        (
+            (
+                (nb_days > 0)
+                or
+                (nb_hours > 0)
+            )
+            and
+            (nb_minutes == 0)
+        )
+    )
+    add_extra_s_to_formatted_nb_seconds = (nb_seconds != 1) # we always want the seconds info
+
+    # generating the formatted counterparts of (respectively)
+    # `nb_days`, `nb_hours`, `nb_minutes` and `nb_seconds_with_decimal_part`
+    formatted_nb_days    = f"{nb_days} day"       * int(not(formatted_nb_days_is_empty_string))    + "s" * int(add_extra_s_to_formatted_nb_days)
+    formatted_nb_hours   = f"{nb_hours} hour"     * int(not(formatted_nb_hours_is_empty_string))   + "s" * int(add_extra_s_to_formatted_nb_hours)
+    formatted_nb_minutes = f"{nb_minutes} minute" * int(not(formatted_nb_minutes_is_empty_string)) + "s" * int(add_extra_s_to_formatted_nb_minutes)
+    formatted_nb_seconds = f"{nb_seconds_with_decimal_part:.{decimal_precision}f} second" * int(not(formatted_nb_seconds_is_empty_string)) + "s" * int(add_extra_s_to_formatted_nb_seconds)
+
+    # initializing `formatted_runtime_components`
+    formatted_runtime_components = [
+        formatted_nb_days,
+        formatted_nb_hours,
+        formatted_nb_minutes
+    ]
+
+    # updating `formatted_runtime_components`
+    if len(formatted_nb_days) == 0:
+        # removing `formatted_nb_days` from `formatted_runtime_components`
+        formatted_runtime_components.pop(0)
+    if (len(formatted_runtime_components) == 2) and (len(formatted_nb_hours) == 0):
+        # removing `formatted_nb_hours` from `formatted_runtime_components`
+        formatted_runtime_components.pop(0)
+    if (len(formatted_runtime_components) == 1) and (len(formatted_nb_minutes) == 0):
+        # removing `formatted_nb_minutes` from `formatted_runtime_components`
+        formatted_runtime_components.pop(0)
+
+    # initializing `formatted_runtime`
+    formatted_runtime = ""
+
+    # updating/generating `formatted_runtime`
+    default_component_separator = ", " # it could also be set to " "
+    if len(formatted_runtime_components) > 0:
+        formatted_runtime += default_component_separator.join(formatted_runtime_components) + " and "
+    formatted_runtime += formatted_nb_seconds # we always want the seconds info
+
+    return formatted_runtime
+
+
 ##############################################################################
 
 
