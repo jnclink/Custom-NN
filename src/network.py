@@ -1739,17 +1739,40 @@ class Network:
             # `top_N_accuracy` most probable predicted classes (in descending
             # order of probability)
             top_N_integer_predictions = np.fliplr(np.argsort(y_pred, axis=1))[:, 0 : top_N_accuracy]
-            
+
+            # this variable is only defined to help fix a weird bug where all the
+            # the probabilities (of a specific prediction of `y_pred`) are equal to
+            # `1.0 / nb_classes` (it's extremely rare, but possible)
+            prediction_with_equal_probabilities = np.full((nb_classes, ), 1.0 / nb_classes, dtype=utils.DEFAULT_DATATYPE)
+
+            # initializing the (raw) top-N accuracy score
             top_N_acc_score = 0
             
-            for test_label, top_N_predictions in zip(y_test_flat, top_N_integer_predictions):
+            for test_prediction, test_label, top_N_predictions in zip(y_pred, y_test_flat, top_N_integer_predictions):
+                # this is only done to prevent a weird bug where all the probabilities
+                # (of a specific prediction of `y_pred`) are equal to `1.0 / nb_classes`
+                # (it's extremely rare, but possible)
+                if np.allclose(
+                    test_prediction,
+                    prediction_with_equal_probabilities,
+                    rtol=0,
+                    atol=utils.DTYPE_RESOLUTION
+                ):
+                    default_test_label = 0 # by design
+                    if test_label == default_test_label:
+                        top_N_acc_score += 1
+                    continue
+                
                 # by definition of the "top-N accuracy"
                 if test_label in top_N_predictions:
                     top_N_acc_score += 1
             
             top_N_acc_score = round(100 * float(top_N_acc_score) / nb_test_samples, forced_nb_digits)
         
-        assert top_N_acc_score >= acc_score
+        # unit test : we should always have `top_N_acc_score >= acc_score` !
+        if top_N_acc_score < acc_score:
+            precision_accuracy_scores = 2
+            raise Exception(f"\n\ntop-{top_N_accuracy}={top_N_acc_score:.{precision_accuracy_scores}f}%, top-1={acc_score:.{precision_accuracy_scores}f}% : We should have top-{top_N_accuracy} >= top-1 !\n")
         
         # ------------------------------------------------------------------ #
         
