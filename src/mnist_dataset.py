@@ -473,8 +473,8 @@ def format_raw_MNIST_dataset(
     X_test  = cast(X_test,  utils.DEFAULT_DATATYPE)
     
     # casting the "uint8" labels into "int32" labels (optional)
-    y_train = np.int_(y_train)
-    y_test  = np.int_(y_test)
+    y_train = np.int32(y_train)
+    y_test  = np.int32(y_test)
     
     # normalizing the data between 0 and 1 (by convention)
     normalizing_factor = cast(1, utils.DEFAULT_DATATYPE) / cast(255, utils.DEFAULT_DATATYPE)

@@ -1261,7 +1261,7 @@ def highlight_all_cells(
     
     # checking the validity of the specified arguments
     
-    assert isinstance(value, (str, np.str_, float, np.float_))
+    assert isinstance(value, (str, np.str_, float, np.float32, np.float64))
     if isinstance(value, (str, np.str_)):
         # getting rid of the trailing " %", which has a length of 2
         value = float(value[ : -2])
@@ -1397,7 +1397,7 @@ def print_confusion_matrix(
     # converting the confusion matrix into its associated dataframe
     
     if normalize != "no":
-        normalized_conf_matrix = np.float_(np.copy(conf_matrix))
+        normalized_conf_matrix = np.float64(np.copy(conf_matrix))
         
         for class_index in range(nb_classes):
             if normalize == "columns":

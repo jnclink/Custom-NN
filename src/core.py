@@ -270,7 +270,7 @@ def accuracy_score(
     
     # ---------------------------------------------------------------------- #
     
-    acc_score = int(np.where(y_true == y_pred)[0].size) # we want it to be an `int`, not a `np.int_`
+    acc_score = int(np.where(y_true == y_pred)[0].size) # we want it to be an `int`, not a `np.int32`
     
     if normalize:
         nb_samples = y_true.size

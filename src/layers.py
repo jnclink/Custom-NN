@@ -614,10 +614,10 @@ class DenseLayer(Layer):
         if self.use_biases:
             # = self.input_size * self.output_size + self.output_size
             # = (self.input_size + 1) * self.output_size
-            self.nb_trainable_params = int(self.weights.size + self.biases.size) # we want it to be an `int`, not a `np.int_`
+            self.nb_trainable_params = int(self.weights.size + self.biases.size) # we want it to be an `int`, not a `np.int32`
         else:
             # = self.input_size * self.output_size
-            self.nb_trainable_params = int(self.weights.size) # we want it to be an `int`, not a `np.int_`
+            self.nb_trainable_params = int(self.weights.size) # we want it to be an `int`, not a `np.int32`
     
     def forward_propagation(
             self,

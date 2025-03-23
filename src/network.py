@@ -1860,15 +1860,15 @@ class Network:
         if image_shape is not None:
             assert len(image_shape) in [2, 3]
             
-            assert isinstance(image_shape[0], (int, np.int_))
+            assert isinstance(image_shape[0], (int, np.int32, np.int64))
             assert image_shape[0] >= 2
-            assert isinstance(image_shape[1], (int, np.int_))
+            assert isinstance(image_shape[1], (int, np.int32, np.int64))
             assert image_shape[1] >= 2
             
             if len(image_shape) == 2:
                 default_image_shape = image_shape
             elif len(image_shape) == 3:
-                assert isinstance(image_shape[2], (int, np.int_))
+                assert isinstance(image_shape[2], (int, np.int32, np.int64))
                 assert image_shape[2] in [1, 3]
                 
                 if image_shape[2] == 1:
